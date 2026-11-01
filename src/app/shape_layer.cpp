@@ -4,6 +4,7 @@
 #include "core/profile.h"
 #include "render/shape_renderer.h"
 #include "scene/scene.h"
+#include "scene/world.h"
 #include "sim/crowd.h"
 #include "sim/shape_components.h"
 #include "sim/sprite_components.h"
@@ -25,6 +26,7 @@ constexpr uint32_t kFollowField = 3;  // index of Shape::follow in its FieldDesc
 // Outside the anonymous namespace, as ShapeLayer holds them.
 struct ShapeRecord {
     sim::Shape* shape;
+    uint32_t entity_id;
     float trail[kMaxTrail][2];  // x, z per tick, newest at trail_head - 1
     uint32_t trail_head;
     uint32_t trail_count;
@@ -55,14 +57,38 @@ void linear_rgb(uint32_t color, float intensity, float out[3]) {
     memcpy(out, c, sizeof(float) * 3);
 }
 
-render::ShapeInstance make_instance(const sim::Shape& s, float x, float y, float z, float seconds) {
+// Where a shape is drawn: on an entity with a Transform or a parent, its position is an offset in
+// the entity's space and it turns and scales with it (D-031); screen shapes take the offset and
+// scale, not the turn.
+struct Placement {
+    float position[3];
+    float rotation;  // degrees added to the shape's own
+    float scale;
+};
+
+Placement place(scene::Scene* scene, const ShapeRecord& r) {
+    const sim::Shape& s = *r.shape;
+    Placement p{{s.position[0], s.position[1], s.position[2]}, 0.0f, 1.0f};
+    const scene::Entity* e = scene::entity_by_id(scene, r.entity_id);
+    if (!e || (!e->parent_id && !scene::get_component(e, &scene::kTransformDesc))) return p;
+    if (s.space == sim::kSpriteScreen) {
+        for (int k = 0; k < 2; ++k) p.position[k] = e->world.position[k] + s.position[k] * e->world.scale;
+    } else {
+        scene::transform_point(e->world, s.position, p.position);
+        p.rotation = e->world.rotation;
+    }
+    p.scale = e->world.scale;
+    return p;
+}
+
+render::ShapeInstance make_instance(const sim::Shape& s, const Placement& at, float x, float y, float z, float seconds) {
     render::ShapeInstance in = {};
     in.position[0] = x;
     in.position[1] = y;
     in.position[2] = z;
-    in.rotation = (s.rotation + s.spin * seconds) * kDegrees;
-    in.size[0] = s.size[0];
-    in.size[1] = s.size[1];
+    in.rotation = (s.rotation + at.rotation + s.spin * seconds) * kDegrees;
+    in.size[0] = s.size[0] * at.scale;
+    in.size[1] = s.size[1] * at.scale;
     in.thickness = s.thickness;
     in.glow = s.glow;
     render::shape_color(s.color, s.intensity, in.color);
@@ -157,6 +183,7 @@ void sync_records(ShapeLayer* l) {
             j = k + 1;
         } else {
             r.shape = shape;
+            r.entity_id = s->entities[i].id;
         }
     }
     free(old);
@@ -200,6 +227,7 @@ ShapeLayer* create_shape_layer(scene::Scene* s, DiagList* diags, bool* failed) {
             diag_add(diags, kErrShape, s->path, line, 1,
                      "entity '%s': a screen shape cannot follow the player; use space = \"world\"", e.name);
         }
+        l->records[l->count].entity_id = e.id;
         l->records[l->count++].shape = shape;
     }
     if (diags->count != before) {
@@ -233,8 +261,9 @@ void step_shapes(ShapeLayer* l, uint64_t, float player_x, float player_z) {
             continue;
         }
         const bool follow = s.follow == sim::kShapeFollowPlayer;
-        r.trail[r.trail_head][0] = s.position[0] + (follow ? player_x : 0.0f);
-        r.trail[r.trail_head][1] = s.position[2] + (follow ? player_z : 0.0f);
+        const Placement at = place(l->scene, r);
+        r.trail[r.trail_head][0] = at.position[0] + (follow ? player_x : 0.0f);
+        r.trail[r.trail_head][1] = at.position[2] + (follow ? player_z : 0.0f);
         r.trail_head = (r.trail_head + 1) % kMaxTrail;
         if (r.trail_count < kMaxTrail) r.trail_count++;
     }
@@ -310,10 +339,11 @@ void render_shape_layer(ShapeLayer* l, const float view_proj[16], rhi::Texture* 
             const sim::Shape& s = *r.shape;
             if (!s.visible || s.space != space) continue;
             const bool follow = space == sim::kSpriteWorld && s.follow == sim::kShapeFollowPlayer;
-            const float x = s.position[0] + (follow ? player_x : 0.0f);
-            const float z = s.position[2] + (follow ? player_z : 0.0f);
-            if (space == sim::kSpriteWorld && s.trail > 0.0f) n += add_trail(r, x, s.position[1], z, l->instances + n);
-            l->instances[n++] = make_instance(s, x, s.position[1], z, seconds);
+            const Placement at = place(l->scene, r);
+            const float x = at.position[0] + (follow ? player_x : 0.0f);
+            const float z = at.position[2] + (follow ? player_z : 0.0f);
+            if (space == sim::kSpriteWorld && s.trail > 0.0f) n += add_trail(r, x, at.position[1], z, l->instances + n);
+            l->instances[n++] = make_instance(s, at, x, at.position[1], z, seconds);
         }
         if (pass == 0) world = n;
     }

@@ -463,7 +463,19 @@ void render_sprite_layer(SpriteLayer* l, const float view_proj[16], const float 
                 const scene::SpriteSheet* sheet = l->sheets[r.sheet];
                 render::SpriteInstance& inst = l->instances[n];
                 memcpy(inst.position, s.position, sizeof(inst.position));
-                inst.scale = pass == 0 ? s.scale / sheet->pixels_per_unit : s.scale;
+                float scale = s.scale;
+                // On an entity with a Transform or a parent, the sprite's position is an offset in
+                // the entity's space (D-031). Screen sprites take the offset and scale, not the turn.
+                const scene::Entity* e = scene::entity_by_id(l->scene, r.entity_id);
+                if (e && (e->parent_id || scene::get_component(e, &scene::kTransformDesc))) {
+                    if (pass == 0) {
+                        scene::transform_point(e->world, s.position, inst.position);
+                    } else {
+                        for (int k = 0; k < 2; ++k) inst.position[k] = e->world.position[k] + s.position[k] * e->world.scale;
+                    }
+                    scale *= e->world.scale;
+                }
+                inst.scale = pass == 0 ? scale / sheet->pixels_per_unit : scale;
                 inst.frame = s.frame;
                 inst.color = s.color;
                 inst.flags = s.flip_x ? render::kSpriteFlipX : 0u;

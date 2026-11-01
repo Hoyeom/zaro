@@ -232,6 +232,11 @@ if(ZARO_BUILD_TESTS)
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(check_spawn_prefabs PROPERTIES
     PASS_REGULAR_EXPRESSION "unnamed.toml:1:1: error\\[ZE1200\\]: a prefab in \\[scene\\] prefabs needs a name.*bad_prefabs_scene.toml:4:1: error\\[ZE1200\\]: prefabs '[^']*grunt.toml' and '[^']*grunt_again.toml' are both named 'grunt'")
+  # Scene entities may have parents (D-031), which must come earlier in the file.
+  add_test(NAME check_entity_parents COMMAND zaro check tests/data/scripts/bad_parent_scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_entity_parents PROPERTIES
+    PASS_REGULAR_EXPRESSION "bad_parent_scene.toml:10:11: error\\[ZE0408\\]: parent 'planet' must come before entity 'moon'.*bad_parent_scene.toml:14:11: error\\[ZE0408\\]: unknown parent entity 'snu' \\(did you mean 'sun'")
   add_test(NAME scene_tests_sprites COMMAND zaro test tests/data/sprites
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME screenshot_sprites

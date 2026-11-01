@@ -16,6 +16,12 @@
 //   [entity.PlayerController]        # a registered scene component; fields override the prefab
 //   speed = 9.0
 //
+//   [[entity]]
+//   name = "shield"
+//   parent = "player"                # optional: an earlier entity; it moves, turns and scales this
+//   [entity.Transform]               # one (scene/world.h, D-031)
+//   position = [2.0, 0.0, 0.0]
+//
 // A screen file (D-020) has the same shape with UI widgets on nodes instead of components on
 // entities. A node's parent must come earlier in the file; nodes without one are top level.
 //
@@ -59,6 +65,13 @@ enum class DocKind : uint8_t { kScene, kScreen };
 
 enum ScreenTransition : uint32_t { kTransitionNone, kTransitionFade, kTransitionPop };
 
+// Where an entity is in the world: its Transform combined with its parents' (scene/world.h).
+struct WorldTransform {
+    float position[3];
+    float rotation;  // degrees about +y
+    float scale;
+};
+
 struct ComponentData {
     const reflect::ComponentDesc* desc;
     void* data;        // desc->size bytes
@@ -70,7 +83,7 @@ struct Entity {
     char name[kNameCapacity];
     char prefab[kPathCapacity];  // as written in the file, empty if none
     int line;                    // line of the entity or node in the file
-    char parent[kNameCapacity];  // screens: the parent node's name, empty at the top level
+    char parent[kNameCapacity];  // the parent's name as the file wrote it, empty at the top level
     int parent_index;            // screens: index of the parent in `entities`, -1 at the top level
     ComponentData* components;
     uint32_t component_count;
@@ -78,6 +91,8 @@ struct Entity {
     // spawned ones continue (scene/world.h), so `entities` is always in id order.
     uint32_t id;
     bool destroyed;  // destroyed this tick; removed by flush_entities at the end of it
+    uint32_t parent_id;    // scenes: the parent's id, 0 at the top level
+    WorldTransform world;  // scenes: as of the last scene::update_transforms
 };
 
 // A prefab from [scene] prefabs, kept loaded so scripts can spawn it (scene/world.h).

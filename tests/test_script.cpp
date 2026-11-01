@@ -1,11 +1,13 @@
 // Luau scripts: hooks and the zaro API, error ids and lines, sandbox, time budget, seeded random,
 // hot reload. argv[1] is a writable directory for the reload test; run from the repository root.
+#include "core/detmath.h"
 #include "core/diag.h"
 #include "scene/scene.h"
 #include "scene/world.h"
 #include "script/script.h"
 #include "sim/crowd_components.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -207,10 +209,41 @@ void test_events() {
     }
 }
 
+// Parents and world transforms (D-031): hierarchy.luau asserts positions; this checks the cascade.
+void test_hierarchy() {
+    Run r("tests/data/scripts/hierarchy.luau", 1, 1.0, "tests/data/scripts/hierarchy_scene.toml");
+    expect(r.script && zaro::script::call_start(r.script, r.diags), "hierarchy.luau on_start");
+    if (!r.script) return;
+    expect(zaro::script::call_tick(r.script, 1, r.diags), "a turned parent carries its children");
+    expect(zaro::script::call_tick(r.script, 2, r.diags), "destroying a parent destroys its children");
+    expect(zaro::scene::flush_entities(r.scene) == 3 && r.scene->entity_count == 1, "only the comet is left");
+    if (r.diags->count) zaro::diag_print_text(r.diags, stderr);
+}
+
+// core/detmath.h agrees with the C library to well below float precision.
+void test_detmath() {
+    double worst = 0.0;
+    for (int i = -7200; i <= 7200; ++i) {
+        const double deg = i * 0.37;
+        double s = 0.0, c = 0.0;
+        zaro::det_sincos_deg(deg, &s, &c);
+        const double r = deg * (3.14159265358979323846 / 180.0);
+        worst = fmax(worst, fmax(fabs(s - sin(r)), fabs(c - cos(r))));
+    }
+    expect(worst < 1e-12, "det_sincos_deg matches sin/cos");
+    double worst_exp = 0.0;
+    for (int i = -400; i <= 400; ++i) {
+        const double x = i * 0.073;
+        worst_exp = fmax(worst_exp, fabs(zaro::det_exp2(x) / exp2(x) - 1.0));
+    }
+    expect(worst_exp < 1e-13, "det_exp2 matches exp2");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     zaro::sim::register_crowd_components();
+    zaro::scene::register_scene_components();
     test_hooks();
     test_errors();
     test_sandbox();
@@ -218,6 +251,8 @@ int main(int argc, char** argv) {
     test_reload(argc > 1 ? argv[1] : ".");
     test_world();
     test_events();
+    test_hierarchy();
+    test_detmath();
     if (g_failures) {
         fprintf(stderr, "test_script: %d failure(s)\n", g_failures);
         return 1;

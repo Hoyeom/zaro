@@ -85,7 +85,10 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
                         player ? player->speed : sim::PlayerController{}.speed);
     }
     sim::step(g.crowd, input);
-    if (g.scene) scene::flush_entities(g.scene);  // what scripts destroyed this tick (D-031)
+    if (g.scene) {
+        scene::flush_entities(g.scene);  // what scripts destroyed this tick (D-031)
+        scene::update_transforms(g.scene);
+    }
     float px, pz;
     sim::player_position(g.crowd, 1.0f, &px, &pz);
     step_shapes(g.shapes, sim::tick(g.crowd), px, pz);
@@ -592,6 +595,7 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
             return false;
         }
     }
+    if (g.scene) scene::update_transforms(g.scene);
     return true;
 }
 

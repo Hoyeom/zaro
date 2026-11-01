@@ -6,6 +6,7 @@
 #include "render/post_renderer.h"
 #include "render/shape_renderer.h"
 #include "scene/scene.h"
+#include "scene/world.h"
 #include "sim/crowd.h"
 #include "sim/fx_components.h"
 
@@ -27,6 +28,7 @@ constexpr float kSparkHeight = 0.3f;
 // Outside the anonymous namespace, as FxLayer holds them.
 struct EmitterRecord {
     sim::ParticleEmitter* emitter;
+    uint32_t entity_id;
     float carry;  // fraction of a spark left over from earlier ticks
 };
 
@@ -126,6 +128,7 @@ void sync_emitters(FxLayer* l) {
             j = k + 1;
         } else {
             r.emitter = e;
+            r.entity_id = s->entities[i].id;
         }
     }
     free(old);
@@ -152,7 +155,9 @@ FxLayer* create_fx_layer(scene::Scene* scene) {
     for (uint32_t i = 0; i < scene->entity_count; ++i) {
         scene::ComponentData* c =
             (scene::ComponentData*)scene::find_component_data(&scene->entities[i], &sim::kParticleEmitterDesc);
-        if (c) l->emitters[l->emitter_count++].emitter = (sim::ParticleEmitter*)c->data;
+        if (!c) continue;
+        l->emitters[l->emitter_count].entity_id = scene->entities[i].id;
+        l->emitters[l->emitter_count++].emitter = (sim::ParticleEmitter*)c->data;
     }
     return l;
 }
@@ -206,8 +211,18 @@ void step_fx(FxLayer* l, const sim::Crowd* crowd, ShapeLayer* shapes) {
             count += whole;
         }
         const bool follow = e.follow == sim::kEmitterFollowPlayer;
-        queue_burst(l, e.position[0] + (follow ? px : 0.0f), e.position[1], e.position[2] + (follow ? pz : 0.0f), count,
-                    e.color, e.intensity, e.speed, e.life, e.size, e.drag, e.direction * kRadiansPerDegree, e.spread * kRadiansPerDegree);
+        // On an entity with a Transform or a parent, the position is an offset in the entity's space
+        // and the direction turns with it (D-031); following the player ignores the entity.
+        float at[3] = {e.position[0], e.position[1], e.position[2]};
+        float turn = 0.0f;
+        const scene::Entity* owner = follow ? nullptr : scene::entity_by_id(l->scene, r.entity_id);
+        if (owner && (owner->parent_id || scene::get_component(owner, &scene::kTransformDesc))) {
+            scene::transform_point(owner->world, e.position, at);
+            turn = owner->world.rotation;
+        }
+        queue_burst(l, at[0] + (follow ? px : 0.0f), at[1], at[2] + (follow ? pz : 0.0f), count, e.color, e.intensity,
+                    e.speed, e.life, e.size, e.drag, (e.direction + turn) * kRadiansPerDegree,
+                    e.spread * kRadiansPerDegree);
     }
 }
 

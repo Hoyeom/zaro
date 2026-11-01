@@ -70,6 +70,14 @@ removing bumps `Scene::generation`, which may move `Scene::entities`: code that 
 it (like `app/sprite_layer`) rebuilds them when the generation changes. Spawnable prefabs' sprite
 sheets are loaded with the scene, and the Android export packs the prefabs.
 
+Hierarchies (D-031): an `[[entity]]` may name an earlier entity as `parent` (ZE0408 otherwise), and
+scripts change it with `zaro.set_parent` or spawn with `parent = ...`. The `Transform` component
+(position, rotation in degrees about +y taking +x toward +z, scale) is relative to the parent; a
+destroyed parent takes its children. `scene::update_transforms` fills `Entity::world` at the end of
+every tick, and `zaro.world` computes it on demand, both with `core/detmath.h` (never the C library's
+`sin`/`cos`, which can differ by platform and break golden hashes). A Sprite on an entity with a
+Transform or a parent is drawn at its `position` offset in the entity's space.
+
 Timers and events (D-031) run in the fixed tick and are kept inside the script: `zaro.after`,
 `zaro.every` (seconds of tick time, rounded to whole ticks), `zaro.on`/`zaro.emit` and
 `zaro.cancel`. A tick runs the due timers, on_tick, then the queued events (handlers may emit more);
