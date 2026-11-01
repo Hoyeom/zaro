@@ -1,0 +1,11 @@
+[game]
+name = "failing"
+scene = "game/scene.toml"
+version = "1.0"
+
+[environment.dev]
+
+[[step]]
+stage = "pre"
+name = "broken"
+run = ["zaro", "no-such-command"]

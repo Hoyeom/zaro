@@ -36,6 +36,10 @@ struct ExportOptions {
     const char* version_code = nullptr; // Android versionCode, 1..2100000000 (default 1)
     const char* version_name = nullptr; // versionName shown to players (default "1.0")
     bool portrait = false;              // default landscape
+    const char* build_info = nullptr;   // zaro build's build_info.toml, packed as assets/build_info.toml
+    const char* build_file = nullptr;   // zaro build's game build file, left out of the game assets
+    bool defer_extensions = false;      // leave build extensions to apply_android_extensions (zaro build's
+                                        // post stage); a standalone export applies them itself
 };
 
 // `zaro export android <scene>`: writes a Gradle project (D-022) from the Android runtime package
@@ -45,6 +49,11 @@ struct ExportOptions {
 // arguments. Returns 0 on success,
 // 1 when the scene is invalid or a file cannot be written, 2 on bad options.
 int export_android(const ExportOptions& options);
+
+// Applies the scene's build extensions (D-026) to an exported project: fills the Gradle and manifest
+// placeholders and copies their sources, refusing any that would replace a runtime Java file.
+// Returns 0 on success, 1 on an error (printed).
+int apply_android_extensions(const char* project, const char* scene_path, const char* runtime_dir);
 
 // `zaro import-design <kit dir> <out dir> [--check]`: writes <out dir>/theme.toml from a Claude
 // Design kit's tokens.json (project/tokens.json or tokens.json in the kit directory), and a UI

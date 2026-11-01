@@ -1,0 +1,26 @@
+[game]
+name = "bad"
+scene = "game/scene.toml"
+versoin = "1.0"
+
+[environment.production]
+release = true
+debug_tools = true
+[environment.production.config]
+debug_menu = true
+
+[[step]]
+stage = "pre"
+name = "shell"
+run = ["sh", "-c", "echo hidden"]
+
+[[step]]
+stage = "pre"
+name = "inline"
+run = ["python", "-c", "print(1)"]
+
+[[step]]
+stage = "during"
+name = "both"
+run = ["zaro", "version"]
+uses = "test"

@@ -13,6 +13,14 @@
 //   sources = "android"                       # directory of .java and .kt files, relative to this
 //                                             # file; its tree is copied under app/src/main/java
 //
+// A build extension may also add steps to `zaro build`, in the same [[step]] form as a game build
+// file (scene/build_spec.h, D-027):
+//
+//   [[step]]
+//   stage = "pre"
+//   name = "billing-client"
+//   run = ["python", "gen/billing.py"]
+//
 // Every key of [android] is optional. A scene names its extensions in [scene]:
 //
 //   build_extensions = ["../plugins/billing/build_extension.toml"]
@@ -23,6 +31,7 @@
 #pragma once
 
 #include "core/diag.h"
+#include "scene/build_spec.h"
 
 #include <stdint.h>
 
@@ -42,6 +51,8 @@ struct BuildExtension {
     char* application_xml;  // inside <application>, or nullptr
     char sources[260];      // resolved directory, or empty
     int sources_line;
+    BuildStep* steps;       // kMaxBuildSteps slots; step_count used
+    uint32_t step_count;
 };
 
 // Loads and validates a build extension file. Problems are diagnostics with file and line; returns

@@ -1,0 +1,28 @@
+# zaro build with a plugin step and a game step (tests/test_build_pipeline.py).
+[game]
+name = "pipeline"
+scene = "scene.toml"
+version = "3.2.1"
+version_code = 4
+
+[environment.staging]
+debug_tools = true
+[environment.staging.config]
+api = "https://staging.example.com"
+retries = 3
+fast = true
+
+[environment.production]
+release = true
+[environment.production.config]
+api = "https://api.example.com"
+
+[[step]]
+stage = "pre"
+name = "game-step"
+run = ["zaro", "version"]
+
+[[step]]
+stage = "post"
+name = "game-post"
+run = ["zaro", "version"]

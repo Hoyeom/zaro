@@ -1,0 +1,7 @@
+[build_extension]
+name = "plugin"
+
+[[step]]
+stage = "pre"
+name = "plugin-step"
+run = ["zaro", "version"]
