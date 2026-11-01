@@ -196,6 +196,36 @@ Status of all entries below: **accepted, 2026-11-01**.
   private repositories on the free plan. It is kept in `tools/github/ruleset-main.json` and
   applied when the repository becomes public. CI will check PR titles (D-013).
 
+## D-016 Release and business model: open engine, private revenue, launch with a game
+
+- **Decision**: The engine repository is public under MIT OR Apache-2.0 but not announced. The
+  official launch comes together with a small commercial game built with ZARO. Income comes
+  from outside this repository:
+  - games made with ZARO
+  - console porting layers, which are private and under NDA anyway (D-002)
+  - optional paid plugins and tools in separate repositories (D-011)
+  There are never runtime royalties; the name promises that. Until the launch, no outside code
+  contributions are accepted, so the maintainer remains the only copyright holder. Whether to
+  require a CLA is decided when contributions open.
+- **Why**:
+  - Nothing that earns money lives in this repository, so publishing it early costs nothing.
+  - A public repository gets free CI on all three OSes and server-side protection of `main`.
+  - A first impression happens once; it is saved for a launch with a playable game.
+  - Sole authorship keeps the option of relicensing future versions open without a CLA.
+- **Consequences**:
+  - Code published here stays usable forever under MIT/Apache-2.0.
+  - Anything meant to stay private is never committed here. That covers the game, console
+    layers and paid plugins; each lives in its own private repository.
+- **Launch criteria**: M2 (TOML scenes and prefabs, Luau scripts, `zaro screenshot` and `zaro
+  test`, docs and examples), then M3 (a survivors-like built with ZARO, with a tutorial), then
+  the announcement.
+- **Name check (2026-11-01)**: USPTO, KIPRIS and the WIPO Global Brand Database were searched
+  for "ZARO". No live mark covers game engines or developer software. The only live software
+  filings are a Thai class 9 application (goods not checked) and an abandoned ZaroVerse US class
+  9 filing. A software company named Zaro (zaro.ai, an AI workspace) exists without a found
+  trademark. Filing ZARO in Korea for classes 9 and 42 is advised once the project becomes
+  known. This was not legal advice.
+
 ## M1 result (2026-11-01)
 
 The crowd demo (`zaro run`) has 50,000 enemies following a flow field around obstacles toward
@@ -218,8 +248,7 @@ regression baseline; D-013 defines that.
 Gamepad/touch input, CJK fonts and IME, localization, audio (miniaudio candidate), game UI,
 save-format versioning, physics (Jolt candidate), the MCP server (local only, access-restricted).
 
-## Before the repository goes public
+## When the repository goes public
 
-- Check trademark, company-name, domain and GitHub-organization conflicts for "Zaro".
 - Enable GitHub private vulnerability reporting (SECURITY.md relies on it).
 - Protect `main`: `gh api -X POST repos/<owner>/zaro/rulesets --input tools/github/ruleset-main.json`.
