@@ -393,14 +393,14 @@ void load_entity(Loader& loader, const toml_datum_t& t, Entity* e, const char* f
             has_name = copy_string(v, e->name, sizeof(e->name), screen ? "node name" : "entity name", file, diags);
         } else if (strcmp(key, "prefab") == 0) {
             continue;
-        } else if (screen && strcmp(key, "parent") == 0) {
-            copy_string(v, e->parent, sizeof(e->parent), "node parent", file, diags);
+        } else if (strcmp(key, "parent") == 0) {
+            copy_string(v, e->parent, sizeof(e->parent), screen ? "node parent" : "entity parent", file, diags);
         } else if (v.type == TOML_TABLE) {
             apply_component_table(key, v, &set, loader.kind, loader.theme, file, diags);
         } else {
             diag_add(diags, kErrSceneStructure, file, v.lineno, v.colno,
                      screen ? "unexpected node key '%s' (expected name, parent, prefab or a widget table)"
-                            : "unexpected entity key '%s' (expected name, prefab or a component table)",
+                            : "unexpected entity key '%s' (expected name, parent, prefab or a component table)",
                      key);
         }
     }
@@ -554,8 +554,9 @@ void load_screen_header(const toml_datum_t& header, Scene* s, const char* path, 
     }
 }
 
-// Links every node to its parent, which must be an earlier node of the screen.
+// Links every node or entity to its parent, which must come earlier in the file.
 void resolve_parents(Scene* s, const toml_datum_t& nodes, DiagList* diags) {
+    const char* what = s->kind == DocKind::kScreen ? "node" : "entity";
     for (uint32_t i = 0; i < s->entity_count; ++i) {
         Entity& e = s->entities[i];
         if (!e.parent[0]) continue;
@@ -568,13 +569,13 @@ void resolve_parents(Scene* s, const toml_datum_t& nodes, DiagList* diags) {
         for (uint32_t j = i; j < s->entity_count; ++j) later = later || strcmp(s->entities[j].name, e.parent) == 0;
         if (later) {
             diag_add(diags, kErrSceneParent, s->path, at.lineno, at.colno,
-                     "parent '%s' must come before node '%s' in the file", e.parent, e.name);
+                     "parent '%s' must come before %s '%s' in the file", e.parent, what, e.name);
             continue;
         }
         const char* names[kMaxEntities];
         for (uint32_t j = 0; j < i; ++j) names[j] = s->entities[j].name;
         const char* hint = reflect::suggest_name(e.parent, names, i);
-        diag_add(diags, kErrSceneParent, s->path, at.lineno, at.colno, "unknown parent node '%s'%s%s%s", e.parent,
+        diag_add(diags, kErrSceneParent, s->path, at.lineno, at.colno, "unknown parent %s '%s'%s%s%s", what, e.parent,
                  hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
     }
 }
@@ -704,13 +705,17 @@ Scene* load(const char* path, Want expect, DiagList* diags) {
             }
         }
         // Parents are looked up by position in the array, so every element must have become a node.
-        if (screen && s->entity_count == n) resolve_parents(s, ents, diags);
+        if (s->entity_count == n) resolve_parents(s, ents, diags);
     } else if (ents.type != TOML_UNKNOWN) {
         diag_add(diags, kErrSceneStructure, path, ents.lineno, ents.colno, "%s must be an array of tables ([[%s]])",
                  items_key, items_key);
     }
 
     for (uint32_t i = 0; i < s->entity_count; ++i) s->entities[i].id = i + 1;
+    for (uint32_t i = 0; !screen && i < s->entity_count; ++i) {
+        const int p = s->entities[i].parent_index;
+        s->entities[i].parent_id = p >= 0 ? s->entities[p].id : 0;
+    }
     s->next_id = s->entity_count + 1;
     s->entity_capacity = s->entities ? (s->entity_count ? s->entity_count : 1) : 0;
     load_spawn_prefabs(loader, s, diags);

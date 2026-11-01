@@ -466,6 +466,7 @@ int zaro_spawn(lua_State* L) {
         luaL_error(L, "zaro.spawn(prefab, options): options must be a table, got %s", luaL_typename(L, 2));
     }
     const char* name = nullptr;
+    scene::Entity* parent = nullptr;
     // Component tables in the options, applied in name order so every run builds the same entity.
     constexpr int kMaxOverrides = 32;
     const char* comps[kMaxOverrides];
@@ -478,6 +479,8 @@ int zaro_spawn(lua_State* L) {
             if (strcmp(key, "name") == 0) {
                 if (lua_type(L, -1) != LUA_TSTRING) luaL_error(L, "zaro.spawn: name must be a string");
                 name = lua_tostring(L, -1);
+            } else if (strcmp(key, "parent") == 0) {
+                parent = entity_arg(L, lua_gettop(L));
             } else {
                 component_name_arg(L, key);
                 if (lua_type(L, -1) != LUA_TTABLE) luaL_error(L, "zaro.spawn: %s must be a table of fields", key);
@@ -489,8 +492,10 @@ int zaro_spawn(lua_State* L) {
     }
     qsort(comps, (size_t)ncomps, sizeof(comps[0]), compare_names);
     char err[200];
+    const uint32_t parent_id = parent ? parent->id : 0;  // spawning may move the entities
     scene::Entity* e = scene::spawn_entity(s->scene, p, name, err, sizeof(err));
     if (!e) raise(L, err);
+    e->parent_id = parent_id;
     for (int c = 0; c < ncomps; ++c) {
         const ComponentDesc* desc = reflect::find_component(comps[c]);
         uint8_t* data = (uint8_t*)scene::add_component(e, desc);
@@ -509,6 +514,50 @@ int zaro_spawn(lua_State* L) {
     }
     lua_pushnumber(L, (double)e->id);
     return 1;
+}
+
+// --- Hierarchies (D-031).
+
+int zaro_parent(lua_State* L) {
+    const scene::Entity* p = scene::parent_of(self(L)->scene, entity_arg(L, 1));
+    if (p) lua_pushnumber(L, (double)p->id);
+    else lua_pushnil(L);
+    return 1;
+}
+
+int zaro_set_parent(lua_State* L) {
+    scene::Entity* child = entity_arg(L, 1);
+    scene::Entity* parent = lua_isnoneornil(L, 2) ? nullptr : entity_arg(L, 2);
+    char err[200];
+    if (!scene::set_parent(self(L)->scene, child, parent, err, sizeof(err))) raise(L, err);
+    return 0;
+}
+
+int zaro_children(lua_State* L) {
+    Script* s = self(L);
+    const uint32_t id = entity_arg(L, 1)->id;
+    lua_newtable(L);
+    int n = 0;
+    for (uint32_t i = 0; i < s->scene->entity_count; ++i) {
+        const scene::Entity& e = s->scene->entities[i];
+        if (e.destroyed || e.parent_id != id) continue;
+        lua_pushnumber(L, (double)e.id);
+        lua_rawseti(L, -2, ++n);
+    }
+    return 1;
+}
+
+// zaro.world(entity) -> {x, y, z}, rotation, scale
+int zaro_world(lua_State* L) {
+    const scene::WorldTransform w = scene::world_transform(self(L)->scene, entity_arg(L, 1));
+    lua_createtable(L, 0, 3);
+    for (int i = 0; i < 3; ++i) {
+        lua_pushnumber(L, w.position[i]);
+        lua_setfield(L, -2, kAxes[i]);
+    }
+    lua_pushnumber(L, w.rotation);
+    lua_pushnumber(L, w.scale);
+    return 3;
 }
 
 int zaro_destroy(lua_State* L) {
@@ -905,8 +954,9 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
         {"log", zaro_log},       {"spawn", zaro_spawn}, {"destroy", zaro_destroy}, {"alive", zaro_alive},
         {"find", zaro_find},     {"name", zaro_name},   {"id", zaro_id},       {"query", zaro_query},
         {"count", zaro_count},   {"after", zaro_after}, {"every", zaro_every}, {"on", zaro_on},
-        {"emit", zaro_emit},     {"cancel", zaro_cancel}, {nullptr, nullptr}};
-    lua_createtable(L, 0, 19);
+        {"emit", zaro_emit},     {"cancel", zaro_cancel}, {"parent", zaro_parent}, {"set_parent", zaro_set_parent},
+        {"children", zaro_children}, {"world", zaro_world}, {nullptr, nullptr}};
+    lua_createtable(L, 0, 23);
     for (const luaL_Reg* r = kApi; r->name; ++r) {
         lua_pushcfunction(L, r->func, r->name);
         lua_setfield(L, -2, r->name);

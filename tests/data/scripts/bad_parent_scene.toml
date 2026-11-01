@@ -1,0 +1,14 @@
+# A parent that comes after its child, and a misspelt one (ZE0408).
+[scene]
+name = "bad-parents"
+
+[[entity]]
+name = "sun"
+
+[[entity]]
+name = "moon"
+parent = "planet"
+
+[[entity]]
+name = "planet"
+parent = "snu"

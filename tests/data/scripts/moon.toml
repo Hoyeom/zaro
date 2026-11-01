@@ -1,0 +1,5 @@
+[prefab]
+name = "moon"
+
+[Transform]
+position = [1.0, 0.0, 0.0]

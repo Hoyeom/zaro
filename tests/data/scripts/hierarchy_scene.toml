@@ -1,0 +1,20 @@
+# Parents and world transforms (tests/test_script.cpp, test_hierarchy; D-031).
+[scene]
+name = "hierarchy-test"
+prefabs = ["moon.toml"]
+
+[[entity]]
+name = "sun"
+[entity.Transform]
+position = [10.0, 0.0, 0.0]
+rotation = 90.0
+scale = 2.0
+
+[[entity]]
+name = "planet"
+parent = "sun"
+[entity.Transform]
+position = [2.0, 0.0, 0.0]
+
+[[entity]]
+name = "comet"

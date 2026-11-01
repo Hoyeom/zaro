@@ -207,10 +207,22 @@ void test_events() {
     }
 }
 
+// Parents and world transforms (D-031): hierarchy.luau asserts positions; this checks the cascade.
+void test_hierarchy() {
+    Run r("tests/data/scripts/hierarchy.luau", 1, 1.0, "tests/data/scripts/hierarchy_scene.toml");
+    expect(r.script && zaro::script::call_start(r.script, r.diags), "hierarchy.luau on_start");
+    if (!r.script) return;
+    expect(zaro::script::call_tick(r.script, 1, r.diags), "a turned parent carries its children");
+    expect(zaro::script::call_tick(r.script, 2, r.diags), "destroying a parent destroys its children");
+    expect(zaro::scene::flush_entities(r.scene) == 3 && r.scene->entity_count == 1, "only the comet is left");
+    if (r.diags->count) zaro::diag_print_text(r.diags, stderr);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     zaro::sim::register_crowd_components();
+    zaro::scene::register_scene_components();
     test_hooks();
     test_errors();
     test_sandbox();
@@ -218,6 +230,7 @@ int main(int argc, char** argv) {
     test_reload(argc > 1 ? argv[1] : ".");
     test_world();
     test_events();
+    test_hierarchy();
     if (g_failures) {
         fprintf(stderr, "test_script: %d failure(s)\n", g_failures);
         return 1;

@@ -7,6 +7,7 @@
 #include "platform/platform.h"
 #include "scene/scene.h"
 #include "scene/sprite_sheet.h"
+#include "scene/world.h"
 #include "script/script.h"
 #include "sim/crowd_components.h"
 #include "sim/fx_components.h"
@@ -22,6 +23,7 @@ bool prepare_process() { return platform::prepare_process(); }
 
 void register_all_components() {
     sim::register_crowd_components();
+    scene::register_scene_components();
     sim::register_sprite_components();
     sim::register_fx_components();
     ui::register_ui_components();

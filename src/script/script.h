@@ -10,7 +10,7 @@
 //   zaro.has(entity[, component])              -> boolean (false for a destroyed entity)
 //   zaro.tick()                                -> current tick
 //   zaro.log(...)                              -- prints "script: ..." to stderr
-//   zaro.spawn(prefab[, {name = "..", <Component> = {field = value, ...}, ...}])  -> id
+//   zaro.spawn(prefab[, {name = "..", parent = entity, <Component> = {field = value, ...}, ...}])  -> id
 //       -- a prefab of [scene] prefabs, by its [prefab] name; component tables override fields
 //          (or add the component). Without a name it is "<prefab>#<id>".
 //   zaro.destroy(entity)                       -> true, or false for an id already destroyed
@@ -20,6 +20,11 @@
 //   zaro.id(entity), zaro.name(entity)         -> its id, its name
 //   zaro.query([component, ...])               -> {id, ...}: live entities with all of them, in id order
 //   zaro.count([component, ...])               -> how many zaro.query would return
+//   zaro.parent(entity)                        -> parent id, or nil
+//   zaro.set_parent(entity, parent | nil)      -- raises if it would make a loop
+//   zaro.children(entity)                      -> {id, ...} in id order
+//   zaro.world(entity)                         -> {x, y, z}, rotation, scale: its Transform combined
+//                                                 with its parents' (a destroyed parent takes its children)
 // Timers and events run in the fixed tick (D-031). Seconds are tick time, rounded to whole ticks
 // and at least one, so a timer made in on_start with 1.0 fires before on_tick(60).
 //   zaro.after(seconds, fn)                    -> handle; fn(tick) once, before that tick's on_tick
