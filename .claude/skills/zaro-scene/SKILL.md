@@ -70,7 +70,9 @@ optional golden `state_hash`.
   ZE0602 state hash differs, ZE0603 a click found no shown, enabled button (or one behind a modal).
   A script error fails the test as well.
 - `zaro screenshot ... --click hud/settings_button` clicks on the first frames, so a screenshot can
-  show a popup.
+  show a popup (give it `--frames 15` so the entrance has finished).
+- `[[back]]` presses back before a tick, and `[[expect]] screen = ".." state = "open"` checks where a
+  screen is in its lifecycle (`opening`, `entering`, `open`, `closing`, `closed`).
 - `--update` writes the current hash into each file. Use it only when a behaviour change is
   intended, and say so in the commit.
 - CI runs the tests on Windows, Linux and macOS (ARM). The same golden hash must hold on all three.

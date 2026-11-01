@@ -5,7 +5,8 @@
 [scene]
 name = "hello"
 script = "hello.luau"
-ui = ["ui/hud.toml", "ui/settings.toml"]
+ui = ["ui/hud.toml"]
+screens = ["ui/settings.toml"]
 strings = "strings"
 languages = ["ko", "en"]
 

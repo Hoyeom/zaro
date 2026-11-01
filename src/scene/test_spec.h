@@ -30,6 +30,13 @@
 //   node = "speed"
 //   text = "속도 7.5"
 //
+//   [[back]]                       # a back press (Escape, Android back) before that tick's on_tick
+//   tick = 90
+//
+//   [[expect]]                     # or where a screen is in its lifecycle (D-021)
+//   screen = "settings"
+//   state = "closed"               # opening, entering, open, closing or closed
+//
 // A script that raises an error (for example a failed assert) also fails the test, and so does a
 // click on a button that is hidden, disabled or behind a modal.
 #pragma once
@@ -52,10 +59,14 @@ struct Expect {
     double min, max;
     bool has_text;
     char text[256];
+    bool has_state;
+    char state[16];
     int line;
 };
 
+// A [[click]], or a [[back]] press (back = true, no screen or node).
 struct Click {
+    bool back;
     uint32_t tick;
     char screen[64];
     char node[64];

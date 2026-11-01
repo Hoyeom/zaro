@@ -1,29 +1,40 @@
-# Close hides the popup again, and the HUD button behind it works once more.
+# Close takes the popup away (after its exit), and the HUD button behind it works once more. The
+# new instance shows the choices made in the old one (on_screen "created" in hello.luau).
 [test]
 scene = "../scene.toml"
-ticks = 40
+ticks = 50
 
 [[click]]
 tick = 10
 screen = "hud"
 node = "settings_button"
 
+# Screens take clicks only once their entrance (9 ticks) is over.
 [[click]]
 tick = 20
+screen = "settings"
+node = "sound_off"
+
+[[click]]
+tick = 21
 screen = "settings"
 node = "close"
 
 [[click]]
-tick = 30
+tick = 35
 screen = "hud"
 node = "settings_button"
 
 [[expect]]
 screen = "settings"
-node = "popup"
-component = "Layout"
-field = "visible"
-equals = true
+state = "open"
+
+[[expect]]
+screen = "settings"
+node = "sound_off"
+component = "Button"
+field = "color"
+equals = "#3a6ab0"
 
 [[expect]]
 screen = "hud"

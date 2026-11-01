@@ -73,6 +73,8 @@ MODULE_DEPS = {
 # Third-party headers confined to the one module that wraps them.
 THIRD_PARTY_OWNERS = {
     "SDL3/": "src/platform/",
+    "android/": "src/platform/",
+    "jni.h": "src/platform/",
     "webgpu/": "src/rhi/",
     "TaskScheduler.h": "src/core/jobs.cpp",
     "tracy/": "src/core/profile.h",

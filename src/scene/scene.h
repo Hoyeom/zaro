@@ -3,7 +3,8 @@
 //   [scene]                          # required in a scene file
 //   name = "crowd"
 //   script = "crowd.luau"            # optional, relative to the scene file
-//   ui = ["ui/hud.toml"]             # optional: screens shown over the scene, bottom to top
+//   ui = ["ui/hud.toml"]             # optional: root screens, always shown over the scene
+//   screens = ["ui/settings.toml"]   # optional: screens that can be opened by name (D-021)
 //   strings = "strings"              # optional: directory of string tables, <language>.toml
 //   languages = ["ko", "en"]         # with strings: the languages it holds; the first is the default
 //
@@ -20,6 +21,10 @@
 //   name = "hud"
 //   reference = [1280, 720]          # optional design size; the screen scales to fit the target
 //   navigable = false                # optional: arrow keys and d-pad move the focus on this screen
+//   dismissible = true               # optional: back closes the screen when it was opened (D-021)
+//   transition = "pop"               # optional: none, fade or pop (fade and grow), when it opens and closes
+//   transition_time = 0.15           # optional, seconds
+//   skippable = true                 # optional: back during the entrance jumps to its end
 //
 //   [[node]]
 //   name = "gold"                    # required, unique in the screen
@@ -46,6 +51,8 @@ constexpr uint32_t kLanguageCapacity = 16;
 
 enum class DocKind : uint8_t { kScene, kScreen };
 
+enum ScreenTransition : uint32_t { kTransitionNone, kTransitionFade, kTransitionPop };
+
 struct ComponentData {
     const reflect::ComponentDesc* desc;
     void* data;        // desc->size bytes
@@ -70,9 +77,12 @@ struct Scene {
     DocKind kind;
 
     // Scenes only.
-    char ui[kMaxSceneScreens][kPathCapacity];  // resolved screen paths, bottom to top
+    char ui[kMaxSceneScreens][kPathCapacity];  // resolved root screen paths, bottom to top
     int ui_line;
     uint32_t ui_count;
+    char screens[kMaxSceneScreens * 4][kPathCapacity];  // resolved paths of screens opened by name
+    int screens_line;
+    uint32_t screen_count;
     char strings[kPathCapacity];  // resolved directory of string tables with a trailing '/', or empty
     int strings_line;
     char languages[kMaxLanguages][kLanguageCapacity];
@@ -81,6 +91,10 @@ struct Scene {
     // Screens only.
     bool navigable;
     float reference[2];  // design size; 1280 x 720 when not given
+    bool dismissible;    // true when not given
+    uint32_t transition; // ScreenTransition
+    float transition_time;
+    bool skippable;      // true when not given
 
     Entity* entities;  // entities of a scene, nodes of a screen (parents before their children)
     uint32_t entity_count;

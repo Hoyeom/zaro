@@ -30,6 +30,11 @@ phases sessions pick work from are in [docs/ROADMAP.md](docs/ROADMAP.md).
 | Render a scene to PNG | `build/debug/zaro screenshot examples/crowd/scene.toml out.png [--frames N]` |
 | Render a scene's UI in another language | `build/debug/zaro screenshot examples/hello/scene.toml out.png --lang en` |
 | All `run` options | `build/debug/zaro help` |
+| Install the pinned Android toolchain (once) | `python tools/android.py setup` (`doctor` shows what is found) |
+| Android native build (`libmain.so` + runtime package) | `python tools/build.py android` |
+| Gradle project for an APK | `build/debug/zaro export android examples/crowd/scene.toml [--out DIR]` |
+| APK in one step (native build, export, Gradle) | `python tools/android.py apk examples/crowd/scene.toml` |
+| Install and start on a device / benchmark it | `python tools/android.py run`, `python tools/android.py perf [--enemies N]` |
 | Enable the git hooks (once per clone) | `git config core.hooksPath tools/githooks` |
 
 `tools/build.py` wraps the presets in `CMakePresets.json` (`debug`, `release`, `profile`).
@@ -84,6 +89,8 @@ Load a skill before working in the situation it names; it holds what would other
   headless runs and perf.json.
 - **`zaro-ui`**: text and the glyph atlas, screen files, widgets, string tables, and how a frame's
   UI is built and drawn.
+- **`zaro-android`**: the Android toolchain, the `android` preset, APK export and running on a
+  device.
 - **`zaro-docs`**: how documentation is written in this public repository and where each fact goes.
 - **`zaro-git`**: branches, commits, pull requests, auto-merge and CI. **Load it before writing a
   commit message.**

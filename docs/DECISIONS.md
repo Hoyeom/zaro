@@ -353,6 +353,99 @@ Status of all entries below: **accepted, 2026-11-01**.
   placeholders in texts) and through the same reflection as scenes (`ui.set_field`), so screens
   stay pure data and every change a script makes can be checked by a scene test.
 
+## D-021 UI navigation: a screen stack with one policy for back, close, home and abort
+
+- **Decision**: Screens are navigated by one policy in the `ui` module (`ui::Navigator`), so every
+  game behaves the same. It follows the UI navigation rules of the owner's backend platform, so a
+  game moving between that platform's existing client and ZARO keeps the same behaviour.
+  - **Stack**: `[scene] ui` lists root screens (the HUD), which are always shown and never closed
+    by navigation. `[scene] screens` lists screens that buttons (`action = "open:<name>"`) and
+    scripts (`ui.open`) open on top. Each open is a new instance unless the caller passes a key that
+    an open instance already has; reuse is the caller's choice, never a guess.
+  - **Four operations**: back (the top screen, by the rules below), close (a named screen, or the
+    one a `close` button is on), home (close down to the root, stopping at a forced screen), and
+    abort-all (remove every opened screen at once, forced ones included: scene change, logout).
+  - **Lifecycle**: opening (only when opened with `wait`, until `ui.ready`; a spinner shows) →
+    entering (entrance transition) → open → closing (exit transition) → gone, one direction. Only
+    open screens take input; a closing screen has already handed input to the one below, and an
+    open modal hides input from everything below it.
+  - **Three properties per screen file**: `dismissible` (back may close it), the entrance
+    `transition` and whether it is `skippable`, and (through a `Modal` widget) whether it blocks the
+    screens below. An open call may only tighten them (`force`, `unskippable`).
+  - **Back**: first the script's `on_back(screen)` may claim the press for something inside the
+    screen, and then nothing closes. Otherwise, by the top screen's state: opening and dismissible
+    → cancelled; entering → a skippable transition jumps to its end, an unskippable one drops the
+    press (never queued); open → a dismissible screen closes, a forced one keeps the press. With
+    nothing opened, "back at root" goes to the game, which decides (the crowd demo quits).
+- **Why**:
+  - A back press while a screen waits for the server is a player who wants out, and must cancel.
+    A press during a 0.15 s entrance is almost always a leftover double tap, and must not close
+    what just opened.
+  - A queued press would close a screen at a moment the player did not choose.
+  - Separate close and abort keep a player's close animated and a scene change instant.
+  - Keeping the policy out of the renderer makes every rule a plain unit test (`test_ui_nav`) and
+    a scene test (`[[back]]`, `state = "..."`).
+- **Rejected**:
+  - Hiding and showing nodes of always-loaded screens (step 3 and 4 of P2 did this): no lifecycle,
+    no transitions, and every popup's state survives closing.
+  - Letting each game script its own back handling: the same screens would behave differently
+    from game to game, which is what this decision exists to prevent.
+- **Not yet**: per-screen telemetry of opens and closes, routing over several hops (deep links,
+  tutorials), and pad button prompts per controller family.
+
+## D-022 Android: pinned NDK toolchain, own CMake build, SDLActivity, Gradle only packages
+
+- **Decision**: ZARO builds for Android with its own CMake build and a pinned toolchain; Gradle
+  only packages the result.
+  - **Toolchain**, pinned in `tools/android.py` and installed by `python tools/android.py setup`
+    (every download checked against a pinned hash): NDK r29 (29.0.14206865), SDK platform
+    `android-36` (compile and target SDK), build-tools 36.0.0, Eclipse Temurin JDK 21, Gradle
+    9.8.2 and the Android Gradle Plugin 9.5.0. The SDK goes to `ANDROID_HOME` (default
+    `%LOCALAPPDATA%\Android\Sdk` or `~/Android/Sdk`), JDK and Gradle to `%LOCALAPPDATA%\zaro`
+    or `~/.local/share/zaro`. CI installs the same versions with the same script.
+  - **Target**: arm64-v8a only, `minSdk` 29 (Android 10), Vulkan 1.1 required in the manifest.
+  - **Native build**: the `android` CMake preset cross-compiles with the NDK's toolchain file
+    (`python tools/build.py android`). Slang runs on the host and the WGSL goes into the APK.
+    wgpu-native is the upstream `android-aarch64` prebuilt, pinned by SHA-256 like the desktop
+    ones. SDL3 is built as `libSDL3.so`, and its Java side (`SDLActivity`) comes from the same
+    pinned SDL source. The C++ runtime is `c++_static`.
+  - **Entry point**: `dev.zaro.ZaroActivity` extends `SDLActivity` and calls `main` in
+    `libmain.so`, which is the `zaro` command line itself. Arguments come from the launch
+    intent's `args` extra, or from `assets/zaro_args.txt` (`run game/<scene>`).
+  - **Assets**: `zaro export android` packs the scene's whole directory, without scene tests
+    (a script may name files at run time), and every file the scene names outside it (script,
+    prefabs, screens with their prefabs and images, string tables) under `assets/game/`. Fonts
+    go under `assets/fonts/` and shaders under `assets/shaders/`. At start the runtime copies
+    every file listed in `assets/zaro_assets.txt` to the app's external files directory
+    (`/sdcard/Android/data/<package>/files`) and runs there. Loaders keep reading plain files,
+    and `adb pull` can fetch the perf report. stdout and stderr go to logcat (tag `zaro`).
+  - **Project export**: the native build writes a runtime package (`cmake/ZaroAndroid.cmake`):
+    the Gradle template from `src/platform/android/project`, SDL's Java sources, the stripped
+    `.so` files and the shaders. `zaro export android <scene>` fills in that template. Then
+    `tools/android.py apk` runs Gradle, and `run` and `perf` drive a device through `adb`.
+- **Why**:
+  - One build graph for every platform. The same compiler flags, lint and dependency pins apply,
+    and an agent builds Android with the same `build.py` it already knows.
+  - Unpacking to files keeps the scene, script and test loaders free of Android code. The files
+    are small (a scene and its script), so copying them at start costs milliseconds.
+  - SDL already owns windows and input on desktop; its Android backend brings touch, lifecycle
+    and the surface with no new dependency.
+- **Rejected**:
+  - Gradle `externalNativeBuild`: a second build graph with the SDK's CMake (3.22 there, ZARO
+    needs 3.28), and agents would have to go through Gradle to build native code.
+  - The toolchain bundled with an installed Unity editor: its versions move with Unity, and the
+    engine must not depend on another engine's install.
+  - `GameActivity` without SDL: it needs AndroidX and Prefab, and it would add a second platform
+    layer next to SDL.
+  - Reading assets through `AAssetManager` in every loader: Android code in `scene`, `script`
+    and the test runner, against the platform isolation rule.
+- **Consequences**: building an APK takes two steps (native build, then export and Gradle).
+  `tools/android.py apk` runs them in order. 32-bit ARM and x86 emulators are not supported. The
+  APK is signed with the debug key; store signing belongs to each game. iOS follows the same
+  pattern with Xcode later in P1.
+- **Revisit when**: a game needs 32-bit devices, Play Asset Delivery for large assets, or a
+  Gradle-side native build (for example for an AAR plugin).
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:

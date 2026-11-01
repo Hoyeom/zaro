@@ -32,6 +32,11 @@ all three together.
 - Each frame: `ui::begin_frame(context)`, `ui::update_screen` (applies the input against the
   previous layout, then lays out), read the click and back events, `ui::draw_screen`. The app fills
   `ui::UiInput` from `platform::Input` (pointer, wheel, edge-triggered navigation).
+- Navigation (D-021, top of `src/ui/navigator.h`): `[scene] ui` screens are roots, `[scene] screens`
+  can be opened. Buttons with `open:<screen>`, `close`, `back` or `home` navigate by themselves;
+  `app/ui_layer` runs the policy, the script hooks (`on_ui`, `on_back`, `on_screen`) and back at
+  root. Screen files declare `dismissible`, `transition` (`none`, `fade`, `pop`),
+  `transition_time` and `skippable`. A screen takes clicks only once its entrance is over.
 
 Scripts reach the UI through the `ui` table and `on_ui` (`zaro-scene`, "Scripts"). Scene tests click
 buttons with `[[click]]` and check widget fields and shown text (`zaro-scene`, "Scene tests").

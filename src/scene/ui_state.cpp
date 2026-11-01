@@ -9,7 +9,6 @@ namespace zaro::scene {
 
 namespace {
 
-constexpr uint32_t kMaxCommands = 64;
 constexpr size_t kKeyCapacity = 64;
 
 }  // namespace
@@ -24,8 +23,6 @@ struct UiState {
     UiValue* values = nullptr;
     uint32_t count = 0;
     uint32_t capacity = 0;
-    UiCommand commands[kMaxCommands];
-    uint32_t command_count = 0;
 };
 
 namespace {
@@ -139,16 +136,5 @@ void format_text(const UiState* s, const char* text, char* out, size_t size) {
     }
     out[o] = 0;
 }
-
-void push_command(UiState* s, UiCommandKind kind, const char* arg) {
-    if (s->command_count == kMaxCommands) return;
-    UiCommand& c = s->commands[s->command_count++];
-    c.kind = kind;
-    snprintf(c.arg, sizeof(c.arg), "%s", arg);
-}
-
-uint32_t command_count(const UiState* s) { return s->command_count; }
-const UiCommand* command_at(const UiState* s, uint32_t i) { return i < s->command_count ? &s->commands[i] : nullptr; }
-void clear_commands(UiState* s) { s->command_count = 0; }
 
 }  // namespace zaro::scene

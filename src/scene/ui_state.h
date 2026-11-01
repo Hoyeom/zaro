@@ -1,13 +1,11 @@
-// What game scripts tell the UI (P2 step 4): view-model values and commands.
+// The view model that game scripts fill for the UI (P2 step 4).
 //
 // Values are named numbers or strings. A text shows them through placeholders: "{gold}" writes
 // the value of "gold", "{gold:,}" groups the digits of a number ("1,234,567"), and "{{" is a
 // literal "{". Numbers print without trailing zeros. A placeholder whose value was never set stays
 // as written, so a typo shows on screen.
 //
-// Commands are requests that the app carries out after the script call, such as switching the
-// language. The script module writes both; the ui module reads the values; the app reads the
-// commands. The state belongs to the app.
+// The script module writes the values and the ui module reads them; the app owns the state.
 #pragma once
 
 #include <stddef.h>
@@ -27,19 +25,5 @@ bool get_value(const UiState* state, const char* key, double* number, const char
 
 // Writes text with every {placeholder} replaced. Always terminates out.
 void format_text(const UiState* state, const char* text, char* out, size_t size);
-
-enum class UiCommandKind : uint8_t {
-    kLanguage,  // arg: the language to switch to
-};
-
-struct UiCommand {
-    UiCommandKind kind;
-    char arg[64];
-};
-
-void push_command(UiState* state, UiCommandKind kind, const char* arg);
-uint32_t command_count(const UiState* state);
-const UiCommand* command_at(const UiState* state, uint32_t index);
-void clear_commands(UiState* state);
 
 }  // namespace zaro::scene

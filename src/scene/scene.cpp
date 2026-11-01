@@ -393,6 +393,14 @@ void load_scene_header(const toml_datum_t& header, Scene* s, const char* path, D
             s->ui_line = v.lineno;
             s->ui_count = copy_string_array(v, rels[0], kPathCapacity, kMaxSceneScreens, "scene ui", path, diags);
             for (uint32_t k = 0; k < s->ui_count; ++k) path_join_relative(path, rels[k], s->ui[k], kPathCapacity);
+        } else if (strcmp(key, "screens") == 0) {
+            char rels[kMaxSceneScreens * 4][kPathCapacity];
+            s->screens_line = v.lineno;
+            s->screen_count =
+                copy_string_array(v, rels[0], kPathCapacity, kMaxSceneScreens * 4, "scene screens", path, diags);
+            for (uint32_t k = 0; k < s->screen_count; ++k) {
+                path_join_relative(path, rels[k], s->screens[k], kPathCapacity);
+            }
         } else if (strcmp(key, "strings") == 0) {
             s->strings_line = v.lineno;
             if (copy_string(v, rel, sizeof(rel) - 1, "scene strings", path, diags)) {
@@ -405,7 +413,7 @@ void load_scene_header(const toml_datum_t& header, Scene* s, const char* path, D
                                                   "scene languages", path, diags);
         } else {
             diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
-                     "unexpected key '%s' in [scene] (expected name, script, ui, strings or languages)", key);
+                     "unexpected key '%s' in [scene] (expected name, script, ui, screens, strings or languages)", key);
         }
     }
     if (s->strings[0] && !s->language_count) {
@@ -420,11 +428,33 @@ void load_screen_header(const toml_datum_t& header, Scene* s, const char* path, 
     for (int32_t i = 0; i < header.u.tab.size; ++i) {
         const char* key = header.u.tab.key[i];
         const toml_datum_t& v = header.u.tab.value[i];
+        bool* flag = strcmp(key, "navigable") == 0     ? &s->navigable
+                     : strcmp(key, "dismissible") == 0 ? &s->dismissible
+                     : strcmp(key, "skippable") == 0   ? &s->skippable
+                                                       : nullptr;
         if (strcmp(key, "name") == 0) {
             copy_string(v, s->name, sizeof(s->name), "screen name", path, diags);
-        } else if (strcmp(key, "navigable") == 0) {
-            if (v.type == TOML_BOOLEAN) s->navigable = v.u.boolean;
-            else diag_add(diags, kErrSceneType, path, v.lineno, v.colno, "navigable must be a boolean");
+        } else if (flag) {
+            if (v.type == TOML_BOOLEAN) *flag = v.u.boolean;
+            else diag_add(diags, kErrSceneType, path, v.lineno, v.colno, "%s must be a boolean", key);
+        } else if (strcmp(key, "transition") == 0) {
+            static const char* const kTransitions[] = {"none", "fade", "pop", nullptr};
+            const char* hint = v.type == TOML_STRING ? reflect::suggest_name(v.u.str.ptr, kTransitions, 3) : nullptr;
+            bool found = false;
+            for (uint32_t k = 0; v.type == TOML_STRING && kTransitions[k]; ++k) {
+                if (strcmp(v.u.str.ptr, kTransitions[k]) == 0) {
+                    s->transition = k;
+                    found = true;
+                }
+            }
+            if (!found) {
+                diag_add(diags, kErrSceneRange, path, v.lineno, v.colno,
+                         "transition expects one of none, fade, pop%s%s%s", hint ? " (did you mean '" : "",
+                         hint ? hint : "", hint ? "'?)" : "");
+            }
+        } else if (strcmp(key, "transition_time") == 0) {
+            if (is_number(v) && number(v) >= 0.0 && number(v) <= 10.0) s->transition_time = (float)number(v);
+            else diag_add(diags, kErrSceneRange, path, v.lineno, v.colno, "transition_time must be 0 to 10 seconds");
         } else if (strcmp(key, "reference") == 0) {
             const bool ok = v.type == TOML_ARRAY && v.u.arr.size == 2 && is_number(v.u.arr.elem[0]) &&
                             is_number(v.u.arr.elem[1]) && number(v.u.arr.elem[0]) >= 1.0 &&
@@ -438,7 +468,9 @@ void load_screen_header(const toml_datum_t& header, Scene* s, const char* path, 
             }
         } else {
             diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
-                     "unexpected key '%s' in [screen] (expected name, reference or navigable)", key);
+                     "unexpected key '%s' in [screen] (expected name, reference, navigable, dismissible, "
+                     "transition, transition_time or skippable)",
+                     key);
         }
     }
 }
@@ -481,6 +513,9 @@ Scene* load(const char* path, Want expect, DiagList* diags) {
     snprintf(s->path, sizeof(s->path), "%s", path);
     s->reference[0] = 1280.0f;
     s->reference[1] = 720.0f;
+    s->dismissible = true;
+    s->skippable = true;
+    s->transition_time = 0.15f;
     const toml_datum_t top = l.result.toptab;
     const toml_datum_t scene_header = toml_get(top, "scene");
     const toml_datum_t screen_header = toml_get(top, "screen");

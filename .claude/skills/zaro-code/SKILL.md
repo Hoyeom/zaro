@@ -13,7 +13,7 @@ it, and link dependencies in CMakeLists.txt follow the same graph.
 
 - To add a feature, put the state and rules in `sim`, the drawing in `render`, and the connection in
   `app`. `render` draws plain data and never sees `sim` types.
-- Third-party headers belong to one module only: `SDL3/` → platform, `webgpu/` → rhi,
+- Third-party headers belong to one module only: `SDL3/`, `android/` and `jni.h` → platform, `webgpu/` → rhi,
   `TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` → scene,
   `lua.h`/`lualib.h`/`luacode.h` → script, `stb_truetype.h` → `ui/font.cpp`. A new dependency gets an owner in `THIRD_PARTY_OWNERS`.
 - A new module needs, in the same PR:

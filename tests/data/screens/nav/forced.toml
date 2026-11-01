@@ -1,0 +1,7 @@
+[screen]
+name = "forced"
+dismissible = false
+
+[[node]]
+name = "modal"
+[node.Modal]

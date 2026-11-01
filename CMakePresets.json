@@ -25,12 +25,26 @@
       "inherits": "release",
       "displayName": "Release + Tracy",
       "cacheVariables": { "ZARO_TRACY": "ON" }
+    },
+    {
+      "name": "android",
+      "inherits": "base",
+      "displayName": "Android arm64 (NDK from ANDROID_NDK_HOME; tools/android.py sets it)",
+      "toolchainFile": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "ANDROID_ABI": "arm64-v8a",
+        "ANDROID_PLATFORM": "android-29",
+        "ANDROID_STL": "c++_static",
+        "ZARO_BUILD_TESTS": "OFF"
+      }
     }
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "debug" },
     { "name": "release", "configurePreset": "release" },
-    { "name": "profile", "configurePreset": "profile" }
+    { "name": "profile", "configurePreset": "profile" },
+    { "name": "android", "configurePreset": "android" }
   ],
   "testPresets": [
     { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },

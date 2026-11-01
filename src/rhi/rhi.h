@@ -92,6 +92,9 @@ const char* adapter_name(const Device* device);
 const char* backend_name(const Device* device);
 bool has_gpu_timing(const Device* device);
 void resize(Device* device, uint32_t width, uint32_t height);
+// Windowed devices: presents to a new native window from now on, or to none (nullptr) while the
+// OS has taken the window away (mobile background). Without a window begin_frame returns false.
+void set_window(Device* device, const platform::NativeWindow* window);
 void target_size(const Device* device, uint32_t* width, uint32_t* height);
 
 // Resources.

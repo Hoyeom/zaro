@@ -1,0 +1,5 @@
+# A scene whose HUD opens a screen that does not exist (zaro check reports it with a hint).
+[scene]
+name = "nav_typo"
+ui = ["typo_root.toml"]
+screens = ["popup.toml"]

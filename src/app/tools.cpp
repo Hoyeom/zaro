@@ -3,6 +3,7 @@
 #include "app/ui_layer.h"
 #include "core/diag.h"
 #include "core/reflect.h"
+#include "platform/platform.h"
 #include "scene/scene.h"
 #include "script/script.h"
 #include "sim/crowd_components.h"
@@ -11,6 +12,8 @@
 #include <stdio.h>
 
 namespace zaro::app {
+
+bool prepare_process() { return platform::prepare_process(); }
 
 void register_all_components() {
     sim::register_crowd_components();
@@ -51,9 +54,9 @@ int check_scene(const char* path, bool json) {
         uint32_t components = 0;
         for (uint32_t i = 0; i < s->entity_count; ++i) components += s->entities[i].component_count;
         if (screen) printf("%s: ok (screen '%s', %u nodes, %u widgets)\n", path, s->name, s->entity_count, components);
-        else if (s->ui_count) {
+        else if (s->ui_count || s->screen_count) {
             printf("%s: ok (scene '%s', %u entities, %u components, %u screens, %u languages)\n", path, s->name,
-                   s->entity_count, components, s->ui_count, s->language_count);
+                   s->entity_count, components, s->ui_count + s->screen_count, s->language_count);
         } else {
             printf("%s: ok (scene '%s', %u entities, %u components)\n", path, s->name, s->entity_count, components);
         }

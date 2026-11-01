@@ -1,0 +1,40 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace = 'dev.zaro'
+    compileSdk = 36
+    buildToolsVersion = '36.0.0'
+
+    defaultConfig {
+        applicationId = '@ZARO_PACKAGE@'
+        minSdk = 29
+        targetSdk = 36
+        versionCode = 1
+        versionName = '@ZARO_VERSION@'
+        ndk {
+            abiFilters.add('arm64-v8a')
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = false
+            // Local and CI builds sign release APKs with the debug key; store signing is per game.
+            signingConfig = signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    packaging {
+        jniLibs {
+            // The libraries arrive stripped from the native build (cmake/ZaroAndroid.cmake).
+            keepDebugSymbols.add('**/*.so')
+        }
+    }
+}
