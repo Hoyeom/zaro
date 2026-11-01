@@ -7,6 +7,7 @@
 #include "render/sprite_renderer.h"
 #include "scene/scene.h"
 #include "scene/sprite_sheet.h"
+#include "scene/world.h"
 #include "sim/crowd.h"
 #include "sim/sprite_components.h"
 #if ZARO_HAS_COOK
@@ -38,7 +39,7 @@ int field_line(const scene::Entity* e, uint32_t field, const reflect::ComponentD
 // Outside the anonymous namespace, as SpriteLayer holds them.
 struct SpriteRecord {
     sim::Sprite* sprite;
-    const scene::Entity* entity;
+    uint32_t entity_id;  // records are in id order, like the scene's entities
     uint32_t sheet;
     char animation[reflect::kStringCapacity];  // the name the current animation was started for
     int animation_index;                       // -1: none, or unknown (already reported)
@@ -52,6 +53,10 @@ struct SpriteLayer {
     SpriteRecord* records = nullptr;
     uint32_t record_count = 0;
     uint64_t tick = 0;
+    uint64_t generation = 0;     // the scene's generation the records were built for
+    bool spawnable = false;      // a prefab scripts can spawn has a Sprite (D-031)
+    uint32_t instance_capacity = 0;
+    uint32_t gpu_sheet_count = 0;  // sheets uploaded so far
     // The crowd's CrowdSprite: its sheet, animation (-1: every frame in order) and scale.
     int crowd_sheet = -1;
     int crowd_animation = -1;
@@ -98,8 +103,9 @@ bool start_animation(SpriteLayer* l, SpriteRecord& r, DiagList* diags) {
     r.animation_index = scene::find_animation(sheet, r.animation);
     if (r.animation_index >= 0) return true;
     const char* hint = scene::suggest_animation(sheet, r.animation);
-    diag_add(diags, kErrSpriteRef, l->scene->path, field_line(r.entity, kAnimationField), 1,
-             "entity '%s': sheet '%s' has no animation '%s'%s%s%s", r.entity->name, sheet->path, r.animation,
+    const scene::Entity* e = scene::entity_by_id(l->scene, r.entity_id);
+    diag_add(diags, kErrSpriteRef, l->scene->path, e ? field_line(e, kAnimationField) : 0, 1,
+             "entity '%s': sheet '%s' has no animation '%s'%s%s%s", e ? e->name : "?", sheet->path, r.animation,
              hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
     return false;
 }
@@ -113,17 +119,106 @@ void set_frame(SpriteLayer* l, SpriteRecord& r) {
 
 }  // namespace
 
+namespace {
+
+const sim::Sprite* prefab_sprite(const scene::SpawnPrefab& p) {
+    for (uint32_t i = 0; i < p.component_count; ++i) {
+        if (p.components[i].desc == &sim::kSpriteDesc) return (const sim::Sprite*)p.components[i].data;
+    }
+    return nullptr;
+}
+
+// Appends the record of an entity's Sprite, if it has a valid one. `keep` is its record from
+// before a re-sync, whose sheet and animation carry over. False after a diagnostic.
+bool add_record(SpriteLayer* l, const scene::Entity* e, const SpriteRecord* keep, DiagList* diags) {
+    const scene::ComponentData* c = scene::find_component_data(e, &sim::kSpriteDesc);
+    if (!c || e->destroyed) return true;
+    if (keep) {
+        l->records[l->record_count++] = *keep;
+        return true;
+    }
+    const scene::Scene* s = l->scene;
+    sim::Sprite* sprite = (sim::Sprite*)c->data;
+    if (!sprite->sheet[0]) {
+        diag_add(diags, kErrSpriteSheet, s->path, c->line ? c->line : e->line, 1, "entity '%s': Sprite needs a sheet",
+                 e->name);
+        return false;
+    }
+    char path[260];
+    path_join_relative(s->path, sprite->sheet, path, sizeof(path));
+    const int sheet = sheet_index(l, path, diags, s->path, field_line(e, kSheetField));
+    if (sheet < 0) return false;
+    if (sprite->frame >= l->sheets[sheet]->frame_count) {
+        diag_add(diags, kErrSpriteRef, s->path, field_line(e, kFrameField), 1,
+                 "entity '%s': frame %u is past the last frame (%u) of '%s'", e->name, sprite->frame,
+                 l->sheets[sheet]->frame_count - 1, path);
+        return false;
+    }
+    SpriteRecord& r = l->records[l->record_count++];
+    r = SpriteRecord{};
+    r.sprite = sprite;
+    r.entity_id = e->id;
+    r.sheet = (uint32_t)sheet;
+    if (!start_animation(l, r, diags)) return false;
+    set_frame(l, r);
+    return true;
+}
+
+bool upload_sheet(SpriteLayer* l, uint32_t i);
+bool ensure_gpu(SpriteLayer* l);
+
+// Rebuilds the records after entities were spawned or removed (Scene::generation changed),
+// keeping the animation state of sprites that are still there.
+bool sync_records(SpriteLayer* l, DiagList* diags) {
+    if (l->generation == l->scene->generation) return true;
+    l->generation = l->scene->generation;
+    const scene::Scene* s = l->scene;
+    SpriteRecord* old = l->records;
+    const uint32_t old_count = l->record_count;
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < s->entity_count; ++i) count += scene::get_component(&s->entities[i], &sim::kSpriteDesc) ? 1 : 0;
+    l->records = (SpriteRecord*)calloc(count ? count : 1, sizeof(SpriteRecord));
+    l->record_count = 0;
+    bool ok = true;
+    uint32_t j = 0;
+    for (uint32_t i = 0; i < s->entity_count; ++i) {
+        const scene::Entity* e = &s->entities[i];
+        while (j < old_count && old[j].entity_id < e->id) ++j;
+        ok = add_record(l, e, j < old_count && old[j].entity_id == e->id ? &old[j] : nullptr, diags) && ok;
+    }
+    free(old);
+    return (!l->device || ensure_gpu(l)) && ok;
+}
+
+}  // namespace
+
 SpriteLayer* create_sprite_layer(scene::Scene* s, DiagList* diags, bool* failed) {
     *failed = false;
     uint32_t count = 0;
     const scene::Entity* crowd = nullptr;
     const auto* look = (const sim::CrowdSprite*)scene::first_component(s, &sim::kCrowdSpriteDesc, &crowd);
     for (uint32_t i = 0; i < s->entity_count; ++i) count += scene::get_component(&s->entities[i], &sim::kSpriteDesc) ? 1 : 0;
-    if (!count && !look) return nullptr;
+    bool spawnable = false;
+    for (uint32_t i = 0; i < s->prefab_count; ++i) spawnable = spawnable || prefab_sprite(s->prefabs[i]);
+    if (!count && !look && !spawnable) return nullptr;
     SpriteLayer* l = new SpriteLayer();
     l->scene = s;
+    l->spawnable = spawnable;
     l->records = (SpriteRecord*)calloc(count ? count : 1, sizeof(SpriteRecord));
     const uint32_t before = diags->count;
+    // Sheets of sprites scripts can spawn are loaded up front, so their art is ready on the GPU.
+    for (uint32_t i = 0; i < s->prefab_count; ++i) {
+        const sim::Sprite* sprite = prefab_sprite(s->prefabs[i]);
+        if (!sprite) continue;
+        if (!sprite->sheet[0]) {
+            diag_add(diags, kErrSpriteSheet, s->prefabs[i].path, 1, 1, "prefab '%s': Sprite needs a sheet",
+                     s->prefabs[i].name);
+            continue;
+        }
+        char path[260];
+        path_join_relative(s->path, sprite->sheet, path, sizeof(path));
+        sheet_index(l, path, diags, s->prefabs[i].path, 1);
+    }
     if (look) {
         char path[260];
         path_join_relative(s->path, look->sheet, path, sizeof(path));
@@ -148,32 +243,8 @@ SpriteLayer* create_sprite_layer(scene::Scene* s, DiagList* diags, bool* failed)
             }
         }
     }
-    for (uint32_t i = 0; i < s->entity_count; ++i) {
-        const scene::Entity* e = &s->entities[i];
-        const scene::ComponentData* c = scene::find_component_data(e, &sim::kSpriteDesc);
-        if (!c) continue;
-        sim::Sprite* sprite = (sim::Sprite*)c->data;
-        if (!sprite->sheet[0]) {
-            diag_add(diags, kErrSpriteSheet, s->path, c->line ? c->line : e->line, 1,
-                     "entity '%s': Sprite needs a sheet", e->name);
-            continue;
-        }
-        char path[260];
-        path_join_relative(s->path, sprite->sheet, path, sizeof(path));
-        const int sheet = sheet_index(l, path, diags, s->path, field_line(e, kSheetField));
-        if (sheet < 0) continue;
-        if (sprite->frame >= l->sheets[sheet]->frame_count) {
-            diag_add(diags, kErrSpriteRef, s->path, field_line(e, kFrameField), 1,
-                     "entity '%s': frame %u is past the last frame (%u) of '%s'", e->name, sprite->frame,
-                     l->sheets[sheet]->frame_count - 1, path);
-            continue;
-        }
-        SpriteRecord& r = l->records[l->record_count++];
-        r.sprite = sprite;
-        r.entity = e;
-        r.sheet = (uint32_t)sheet;
-        if (start_animation(l, r, diags)) set_frame(l, r);
-    }
+    for (uint32_t i = 0; i < s->entity_count; ++i) add_record(l, &s->entities[i], nullptr, diags);
+    l->generation = s->generation;
     if (diags->count != before) {
         *failed = true;
         destroy_sprite_layer(l);
@@ -195,7 +266,7 @@ void destroy_sprite_layer(SpriteLayer* l) {
 bool step_sprites(SpriteLayer* l, uint64_t tick, DiagList* diags) {
     if (!l) return true;
     l->tick = tick;
-    bool ok = true;
+    bool ok = sync_records(l, diags);
     for (uint32_t i = 0; i < l->record_count; ++i) {
         SpriteRecord& r = l->records[i];
         if (strcmp(r.animation, r.sprite->animation) != 0) ok = start_animation(l, r, diags) && ok;
@@ -275,40 +346,60 @@ bool check_sprite_art(const SpriteLayer* l, DiagList* diags) {
     return ok;
 }
 
+namespace {
+
+// Decodes sheet i's image and uploads it with its frames.
+bool upload_sheet(SpriteLayer* l, uint32_t i) {
+    const scene::SpriteSheet* sheet = l->sheets[i];
+    uint8_t* rgba = nullptr;
+    uint32_t w = 0, h = 0;
+    if (!read_png_rgba8(sheet->image, &rgba, &w, &h)) {
+        log_error(kErrSpriteImage, "%s: cannot read image '%s'", sheet->path, sheet->image);
+        return false;
+    }
+    render::SpriteFrameInfo* frames = (render::SpriteFrameInfo*)malloc(sizeof(render::SpriteFrameInfo) * sheet->frame_count);
+    for (uint32_t f = 0; f < sheet->frame_count; ++f) {
+        const scene::SheetFrame& sf = sheet->frames[f];
+        render::SpriteFrameInfo& fi = frames[f];
+        fi.uv[0] = (float)sf.x / (float)w;
+        fi.uv[1] = (float)sf.y / (float)h;
+        fi.uv[2] = (float)(sf.x + sf.w) / (float)w;
+        fi.uv[3] = (float)(sf.y + sf.h) / (float)h;
+        fi.size[0] = (float)sf.w;
+        fi.size[1] = (float)sf.h;
+        fi.pivot[0] = sf.pivot[0];
+        fi.pivot[1] = sf.pivot[1];
+    }
+    l->gpu_sheet[i] = render::add_sprite_sheet(l->renderer, rgba, w, h, frames, sheet->frame_count, sheet->path);
+    free(frames);
+    free_png(rgba);
+    return true;
+}
+
+// Uploads the sheets loaded since the last call and grows the instance arrays to the records.
+bool ensure_gpu(SpriteLayer* l) {
+    if (!l->renderer) return true;
+    for (; l->gpu_sheet_count < l->sheet_count; ++l->gpu_sheet_count) {
+        if (!upload_sheet(l, l->gpu_sheet_count)) return false;
+    }
+    if (l->record_count > l->instance_capacity) {
+        uint32_t cap = l->instance_capacity ? l->instance_capacity : 64;
+        while (cap < l->record_count) cap *= 2;
+        l->instances = (render::SpriteInstance*)realloc(l->instances, sizeof(render::SpriteInstance) * cap);
+        l->batches = (render::SpriteBatch*)realloc(l->batches, sizeof(render::SpriteBatch) * cap);
+        l->instance_capacity = cap;
+    }
+    return true;
+}
+
+}  // namespace
+
 bool attach_sprite_gpu(SpriteLayer* l, rhi::Device* device, const char* shader_dir) {
     l->device = device;
-    if (!l->record_count) return true;  // only the crowd's look, which the crowd renderer draws
+    if (!l->record_count && !l->spawnable) return true;  // only the crowd's look, which the crowd renderer draws
     l->renderer = render::create_sprite_renderer(device, shader_dir);
     if (!l->renderer) return false;
-    for (uint32_t i = 0; i < l->sheet_count; ++i) {
-        const scene::SpriteSheet* sheet = l->sheets[i];
-        uint8_t* rgba = nullptr;
-        uint32_t w = 0, h = 0;
-        if (!read_png_rgba8(sheet->image, &rgba, &w, &h)) {
-            log_error(kErrSpriteImage, "%s: cannot read image '%s'", sheet->path, sheet->image);
-            return false;
-        }
-        render::SpriteFrameInfo* frames =
-            (render::SpriteFrameInfo*)malloc(sizeof(render::SpriteFrameInfo) * sheet->frame_count);
-        for (uint32_t f = 0; f < sheet->frame_count; ++f) {
-            const scene::SheetFrame& sf = sheet->frames[f];
-            render::SpriteFrameInfo& fi = frames[f];
-            fi.uv[0] = (float)sf.x / (float)w;
-            fi.uv[1] = (float)sf.y / (float)h;
-            fi.uv[2] = (float)(sf.x + sf.w) / (float)w;
-            fi.uv[3] = (float)(sf.y + sf.h) / (float)h;
-            fi.size[0] = (float)sf.w;
-            fi.size[1] = (float)sf.h;
-            fi.pivot[0] = sf.pivot[0];
-            fi.pivot[1] = sf.pivot[1];
-        }
-        l->gpu_sheet[i] = render::add_sprite_sheet(l->renderer, rgba, w, h, frames, sheet->frame_count, sheet->path);
-        free(frames);
-        free_png(rgba);
-    }
-    l->instances = (render::SpriteInstance*)malloc(sizeof(render::SpriteInstance) * l->record_count);
-    l->batches = (render::SpriteBatch*)malloc(sizeof(render::SpriteBatch) * l->record_count);
-    return true;
+    return ensure_gpu(l);
 }
 
 bool load_crowd_sprites(const SpriteLayer* l, render::CrowdSprites* out) {

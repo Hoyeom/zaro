@@ -48,7 +48,7 @@ add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp src/s
 target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
-add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
+add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/world.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
   src/scene/theme.cpp src/scene/sprite_sheet.cpp src/scene/build_extension.cpp
   src/scene/build_spec.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
@@ -200,6 +200,11 @@ if(ZARO_BUILD_TESTS)
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(check_crowd_sprite_animation PROPERTIES
     PASS_REGULAR_EXPRESSION "crowd_typo.toml:11:1: error\\[ZE0902\\]: entity 'horde': sheet '[^']*' has no animation 'lnad' \\(did you mean 'land'")
+  # Spawnable prefabs (D-031): each needs a [prefab] name, unique in the scene.
+  add_test(NAME check_spawn_prefabs COMMAND zaro check tests/data/scripts/bad_prefabs_scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_spawn_prefabs PROPERTIES
+    PASS_REGULAR_EXPRESSION "unnamed.toml:1:1: error\\[ZE1200\\]: a prefab in \\[scene\\] prefabs needs a name.*bad_prefabs_scene.toml:4:1: error\\[ZE1200\\]: prefabs '[^']*grunt.toml' and '[^']*grunt_again.toml' are both named 'grunt'")
   add_test(NAME scene_tests_sprites COMMAND zaro test tests/data/sprites
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME screenshot_sprites

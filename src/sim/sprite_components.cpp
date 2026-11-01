@@ -28,8 +28,8 @@ const reflect::FieldDesc kCrowdSpriteFields[] = {
 
 }  // namespace
 
-ZARO_COMPONENT(Sprite, "A sprite from a sheet, in the 3D view or on the screen, optionally animated", kSpriteFields);
-ZARO_COMPONENT(CrowdSprite, "Draws the crowd's enemies as animated sprites instead of cubes", kCrowdSpriteFields);
+ZARO_VISUAL_COMPONENT(Sprite, "A sprite from a sheet, in the 3D view or on the screen, optionally animated", kSpriteFields);
+ZARO_VISUAL_COMPONENT(CrowdSprite, "Draws the crowd's enemies as animated sprites instead of cubes", kCrowdSpriteFields);
 
 void register_sprite_components() {
     reflect::register_component(&kSpriteDesc);

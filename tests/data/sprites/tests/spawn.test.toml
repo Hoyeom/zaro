@@ -1,0 +1,11 @@
+# Spawned sprites animate from the tick they appear (tick 1): 19 ticks later, at 8 fps, the idle
+# animation shows frame 2. Destroying s2 on tick 5 leaves the other two.
+[test]
+scene = "../spawn_scene.toml"
+ticks = 20
+
+[[expect]]
+entity = "s3"
+component = "Sprite"
+field = "frame"
+equals = 2

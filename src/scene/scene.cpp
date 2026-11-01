@@ -286,8 +286,22 @@ void apply_component_table(const char* comp_name, const toml_datum_t& table, Com
     c->line = table.lineno;
 }
 
+bool copy_string(const toml_datum_t& v, char* out, size_t size, const char* what, const char* file, DiagList* diags) {
+    if (v.type != TOML_STRING) {
+        diag_add(diags, kErrSceneType, file, v.lineno, v.colno, "%s must be a string, got %s", what, kind_name(v.type));
+        return false;
+    }
+    if ((size_t)v.u.str.len >= size) {
+        diag_add(diags, kErrSceneRange, file, v.lineno, v.colno, "%s is longer than %zu bytes", what, size - 1);
+        return false;
+    }
+    memcpy(out, v.u.str.ptr, (size_t)v.u.str.len + 1);
+    return true;
+}
+
 struct Prefab {
     char path[kPathCapacity];
+    char name[kNameCapacity];  // from the [prefab] table, empty if none
     bool ok;
     bool missing;  // the file could not be opened (already reported at the reference)
     ComponentSet set;
@@ -304,6 +318,11 @@ struct Loader {
     const Prefab* prefab(const char* rel, const toml_datum_t& at) {
         char path[kPathCapacity];
         path_join_relative(scene_path, rel, path, sizeof(path));
+        return prefab_at(path, at.lineno, at.colno);
+    }
+
+    // The prefab at a resolved path, loaded once; a missing file is reported at (line, col).
+    const Prefab* prefab_at(const char* path, int line, int col) {
         for (uint32_t i = 0; i < prefab_count; ++i) {
             if (strcmp(prefabs[i]->path, path) == 0) return prefabs[i];
         }
@@ -313,7 +332,7 @@ struct Loader {
         prefabs[prefab_count++] = p;
         const uint32_t errors_before = diags->count;
         Loaded l;
-        const bool loaded = load_toml(path, &l, diags, kErrScenePrefab, scene_path, at.lineno, at.colno);
+        const bool loaded = load_toml(path, &l, diags, kErrScenePrefab, scene_path, line, col);
         p->missing = !loaded && !l.text;
         if (loaded) {
             const toml_datum_t top = l.result.toptab;
@@ -323,6 +342,8 @@ struct Loader {
                 const toml_datum_t& v = top.u.tab.value[i];
                 if (strcmp(key, "prefab") == 0) {
                     has_header = true;
+                    const toml_datum_t name = toml_get(v, "name");
+                    if (name.type != TOML_UNKNOWN) copy_string(name, p->name, sizeof(p->name), "prefab name", path, diags);
                     continue;
                 }
                 if (v.type != TOML_TABLE) {
@@ -346,19 +367,6 @@ struct Loader {
         }
     }
 };
-
-bool copy_string(const toml_datum_t& v, char* out, size_t size, const char* what, const char* file, DiagList* diags) {
-    if (v.type != TOML_STRING) {
-        diag_add(diags, kErrSceneType, file, v.lineno, v.colno, "%s must be a string, got %s", what, kind_name(v.type));
-        return false;
-    }
-    if ((size_t)v.u.str.len >= size) {
-        diag_add(diags, kErrSceneRange, file, v.lineno, v.colno, "%s is longer than %zu bytes", what, size - 1);
-        return false;
-    }
-    memcpy(out, v.u.str.ptr, (size_t)v.u.str.len + 1);
-    return true;
-}
 
 void load_entity(Loader& loader, const toml_datum_t& t, Entity* e, const char* file, DiagList* diags) {
     const bool screen = loader.kind == DocKind::kScreen;
@@ -459,6 +467,14 @@ void load_scene_header(const toml_datum_t& header, Scene* s, const char* path, D
         } else if (strcmp(key, "languages") == 0) {
             s->language_count = copy_string_array(v, s->languages[0], kLanguageCapacity, kMaxLanguages,
                                                   "scene languages", path, diags);
+        } else if (strcmp(key, "prefabs") == 0) {
+            char rels[kMaxSpawnPrefabs][kPathCapacity];
+            s->prefabs_line = v.lineno;
+            s->prefab_count = copy_string_array(v, rels[0], kPathCapacity, kMaxSpawnPrefabs, "scene prefabs", path, diags);
+            s->prefabs = (SpawnPrefab*)calloc(s->prefab_count ? s->prefab_count : 1, sizeof(SpawnPrefab));
+            for (uint32_t k = 0; k < s->prefab_count; ++k) {
+                path_join_relative(path, rels[k], s->prefabs[k].path, kPathCapacity);
+            }
         } else if (strcmp(key, "build_extensions") == 0) {
             char rels[kMaxBuildExtensions][kPathCapacity];
             s->build_extensions_line = v.lineno;
@@ -469,8 +485,8 @@ void load_scene_header(const toml_datum_t& header, Scene* s, const char* path, D
             }
         } else {
             diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
-                     "unexpected key '%s' in [scene] (expected name, script, ui, screens, strings, languages or "
-                     "build_extensions)", key);
+                     "unexpected key '%s' in [scene] (expected name, script, ui, screens, strings, languages, "
+                     "build_extensions or prefabs)", key);
         }
     }
     if (s->strings[0] && !s->language_count) {
@@ -560,6 +576,44 @@ void resolve_parents(Scene* s, const toml_datum_t& nodes, DiagList* diags) {
         const char* hint = reflect::suggest_name(e.parent, names, i);
         diag_add(diags, kErrSceneParent, s->path, at.lineno, at.colno, "unknown parent node '%s'%s%s%s", e.parent,
                  hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+    }
+}
+
+// Loads [scene] prefabs and keeps a copy of each one's components for spawning (scene/world.h).
+void load_spawn_prefabs(Loader& loader, Scene* s, DiagList* diags) {
+    for (uint32_t i = 0; i < s->prefab_count; ++i) {
+        SpawnPrefab& sp = s->prefabs[i];
+        const Prefab* p = loader.prefab_at(sp.path, s->prefabs_line, 1);
+        if (!p || !p->ok) {
+            if (p && !p->missing) {
+                diag_add(diags, kErrScenePrefab, s->path, s->prefabs_line, 1, "prefab '%s' has errors (see above)",
+                         sp.path);
+            }
+            continue;
+        }
+        if (!p->name[0]) {
+            diag_add(diags, kErrSpawnPrefab, sp.path, 1, 1,
+                     "a prefab in [scene] prefabs needs a name in its [prefab] table; scripts spawn it by that name");
+            continue;
+        }
+        for (uint32_t j = 0; j < i; ++j) {
+            if (strcmp(s->prefabs[j].name, p->name) == 0) {
+                diag_add(diags, kErrSpawnPrefab, s->path, s->prefabs_line, 1,
+                         "prefabs '%s' and '%s' are both named '%s'", s->prefabs[j].path, sp.path, p->name);
+            }
+        }
+        snprintf(sp.name, sizeof(sp.name), "%s", p->name);
+        sp.component_count = p->set.count;
+        sp.components = (ComponentData*)calloc(p->set.count ? p->set.count : 1, sizeof(ComponentData));
+        for (uint32_t c = 0; c < p->set.count; ++c) {
+            const ComponentData& from = p->set.items[c];
+            ComponentData& to = sp.components[c];
+            to.desc = from.desc;
+            to.data = malloc(from.desc->size);
+            memcpy(to.data, from.data, from.desc->size);
+            to.line = 0;
+            to.field_lines = nullptr;
+        }
     }
 }
 
@@ -656,6 +710,11 @@ Scene* load(const char* path, Want expect, DiagList* diags) {
                  items_key, items_key);
     }
 
+    for (uint32_t i = 0; i < s->entity_count; ++i) s->entities[i].id = i + 1;
+    s->next_id = s->entity_count + 1;
+    s->entity_capacity = s->entities ? (s->entity_count ? s->entity_count : 1) : 0;
+    load_spawn_prefabs(loader, s, diags);
+
     // Build extensions are checked with the scene, so `zaro check` reports them (D-026).
     for (uint32_t i = 0; i < s->build_extension_count; ++i) {
         const uint32_t before = diags->count;
@@ -696,12 +755,17 @@ void free_scene(Scene* s) {
         free(s->entities[i].components);
     }
     free(s->entities);
+    for (uint32_t i = 0; s->prefabs && i < s->prefab_count; ++i) {
+        for (uint32_t j = 0; j < s->prefabs[i].component_count; ++j) free(s->prefabs[i].components[j].data);
+        free(s->prefabs[i].components);
+    }
+    free(s->prefabs);
     free(s);
 }
 
 const Entity* find_entity(const Scene* s, const char* name) {
     for (uint32_t i = 0; i < s->entity_count; ++i) {
-        if (strcmp(s->entities[i].name, name) == 0) return &s->entities[i];
+        if (!s->entities[i].destroyed && strcmp(s->entities[i].name, name) == 0) return &s->entities[i];
     }
     return nullptr;
 }

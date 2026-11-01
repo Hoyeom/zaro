@@ -70,11 +70,18 @@ int check_scene(const char* path, bool json) {
         uint32_t components = 0;
         for (uint32_t i = 0; i < s->entity_count; ++i) components += s->entities[i].component_count;
         if (screen) printf("%s: ok (screen '%s', %u nodes, %u widgets)\n", path, s->name, s->entity_count, components);
-        else if (s->ui_count || s->screen_count) {
-            printf("%s: ok (scene '%s', %u entities, %u components, %u screens, %u languages)\n", path, s->name,
-                   s->entity_count, components, s->ui_count + s->screen_count, s->language_count);
-        } else {
-            printf("%s: ok (scene '%s', %u entities, %u components)\n", path, s->name, s->entity_count, components);
+        else {
+            char extra[96] = "";
+            if (s->ui_count || s->screen_count) {
+                snprintf(extra, sizeof(extra), ", %u screens, %u languages", s->ui_count + s->screen_count,
+                         s->language_count);
+            }
+            if (s->prefab_count) {
+                const size_t n = strlen(extra);
+                snprintf(extra + n, sizeof(extra) - n, ", %u spawnable prefabs", s->prefab_count);
+            }
+            printf("%s: ok (scene '%s', %u entities, %u components%s)\n", path, s->name, s->entity_count, components,
+                   extra);
         }
     } else {
         diag_print_text(diags, stderr);

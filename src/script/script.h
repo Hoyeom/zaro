@@ -3,12 +3,23 @@
 // A script is a .luau file that may define two hooks:
 //   function on_start()          -- once, after the scene is loaded
 //   function on_tick(tick)       -- every simulation tick (60 Hz)
-// and reaches the scene through one read-only global table:
+// and reaches the scene through one read-only global table. An entity is its id (a number) or
+// its name (a string); ids are unique in the run and never reused (scene/world.h, D-031).
 //   zaro.get(entity, component, field)         -> number | boolean | string | {x, y[, z[, w]]}
 //   zaro.set(entity, component, field, value)  -- type- and range-checked through reflection
-//   zaro.has(entity[, component])              -> boolean
+//   zaro.has(entity[, component])              -> boolean (false for a destroyed entity)
 //   zaro.tick()                                -> current tick
 //   zaro.log(...)                              -- prints "script: ..." to stderr
+//   zaro.spawn(prefab[, {name = "..", <Component> = {field = value, ...}, ...}])  -> id
+//       -- a prefab of [scene] prefabs, by its [prefab] name; component tables override fields
+//          (or add the component). Without a name it is "<prefab>#<id>".
+//   zaro.destroy(entity)                       -> true, or false for an id already destroyed
+//       -- the entity is gone for scripts at once and removed at the end of the tick
+//   zaro.alive(entity)                         -> boolean
+//   zaro.find(name)                            -> id, or nil
+//   zaro.id(entity), zaro.name(entity)         -> its id, its name
+//   zaro.query([component, ...])               -> {id, ...}: live entities with all of them, in id order
+//   zaro.count([component, ...])               -> how many zaro.query would return
 // and the scene's UI through `ui` (view model in scene/ui_state.h, navigation in ui/navigator.h):
 //   ui.set(key, value)       -- a view-model value (number or string); texts show it as {key}
 //   ui.get(key)              -> the value, or nil

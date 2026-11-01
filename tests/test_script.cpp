@@ -2,6 +2,7 @@
 // hot reload. argv[1] is a writable directory for the reload test; run from the repository root.
 #include "core/diag.h"
 #include "scene/scene.h"
+#include "scene/world.h"
 #include "script/script.h"
 #include "sim/crowd_components.h"
 
@@ -19,9 +20,9 @@ void expect(bool ok, const char* what) {
     }
 }
 
-zaro::scene::Scene* load_test_scene() {
+zaro::scene::Scene* load_test_scene(const char* path = "tests/data/scripts/scene.toml") {
     zaro::DiagList* diags = new zaro::DiagList();
-    zaro::scene::Scene* s = zaro::scene::load_scene("tests/data/scripts/scene.toml", diags);
+    zaro::scene::Scene* s = zaro::scene::load_scene(path, diags);
     if (!s) zaro::diag_print_text(diags, stderr);
     delete diags;
     return s;
@@ -37,8 +38,9 @@ struct Run {
     zaro::script::Script* script = nullptr;
     zaro::DiagList* diags = new zaro::DiagList();
 
-    explicit Run(const char* path, uint64_t seed = 1, double budget = 1.0) {
-        scene = load_test_scene();
+    explicit Run(const char* path, uint64_t seed = 1, double budget = 1.0,
+                 const char* scene_path = "tests/data/scripts/scene.toml") {
+        scene = load_test_scene(scene_path);
         zaro::script::ScriptDesc d;
         d.path = path;
         d.scene = scene;
@@ -134,6 +136,47 @@ void test_reload(const char* dir) {
     remove(path);
 }
 
+// Spawning, queries and destroying (D-031): world.luau asserts what scripts see, this checks the scene.
+uint64_t run_world(uint32_t* entities_after) {
+    Run r("tests/data/scripts/world.luau", 1, 1.0, "tests/data/scripts/world_scene.toml");
+    expect(r.script && zaro::script::call_start(r.script, r.diags), "world.luau on_start");
+    if (!r.script) return 0;
+    expect(r.scene->entity_count == 6, "two file entities and four spawned");
+    const uint64_t g0 = r.scene->generation;
+    expect(zaro::script::call_tick(r.script, 1, r.diags), "world.luau tick 1 destroys a grunt");
+    expect(r.scene->entity_count == 6 && r.scene->generation != g0, "destroy marks the entity until the flush");
+    expect(zaro::scene::flush_entities(r.scene) == 1 && r.scene->entity_count == 5, "the flush removes it");
+    expect(zaro::script::call_tick(r.script, 2, r.diags), "world.luau tick 2");
+    const zaro::scene::Entity* g = zaro::scene::entity_by_id(r.scene, 3);
+    const auto* sp = g ? (const zaro::sim::CrowdSpawner*)zaro::scene::get_component(g, &zaro::sim::kCrowdSpawnerDesc) : nullptr;
+    expect(sp && sp->speed == 9.0f, "zaro.set by id reached grunt#3");
+    expect(!zaro::scene::entity_by_id(r.scene, 4) && zaro::scene::entity_by_id(r.scene, 5), "ids stay after removal");
+    if (r.diags->count) zaro::diag_print_text(r.diags, stderr);
+    *entities_after = r.scene->entity_count;
+    return zaro::scene::world_hash(r.scene);
+}
+
+void test_world() {
+    uint32_t n1 = 0, n2 = 0;
+    const uint64_t h1 = run_world(&n1);
+    const uint64_t h2 = run_world(&n2);
+    expect(h1 && h1 == h2 && n1 == n2, "the same script gives the same world hash");
+
+    Run r("tests/data/scripts/world_errors.luau", 1, 1.0, "tests/data/scripts/world_scene.toml");
+    expect(r.script != nullptr, "world_errors.luau loads");
+    if (!r.script) return;
+    expect(!zaro::script::call_tick(r.script, 1, r.diags) && r.has(zaro::kErrScriptRuntime, 4, "did you mean 'grunt'"),
+           "unknown prefab: ZE0501 with a hint");
+    expect(!zaro::script::call_tick(r.script, 2, r.diags) && r.has(zaro::kErrScriptRuntime, 6, "did you mean 'player'"),
+           "unknown entity name: ZE0501 with a hint");
+    expect(!zaro::script::call_tick(r.script, 3, r.diags) && r.has(zaro::kErrScriptRuntime, 8, "no entity with id 99"),
+           "unknown id");
+    expect(!zaro::script::call_tick(r.script, 4, r.diags) && r.has(zaro::kErrScriptRuntime, 10, "did you mean 'CrowdSpawner'"),
+           "unknown component in spawn options");
+    expect(!zaro::script::call_tick(r.script, 5, r.diags) && r.has(zaro::kErrScriptRuntime, 12, "already exists"),
+           "spawn with a taken name");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -143,6 +186,7 @@ int main(int argc, char** argv) {
     test_sandbox();
     test_random();
     test_reload(argc > 1 ? argv[1] : ".");
+    test_world();
     if (g_failures) {
         fprintf(stderr, "test_script: %d failure(s)\n", g_failures);
         return 1;

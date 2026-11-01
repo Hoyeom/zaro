@@ -1,6 +1,6 @@
 # After 900 ticks (15 s) hello.luau has raised the player speed three times: 6.0 + 3 x 0.5.
 [test]
-state_hash = "d5c5edfa50c693ff"
+state_hash = "435ae0654c0e2299"
 scene = "../scene.toml"
 ticks = 900
 

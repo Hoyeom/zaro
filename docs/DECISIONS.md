@@ -750,6 +750,49 @@ Status of all entries below: **accepted, 2026-11-01**.
   out of "Later" into P6 and G1. Online features join G1 when P4 provides them; G1 does not wait
   for them.
 
+## D-031 Gameplay from scripts: entities at run time, events, timers, hierarchies and tweens
+
+- **Status**: accepted, 2026-11-02. Built in steps in P6 (docs/ROADMAP.md); each step's API is
+  documented at the top of `src/script/script.h` and `src/scene/world.h` when it lands.
+- **Decision**: a scene's entities can change while it runs, and scripts drive them. Every part
+  runs in the fixed 60 Hz tick (D-005) and stays inside the Luau sandbox (D-009).
+  - **Entities at run time**: every entity has an id, unique in the run and never reused; the
+    file's entities are 1..n in file order. Scripts name an entity by id or by name. They spawn
+    prefabs that the scene lists in `[scene] prefabs` by their `[prefab]` name, with field
+    overrides, and destroy entities. A destroyed entity is gone for scripts at once and removed at
+    the end of the tick, so ids and iteration stay valid while scripts run. Queries return ids in
+    id order.
+  - **Events and timers**: scripts emit named events and subscribe to them; events emitted in a
+    tick are delivered in the same tick, in order. Timers count ticks, not wall time.
+  - **Hierarchies**: a `Transform` component and a parent link; a parent moves, turns and scales
+    its children. World transforms are computed each tick with deterministic arithmetic (no
+    platform `sin`/`cos`).
+  - **Tweens**: easing curves from a start value to an end value over seconds of tick time,
+    started from scripts or from `[[tween]]` tables in scene and prefab files. They may change only
+    visual data: components registered as visual (`ZARO_VISUAL_COMPONENT`, such as `Sprite`) and
+    UI widgets.
+  - **State hash**: the scene tests' state hash covers the crowd and every live entity's id, name
+    and non-visual component fields. Visual components are left out, so how a scene looks (sprites,
+    tweens, effects) never changes a golden hash.
+- **Why**:
+  - G1 (D-029) needs waves of spawned things, reactions to hits and pickups, timed phases, shapes
+    that orbit the player, and motion that comes only from tweens. Today a script can only change
+    fields of entities the file declares.
+  - Ids instead of names let a script hold thousands of spawned entities without inventing names;
+    names stay for the file's entities, which scripts and tests already use.
+  - Removing entities at the end of the tick, and keeping ids in ascending order, makes iteration
+    safe and lookups a binary search, with no handle table.
+  - Prefabs listed in the scene are loaded and checked with it (`zaro check`), packed by the
+    Android export and their sprite sheets loaded before the first frame. A misspelt prefab name is
+    an error with "did you mean".
+  - Tick-based events, timers and tweens give the same result at any frame rate and on any
+    platform, which golden hashes on three CI platforms require. Restricting tweens to visual data
+    keeps "visuals never feed the simulation" true by construction.
+- **Consequences**: `Scene::entities` can grow and shrink during a run; code that keeps pointers
+  into it rebuilds them when `Scene::generation` changes (the sprite layer does). Golden hashes of
+  existing scene tests changed once when the state hash started to cover the entities. New error
+  ids are ZE1200-ZE1299; script misuse of the new API stays ZE0501 with file and line.
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:

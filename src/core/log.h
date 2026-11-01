@@ -46,6 +46,7 @@ enum ErrorId {
     kErrBuildRelease = 1002,  // ZE1002 a release environment enables debug_tools or a debug* config key
     kErrBuildTarget = 1003,   // ZE1003 a target stage failed, or a release build lacks a release environment,
                               //        a version code or the upload key
+    kErrSpawnPrefab = 1200,   // ZE1200 a [scene] prefabs entry has no [prefab] name, or two share one (D-031)
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

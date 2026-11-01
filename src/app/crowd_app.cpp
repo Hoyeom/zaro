@@ -4,6 +4,7 @@
 #include "app/tools.h"
 #include "app/ui_layer.h"
 #include "core/diag.h"
+#include "core/hash.h"
 #include "core/jobs.h"
 #include "core/png.h"
 #include "core/profile.h"
@@ -12,6 +13,7 @@
 #include "scene/scene.h"
 #include "scene/test_spec.h"
 #include "scene/ui_state.h"
+#include "scene/world.h"
 #include "script/script.h"
 #include "ui/screen.h"
 #include "sim/crowd.h"
@@ -79,7 +81,16 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
                         player ? player->speed : sim::PlayerController{}.speed);
     }
     sim::step(g.crowd, input);
+    if (g.scene) scene::flush_entities(g.scene);  // what scripts destroyed this tick (D-031)
     return step_sprites(g.sprites, sim::tick(g.crowd), g.diags) && ok;
+}
+
+// The run's state: the crowd and the scene's gameplay data (scene::world_hash).
+uint64_t game_state_hash(const Game& g) {
+    const uint64_t crowd = sim::state_hash(g.crowd);
+    if (!g.scene) return crowd;
+    const uint64_t world = scene::world_hash(g.scene);
+    return fnv1a(&world, sizeof(world), crowd);
 }
 
 struct Stats {
@@ -112,7 +123,8 @@ void add_gpu_sample(Stats& s, const rhi::GpuTimings& t) {
 }
 
 bool write_perf_json(const char* path, const RunOptions& o, const Stats& s, double wall_seconds,
-                     const sim::Crowd* crowd, rhi::Device* device) {
+                     const Game& g, rhi::Device* device) {
+    const sim::Crowd* crowd = g.crowd;
     FILE* f = fopen(path, "w");
     if (!f) {
         log_error(kErrIo, "%s: cannot write perf report", path);
@@ -165,7 +177,7 @@ bool write_perf_json(const char* path, const RunOptions& o, const Stats& s, doub
     fprintf(f, "  \"ticks\": %llu,\n", (unsigned long long)sim::tick(crowd));
     fprintf(f, "  \"hits\": %llu,\n", (unsigned long long)sim::total_hits(crowd));
     fprintf(f, "  \"seed\": %llu,\n", (unsigned long long)o.seed);
-    fprintf(f, "  \"state_hash\": \"%016llx\"\n", (unsigned long long)sim::state_hash(crowd));
+    fprintf(f, "  \"state_hash\": \"%016llx\"\n", (unsigned long long)game_state_hash(g));
     fprintf(f, "}\n");
     return fclose(f) == 0;
 }
@@ -316,8 +328,8 @@ int run_headless(const RunOptions& o, Game& g, float* instances) {
         }
         free(pixels);
     }
-    if (exit_code == 0 && o.perf_path && !write_perf_json(o.perf_path, o, stats, wall, crowd, device)) exit_code = 1;
-    printf("state_hash=%016llx ticks=%llu\n", (unsigned long long)sim::state_hash(crowd),
+    if (exit_code == 0 && o.perf_path && !write_perf_json(o.perf_path, o, stats, wall, g, device)) exit_code = 1;
+    printf("state_hash=%016llx ticks=%llu\n", (unsigned long long)game_state_hash(g),
            (unsigned long long)sim::tick(crowd));
     free(stats.frame_ms);
     render::destroy_crowd_renderer(renderer);
@@ -605,7 +617,7 @@ bool simulate_scene(const RunOptions& o, uint32_t ticks, const scene::TestSpec* 
     }
     // Lay out once more so texts and rectangles reflect the last tick.
     if (g.ui) update_ui(g.ui, nullptr, (float)o.width, (float)o.height, (float)sim::kTickSeconds);
-    out->state_hash = sim::state_hash(g.crowd);
+    out->state_hash = game_state_hash(g);
     out->ticks = sim::tick(g.crowd);
     sim::destroy_crowd(g.crowd);
     script::destroy_script(g.script);

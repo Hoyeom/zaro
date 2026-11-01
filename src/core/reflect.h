@@ -39,7 +39,13 @@ struct ComponentDesc {
     const FieldDesc* fields;
     uint32_t field_count;
     ComponentKind kind;
+    // Visual data (what is drawn, not gameplay state): tweens may change it, and the scene tests'
+    // state hash leaves it out (D-031). UI widgets are always visual.
+    bool visual;
 };
+
+// True for UI widgets and components registered with ZARO_VISUAL_COMPONENT.
+inline bool is_visual(const ComponentDesc* desc) { return desc->visual || desc->kind == ComponentKind::kUi; }
 
 const char* type_name(FieldType type);
 
@@ -78,13 +84,16 @@ void write_schema_json(void* file /* FILE* */);
     { #member, zaro::reflect::FieldType::kEnum, (uint32_t)offsetof(Struct, member), doc, 1.0, 0.0, choices }
 
 // Defines `const zaro::reflect::ComponentDesc k<Struct>Desc` from an array of ZARO_FIELDs.
-#define ZARO_COMPONENT_OF_KIND(Struct, doc, fields_array, component_kind)                            \
+#define ZARO_COMPONENT_OF_KIND(Struct, doc, fields_array, component_kind, is_visual)                 \
     static const Struct k##Struct##Defaults{};                                                      \
     const zaro::reflect::ComponentDesc k##Struct##Desc = {                                          \
         #Struct, doc, (uint32_t)sizeof(Struct), &k##Struct##Defaults, fields_array,                  \
-        (uint32_t)(sizeof(fields_array) / sizeof(fields_array[0])), component_kind}
+        (uint32_t)(sizeof(fields_array) / sizeof(fields_array[0])), component_kind, is_visual}
 #define ZARO_COMPONENT(Struct, doc, fields_array) \
-    ZARO_COMPONENT_OF_KIND(Struct, doc, fields_array, zaro::reflect::ComponentKind::kScene)
+    ZARO_COMPONENT_OF_KIND(Struct, doc, fields_array, zaro::reflect::ComponentKind::kScene, false)
+// A scene component that holds only what is drawn (ComponentDesc::visual), such as a sprite.
+#define ZARO_VISUAL_COMPONENT(Struct, doc, fields_array) \
+    ZARO_COMPONENT_OF_KIND(Struct, doc, fields_array, zaro::reflect::ComponentKind::kScene, true)
 // A widget for screen files (D-020).
 #define ZARO_UI_COMPONENT(Struct, doc, fields_array) \
-    ZARO_COMPONENT_OF_KIND(Struct, doc, fields_array, zaro::reflect::ComponentKind::kUi)
+    ZARO_COMPONENT_OF_KIND(Struct, doc, fields_array, zaro::reflect::ComponentKind::kUi, true)

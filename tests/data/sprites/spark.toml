@@ -1,0 +1,8 @@
+# A prefab spawn.luau spawns (D-031).
+[prefab]
+name = "spark"
+
+[Sprite]
+sheet = "blob.toml"
+animation = "idle"
+scale = 2.0

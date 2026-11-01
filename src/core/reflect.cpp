@@ -220,7 +220,8 @@ void write_schema_json(void* file) {
         fputs(c ? ",\n    {" : "\n    {", out);
         fputs("\"name\": ", out);
         json_write_string(out, d->name);
-        fprintf(out, ", \"kind\": \"%s\"", d->kind == ComponentKind::kUi ? "ui" : "scene");
+        fprintf(out, ", \"kind\": \"%s\", \"visual\": %s", d->kind == ComponentKind::kUi ? "ui" : "scene",
+                is_visual(d) ? "true" : "false");
         fputs(", \"doc\": ", out);
         json_write_string(out, d->doc);
         fputs(", \"fields\": [", out);

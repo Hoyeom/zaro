@@ -342,6 +342,17 @@ void add_document_files(PathList& files, const scene::Scene* doc, bool* ok) {
         const auto* look = (const sim::CrowdSprite*)scene::get_component(&en, &sim::kCrowdSpriteDesc);
         if (look && look->sheet[0]) add_sheet_files(files, doc->path, look->sheet, ok);
     }
+    // Prefabs scripts can spawn (D-031), and the sheets of their sprites.
+    for (uint32_t i = 0; i < doc->prefab_count; ++i) {
+        const scene::SpawnPrefab& p = doc->prefabs[i];
+        path_join_relative("", p.path, path, sizeof(path));
+        *ok &= add_unique(files, path);
+        for (uint32_t c = 0; c < p.component_count; ++c) {
+            if (p.components[c].desc != &sim::kSpriteDesc) continue;
+            const auto* sprite = (const sim::Sprite*)p.components[c].data;
+            if (sprite->sheet[0]) add_sheet_files(files, doc->path, sprite->sheet, ok);
+        }
+    }
 }
 
 struct DirScan {
