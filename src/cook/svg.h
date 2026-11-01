@@ -1,4 +1,4 @@
-// SVG art for sprite sheets, rasterized at cook time (D-027). svg.cpp is the only file that
+// SVG art for sprite sheets, rasterized at cook time (D-028). svg.cpp is the only file that
 // includes lunasvg.h. The cook module is built only for the zaro tool, never for Android, so no
 // game binary contains the SVG renderer.
 #pragma once

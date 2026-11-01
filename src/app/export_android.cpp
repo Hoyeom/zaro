@@ -301,7 +301,7 @@ void free_extensions(ExtensionText* x) {
     free(x->application);
 }
 
-// A sprite sheet and its image. An SVG sheet is cooked first (D-027) and packs the cooked PNG; the
+// A sprite sheet and its image. An SVG sheet is cooked first (D-028) and packs the cooked PNG; the
 // APK never holds the SVG files.
 void add_sheet_files(PathList& files, const char* doc_path, const char* sheet_rel, bool* ok) {
     char path[kPath];
