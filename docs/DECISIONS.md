@@ -152,7 +152,14 @@ Status of all entries below: **accepted, 2026-11-01**.
   clean-build time budget fails the job when it is exceeded. Perf regression is tracked from
   `perf.json`. CI runners have no GPU, so GPU-time regressions are tracked on a self-hosted
   runner. Hosted runners track CPU simulation time.
-- **Status**: not implemented yet (step 5 of the project plan).
+- **Current state**: `.github/workflows/ci.yml` runs lint and repository rules, and builds
+  and tests on Windows, Linux and macOS (GPU tests excluded). `--engine-budget=180` fails the
+  job when rebuilding ZARO's own objects takes longer than 180 s. A simulation-only benchmark
+  is uploaded as `perf-<os>.json` and shown in the job summary.
+- **Not done yet**:
+  - automatic perf-regression gating; shared runners vary too much for a fixed threshold
+  - GPU timing in CI, which needs a self-hosted GPU runner
+  - the dependency-license check from D-012
 
 ## D-014 Module layering: sim (model) / render (view) / app (binding)
 

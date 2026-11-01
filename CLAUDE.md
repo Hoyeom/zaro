@@ -11,7 +11,9 @@ Every architectural decision and its reasoning is in [docs/DECISIONS.md](docs/DE
 |---|---|
 | Configure + build (debug) | `python tools/build.py` |
 | Build + run all tests | `python tools/build.py debug --test` |
-| Tests without a GPU (CI) | `ctest --preset debug -LE gpu` |
+| Tests without a GPU (as CI runs them) | `python tools/build.py debug --test --no-gpu-tests` |
+| Engine compile-time budget | `python tools/build.py debug --engine-budget=60` (prints `engine_build_seconds`) |
+| Linux build in Docker (from Windows too) | `sh tools/ci/linux-docker.sh` |
 | Clean rebuild | `python tools/build.py debug --clean` |
 | Release / Tracy builds | `python tools/build.py release`, `python tools/build.py profile` |
 | Lint the whole tree | `python tools/lint.py` (rules: `--list-rules`) |
@@ -151,6 +153,20 @@ offscreen, and keeps at most two frames in flight. `--perf PATH` writes:
 
 The run also prints `state_hash=<hex> ticks=<n>` on stdout.
 
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`:
+
+1. `rules` (Ubuntu): `tools/lint.py`, then the PR title and every PR commit through
+   `tools/git_rules.py` (format and DCO sign-off).
+2. `build` on Windows, Linux and macOS: `tools/build.py release --test --no-gpu-tests
+   --engine-budget=180`, then a simulation-only benchmark (`zaro run --sim-only`). Its
+   numbers go to the job summary and a `perf-<os>` artifact.
+
+Hosted runners have no GPU, so `gpu`-labelled tests and GPU timings run only locally. Linux
+system packages are listed in `tools/ci/install-linux-deps.sh`, which CI and
+`tools/ci/linux-docker.sh` share. Actions are pinned by commit SHA.
+
 ## Shaders
 
 Shaders are Slang (`shaders/*.slang`). `zaro_add_shaders` in `cmake/ZaroDeps.cmake` compiles
@@ -185,6 +201,8 @@ Hot reload: a windowed `zaro run` polls the `.wgsl` files twice a second. Rebuil
   one `git revert`.
 - Run `python tools/build.py debug --test` before pushing.
 
+CI (`.github/workflows/ci.yml`) checks the PR title and every PR commit with
+`tools/git_rules.py pr-title` and `commits`.
 Enforced by `tools/git_rules.py` (rules G001–G006, `--list-rules`) through the git hooks in
 `tools/githooks/` (`pre-commit`: branch, `commit-msg`: message, `pre-push`: no push to `main`),
 and by `permissions.deny` in `.claude/settings.json` (pushes to `main`, `--no-verify`). The
