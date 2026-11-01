@@ -183,6 +183,50 @@ void test_strings() {
     delete diags;
 }
 
+void test_themes() {
+    // Tokens resolve in the screen and in its prefabs (hello's settings popup, from its design kit).
+    zaro::DiagList* diags = new zaro::DiagList();
+    zaro::scene::Scene* s = zaro::scene::load_screen("examples/hello/ui/settings.toml", diags);
+    expect(s != nullptr, "the themed settings screen loads");
+    if (s) {
+        const zaro::scene::Entity* panel = zaro::scene::find_entity(s, "panel");
+        const auto* layout = panel ? (const zaro::ui::Layout*)zaro::scene::get_component(panel, &zaro::ui::kLayoutDesc)
+                                   : nullptr;
+        const auto* fill = panel ? (const zaro::ui::Panel*)zaro::scene::get_component(panel, &zaro::ui::kPanelDesc)
+                                 : nullptr;
+        expect(layout && layout->padding[0] == 32.0f && layout->gap == 20.0f, "prefab tokens resolve: $space-8, $space-5");
+        expect(fill && fill->color == 0xfff0f5f7u && fill->radius == 20.0f, "prefab tokens resolve: $surface, $radius-lg");
+        const zaro::scene::Entity* title = zaro::scene::find_entity(s, "title");
+        const auto* label = title ? (const zaro::ui::Label*)zaro::scene::get_component(title, &zaro::ui::kLabelDesc)
+                                  : nullptr;
+        expect(label && label->size == 32.0f, "type style tokens resolve: $title.size");
+    }
+    zaro::scene::free_scene(s);
+    delete diags;
+
+    diags = new zaro::DiagList();
+    s = zaro::scene::load_screen("tests/data/screens/theme/tokens.toml", diags);
+    const Expected tokens[] = {
+        {zaro::kErrSceneToken, 11, "did you mean '$surface'"},
+        {zaro::kErrSceneToken, 12, "no number token 'surface'"},
+    };
+    expect_diags(diags, tokens, 2, "theme/tokens.toml");
+    zaro::scene::free_scene(s);
+    delete diags;
+
+    diags = new zaro::DiagList();
+    s = zaro::scene::load_screen("tests/data/screens/theme/no_theme.toml", diags);
+    const Expected no_theme[] = {{zaro::kErrSceneToken, 7, "has no theme"}};
+    expect_diags(diags, no_theme, 1, "theme/no_theme.toml");
+    delete diags;
+
+    diags = new zaro::DiagList();
+    s = zaro::scene::load_screen("tests/data/screens/theme/missing_theme.toml", diags);
+    const Expected missing[] = {{zaro::kErrSceneStructure, 3, "cannot open theme"}};
+    expect_diags(diags, missing, 1, "theme/missing_theme.toml");
+    delete diags;
+}
+
 void test_paths() {
     struct Case {
         const char* base;
@@ -217,6 +261,7 @@ int main() {
     test_screen_errors();
     test_screen_tree();
     test_strings();
+    test_themes();
     if (g_failures) {
         fprintf(stderr, "test_scene: %d failure(s)\n", g_failures);
         return 1;

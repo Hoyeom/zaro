@@ -1,0 +1,19 @@
+# ChoiceButton, from the design kit: One option of a pair or a row: `go` when chosen, `off` otherwise, regular `small` caption.
+# Written as a stub by `zaro import-design`, then filled in with theme tokens ("$name" from theme.toml).
+# Use it from a screen with prefab = "kit/choice_button.toml" on a [[node]]; the script colours the chosen one.
+[prefab]
+name = "ChoiceButton"
+
+[Layout]
+width = 110
+height = 48
+
+[Button]
+font = "regular"
+size = "$small.size"
+text_color = "$on-button"
+color = "$off"
+hover_color = "$go-hover"
+pressed_color = "$go-pressed"
+disabled_color = "$disabled"
+radius = "$radius-sm"

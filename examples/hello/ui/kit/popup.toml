@@ -1,0 +1,16 @@
+# Popup, from the design kit: A centred decision panel: `surface`, `radius-lg`, `space-8` padding, rows `space-5` apart.
+# Written as a stub by `zaro import-design`, then filled in with theme tokens ("$name" from theme.toml).
+# Use it from a screen with prefab = "kit/popup.toml" on the panel node inside a Modal.
+[prefab]
+name = "Popup"
+
+[Layout]
+width = 520
+anchor = [0.5, 0.5]
+direction = "column"
+padding = ["$space-8", 28, "$space-8", 28]
+gap = "$space-5"
+
+[Panel]
+color = "$surface"
+radius = "$radius-lg"

@@ -38,4 +38,10 @@ struct ExportOptions {
 // 1 when the scene is invalid or a file cannot be written, 2 on bad options.
 int export_android(const ExportOptions& options);
 
+// `zaro import-design <kit dir> <out dir> [--check]`: writes <out dir>/theme.toml from a Claude
+// Design kit's tokens.json (project/tokens.json or tokens.json in the kit directory), and a UI
+// prefab stub per kit component (components/<Comp>/README.md) that does not exist yet (D-023).
+// --check only compares the theme it would write with the existing one. Returns 0 on success.
+int import_design(const char* kit_dir, const char* out_dir, bool check);
+
 }  // namespace zaro::app

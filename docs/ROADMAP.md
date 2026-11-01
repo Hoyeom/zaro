@@ -78,7 +78,13 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
     `home` button actions; `ui.open`/`close`/`back`/`home`/`abort_all`/`ready`/`state`, the
     `on_back` and `on_screen` hooks; `[[back]]` and `state` in scene tests; `zaro check` reports
     `open:` actions that name no screen. Test `ui_navigation`; hello's popup is now an openable
-    screen.
+    screen. Merged (#22).
+  - Step 6 (design kit import, D-023): theme files with `$token` values in screens and prefabs;
+    `zaro import-design` turns a Claude Design kit's tokens into a theme and its components into
+    prefab stubs; `examples/hello/design` is a small kit and `ui/kit/` its import, checked in CI.
+- **Result**: done 2026-11-01. `examples/hello` has a HUD and a settings popup built only from text
+  files (screens, strings, theme, prefabs, script), in Korean and English, covered by
+  `zaro screenshot` (`screenshot_hello_*`) and scene tests (`examples/hello/tests`).
 - **Waits for**: nothing.
 - **Runs beside**: P1, P4a. P3 shares the texture atlas work, so P3 starts after P2's atlas lands.
 

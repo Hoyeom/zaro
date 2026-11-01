@@ -174,6 +174,17 @@ FetchContent_MakeAvailable(stb_image)
 add_library(zaro_stb_image INTERFACE)
 target_include_directories(zaro_stb_image SYSTEM INTERFACE ${stb_image_SOURCE_DIR})
 
+# --- cJSON 1.7.19 (MIT), reads design-kit tokens for `zaro import-design` (D-022) ---------------
+# Only its single C file; src/app/design_import.cpp is the one file that includes cJSON.h.
+FetchContent_Declare(cjson
+  URL https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz
+  URL_HASH SHA256=7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562
+  SOURCE_SUBDIR _none)
+FetchContent_MakeAvailable(cjson)
+add_library(zaro_cjson STATIC ${cjson_SOURCE_DIR}/cJSON.c)
+target_include_directories(zaro_cjson SYSTEM PUBLIC ${cjson_SOURCE_DIR})
+set_target_properties(zaro_cjson PROPERTIES C_STANDARD 17)
+
 # --- Noto Sans KR (SIL OFL 1.1), the bundled default font (D-019) --------------------------------
 # Unmodified OTF files from notofonts/noto-cjk, pinned by commit. Copied to <bin>/fonts/.
 set(_noto_base https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans)

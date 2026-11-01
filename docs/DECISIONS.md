@@ -445,6 +445,38 @@ Status of all entries below: **accepted, 2026-11-01**.
   pattern with Xcode later in P1.
 - **Revisit when**: a game needs 32-bit devices, Play Asset Delivery for large assets, or a
   Gradle-side native build (for example for an AAR plugin).
+## D-023 UI themes: design tokens in a TOML theme, imported from Claude Design kits
+
+- **Decision**: A screen names a theme file (`theme = "kit/theme.toml"` in `[screen]`). The theme
+  holds colours (one table per colour theme), lengths (spacing, radius, stroke) and type styles
+  (`size`, `line_height`, `weight`). Any colour or number field of a screen or of a UI prefab it
+  uses, vector elements included, may be written `"$name"`; the loader resolves it in the first
+  colour theme and reports an unknown token as ZE0409 with "did you mean". `zaro import-design <kit>
+  <out>` writes the theme from a Claude Design kit's `tokens.json`. It also writes a UI prefab stub
+  for each of the kit's components, which the importer never overwrites. A designer filling one in
+  with tokens makes the kit's component a ZARO prefab. `--check` fails when the theme no longer
+  matches the kit, so CI catches a kit change that was not imported.
+- **Why**:
+  - Design systems are made as tokens and components. Taking the tokens as they are keeps one
+    source of truth, and a re-import updates every screen at once.
+  - Resolving tokens at load time keeps widgets plain data (D-020) and keeps every token error a
+    `file:line` diagnostic before anything runs.
+  - Kit components are web code (HTML, CSS, React). Their look cannot be translated into widgets
+    reliably, so the importer names them and hands each to a person or an agent as a prefab stub,
+    with the kit's one-line guideline, instead of guessing.
+  - JSON is read with cJSON (MIT, one C file), confined to the importer like other third-party
+    headers.
+- **Conversions**: hex, `rgb()`/`rgba()` and `hsl()`/`hsla()` colours, aliases (`"{other}"`),
+  `px`/`rem`/`em` lengths (16 px per rem), and line heights in px or as multiples. Box-shadows,
+  wide-gamut colours (`oklch()` and the like) and font files are reported as skipped. ZARO draws
+  with the fonts it loads; a kit's hosted fonts must be bundled to be used.
+- **Rejected**:
+  - Resolving tokens at draw time: themes could switch live, but every widget field would need a
+    token or value variant, against D-020's plain structs.
+  - Converting the kit's CSS into widgets: brittle, and wrong in exactly the cases a designer cares
+    about.
+- **Not yet**: switching colour themes (light/dark) at run time; widgets for the kit's
+  box-shadows and outlined text.
 
 ## M2 result (2026-11-01)
 
@@ -482,5 +514,6 @@ regression baseline; D-013 defines that.
 
 ## Deferred (design kept open, not built)
 
-Gamepad/touch input, CJK fonts and IME, localization, audio (miniaudio candidate), game UI,
-save-format versioning, physics (Jolt candidate), the MCP server (local only, access-restricted).
+Text input and IME, audio (miniaudio candidate), save-format versioning, physics (Jolt
+candidate), the MCP server (local only, access-restricted). (Fonts, localization, game UI and
+pointer/gamepad navigation were built in P2: D-019 to D-021 and D-023.)

@@ -46,7 +46,8 @@ add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp)
 target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
-add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp)
+add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
+  src/scene/theme.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
@@ -67,8 +68,9 @@ set_source_files_properties(src/ui/font.cpp src/ui/image.cpp PROPERTIES SKIP_UNI
 zaro_target_defaults(zaro_ui)
 
 add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp src/app/ui_layer.cpp
-  src/app/export_android.cpp)
-target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform)
+  src/app/export_android.cpp src/app/design_import.cpp)
+target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform
+  PRIVATE zaro_cjson)
 zaro_target_defaults(zaro_app)
 
 # CLI. Everything an agent or the editor does goes through this binary.
@@ -158,6 +160,10 @@ if(ZARO_BUILD_TESTS)
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   # The hello scene with its screens and string tables stays valid; a broken one reports its image.
   add_test(NAME example_hello_scene COMMAND zaro check examples/hello/scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # The committed hello theme is what its design kit imports to.
+  add_test(NAME example_hello_design_kit
+           COMMAND zaro import-design examples/hello/design examples/hello/ui/kit --check
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME check_screen_keys COMMAND zaro check tests/data/screens/keys_scene.toml
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

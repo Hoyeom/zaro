@@ -1,6 +1,6 @@
 ---
 name: zaro-ui
-description: The game UI (D-019, D-020) — the ui module's draw list and renderer, UTF-8 text layout and the glyph atlas, screen files of nodes and widgets, string tables and languages, images, and the per-frame order of update and draw. Load before editing src/ui/, render::UiRenderer or shaders/ui.slang, before writing or changing a screen file or a strings/<language>.toml table, and when text or a widget does not show as expected.
+description: The game UI (D-019 to D-021, D-023) — the ui module's draw list and renderer, UTF-8 text layout and the glyph atlas, screen files of nodes and widgets, string tables and languages, images, navigation, themes from design kits, and the per-frame order of update and draw. Load before editing src/ui/, render::UiRenderer or shaders/ui.slang, before writing or changing a screen file, a theme or a strings/<language>.toml table, before running zaro import-design, and when text or a widget does not show as expected.
 ---
 
 # Text and UI (D-019, D-020)
@@ -37,6 +37,11 @@ all three together.
   `app/ui_layer` runs the policy, the script hooks (`on_ui`, `on_back`, `on_screen`) and back at
   root. Screen files declare `dismissible`, `transition` (`none`, `fade`, `pop`),
   `transition_time` and `skippable`. A screen takes clicks only once its entrance is over.
+- Themes (D-023, top of `src/scene/theme.h`): `theme = "kit/theme.toml"` in `[screen]` lets colour
+  and number fields of the screen and its prefabs say `"$name"` (ZE0409 if unknown).
+  `zaro import-design <kit> <out>` writes the theme from a Claude Design kit's `tokens.json` and a
+  UI prefab stub per kit component, which it never overwrites; fill stubs in with tokens. Do not
+  edit a generated theme: change the kit and import again (`--check` in CI fails otherwise).
 
 Scripts reach the UI through the `ui` table and `on_ui` (`zaro-scene`, "Scripts"). Scene tests click
 buttons with `[[click]]` and check widget fields and shown text (`zaro-scene`, "Scene tests").

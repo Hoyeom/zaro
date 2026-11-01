@@ -22,6 +22,7 @@ enum ErrorId {
     kErrSceneStructure = 406, // ZE0406 required key missing or unknown top-level key
     kErrSceneDuplicate = 407, // ZE0407 two entities share a name
     kErrSceneParent = 408,    // ZE0408 a screen node's parent is unknown or comes after it
+    kErrSceneToken = 409,     // ZE0409 a "$name" value names no token of the theme, or there is no theme
     kErrScriptCompile = 500,  // ZE0500 script missing or has a syntax error
     kErrScriptRuntime = 501,  // ZE0501 script raised an error (includes misuse of the zaro API)
     kErrScriptTimeout = 502,  // ZE0502 one script call ran longer than its time budget
@@ -33,6 +34,7 @@ enum ErrorId {
     kErrImageLoad = 701,      // ZE0701 image missing, not a PNG, or no room in the image atlas
     kErrStringKey = 702,      // ZE0702 an @key text names no entry of a string table
     kErrStringTable = 703,    // ZE0703 string table missing, invalid, or missing a key other languages have
+    kErrDesignKit = 704,      // ZE0704 design kit missing or invalid, or the theme it makes is out of date
     kErrExport = 800,         // ZE0800 export failed: runtime package missing or a scene file outside the tree
 };
 

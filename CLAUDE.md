@@ -29,6 +29,7 @@ phases sessions pick work from are in [docs/ROADMAP.md](docs/ROADMAP.md).
 | Accept a changed simulation as the new golden | `build/debug/zaro test <paths> --update` |
 | Render a scene to PNG | `build/debug/zaro screenshot examples/crowd/scene.toml out.png [--frames N]` |
 | Render a scene's UI in another language | `build/debug/zaro screenshot examples/hello/scene.toml out.png --lang en` |
+| Turn a Claude Design kit into a UI theme | `build/debug/zaro import-design examples/hello/design examples/hello/ui/kit [--check]` |
 | All `run` options | `build/debug/zaro help` |
 | Install the pinned Android toolchain (once) | `python tools/android.py setup` (`doctor` shows what is found) |
 | Android native build (`libmain.so` + runtime package) | `python tools/build.py android` |

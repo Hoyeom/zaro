@@ -170,7 +170,65 @@ wrote shot.png
 This renders 60 frames offscreen (`--frames N`, `--size WxH`) and saves the last one. It needs a
 GPU, unlike `zaro test`.
 
-## 8. Put it on an Android phone
+## 8. Put a UI on it
+
+A scene lists its screens, string tables and languages in `[scene]`:
+
+```toml
+[scene]
+name = "mygame"
+ui = ["ui/hud.toml"]            # root screens, always shown
+screens = ["ui/settings.toml"]  # screens that buttons and scripts open
+strings = "strings"             # strings/ko.toml, strings/en.toml
+languages = ["ko", "en"]        # the first is the default
+```
+
+A screen is a list of nodes with widgets (`zaro schema` lists them with `"kind": "ui"`):
+
+```toml
+[screen]
+name = "hud"
+theme = "kit/theme.toml"        # optional: "$name" values below
+
+[[node]]
+name = "top_bar"
+[node.Layout]
+fill_width = true
+height = 72
+direction = "row"
+align = "center"
+[node.Panel]
+color = "$bar"
+
+[[node]]
+name = "settings_button"
+parent = "top_bar"
+[node.Button]
+text = "@hud.settings"          # a key in strings/<language>.toml
+action = "open:settings"        # opens ui/settings.toml; back closes it
+```
+
+`zaro check mygame/scene.toml` checks every screen, every `@key` in every language, every
+`$token` and every `open:` target, with `file:line` and "did you mean". Scripts fill in values
+with `ui.set("gold", 1234)` (shown where a text says `{gold}`) and hear clicks in
+`on_ui(action, screen, node)`. Scene tests click buttons and check what is shown:
+
+```toml
+[[click]]
+tick = 10
+screen = "hud"
+node = "settings_button"
+
+[[expect]]
+screen = "settings"
+state = "entering"
+```
+
+`zaro screenshot mygame/scene.toml shot.png --lang en --click hud/settings_button --frames 15`
+shows the popup. If your team keeps a Claude Design kit, `zaro import-design <kit> ui/kit` turns
+its tokens into `ui/kit/theme.toml`. `examples/hello` has all of this.
+
+## 9. Put it on an Android phone
 
 ```
 $ python tools/android.py setup          # once: pinned NDK, SDK packages, JDK, Gradle
@@ -189,4 +247,5 @@ report.
 
 - `examples/hello/` uses every `zaro.*` function once; `examples/crowd/` uses waves and a prefab.
 - To add your own components, see "Scenes and components" in `.claude/skills/zaro-scene/SKILL.md`.
-- The reasons behind these designs are in `docs/DECISIONS.md` (D-009, D-017).
+- The UI (screens, navigation, themes) is described in `.claude/skills/zaro-ui/SKILL.md`.
+- The reasons behind these designs are in `docs/DECISIONS.md` (D-009, D-017, D-019 to D-021, D-023).

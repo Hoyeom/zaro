@@ -1,0 +1,3 @@
+[screen]
+name = "missing_theme"
+theme = "nope.toml"
