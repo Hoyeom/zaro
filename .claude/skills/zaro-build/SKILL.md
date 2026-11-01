@@ -5,14 +5,24 @@ description: The game build pipeline (D-027) — zaro build and its stages (vali
 
 # The build pipeline (D-027)
 
-`zaro build <build.toml> [--env NAME] [--version-code N] [--out DIR] [--plan]`. The file format is
+`zaro build <build.toml> [--env NAME] [--version-code N] [--out DIR] [--plan] [--target android
+[--package aab|apk] [--release]]`. The file format is
 at the top of `src/scene/build_spec.h`; the stages and the runner are described at the top of
 `src/app/pipeline.h`. `examples/crowd/build.toml` is a small example.
 
 - **Stages** run in a fixed order: validate, pre, native, export, post, package, sign. Without a
-  target only validate and pre run, and the post steps wait. A target adds the other stages. The
-  Android export and `tools/android.py aab` move onto them next; until then they run on their own
-  (zaro-android).
+  target only validate and pre run, and the post steps wait. `--target android` adds the others:
+  - native: `tools/build.py android`
+  - export: `zaro export android`, with `build_info.toml` packed and the build file left out
+  - post: the build extensions, then the post steps, then `android.py stage-post` (symbols, size
+    report)
+  - package: `stage-package` (Gradle and bundletool checks; `--package aab|apk`)
+  - sign: `stage-sign`
+
+  The tools come from the checkout zaro was built from (`ZARO_SOURCE_DIR`, `ZARO_PYTHON` in
+  CMakeLists.txt). Usually run as `tools/android.py aab|apk <build.toml>` (zaro-android).
+- **Release**: `--release` needs `--target`, a release environment, a version code and the four
+  `ZARO_UPLOAD_*` variables. validate reports every missing one (ZE1003) before anything builds.
 - **Validate first**: `--plan` loads the build file, runs `zaro check` on the scene, loads every
   build extension and checks each step, then prints the plan and runs nothing. Use it after any
   edit.

@@ -29,6 +29,7 @@ void print_usage() {
          "             (runtime: python tools/build.py android; APK or AAB: tools/android.py apk|aab)\n"
          "  build      run a game's build pipeline (validate, pre, native, export, post, package, sign):\n"
          "             zaro build <build.toml> [--env NAME] [--version-code N] [--out DIR] [--plan]\n"
+         "             [--target android [--package aab|apk] [--release]]\n"
          "  import-design  turn a Claude Design kit into a UI theme and prefab stubs:\n"
          "             zaro import-design <kit dir> <out dir> [--check]\n"
          "  help       print this message\n"
@@ -231,12 +232,16 @@ int cmd_build(int argc, char** argv) {
         if (strcmp(a, "--env") == 0) value = &o.environment;
         else if (strcmp(a, "--version-code") == 0) value = &o.version_code;
         else if (strcmp(a, "--out") == 0) value = &o.out_dir;
+        else if (strcmp(a, "--target") == 0) value = &o.target;
+        else if (strcmp(a, "--package") == 0) value = &o.package;
         if (value) {
             if (!next) return usage_error("missing value for", a);
             *value = next;
             ++i;
         } else if (strcmp(a, "--plan") == 0) {
             o.plan = true;
+        } else if (strcmp(a, "--release") == 0) {
+            o.release = true;
         } else if (a[0] == '-') {
             return usage_error("unknown option", a);
         } else if (!o.build_file) {

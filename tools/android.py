@@ -4,16 +4,18 @@
 Usage:
   python tools/android.py setup [--accept-licenses]   install the pinned toolchain
   python tools/android.py doctor                      print what is installed and where
+  python tools/android.py aab <build.toml> [--env NAME] [--release] [--version-code N] [--out DIR]
+                                                      App Bundle through `zaro build --target android`
+                                                      (D-027): checked with bundletool, signed, with
+                                                      native-debug-symbols.zip and size_report.json
+  python tools/android.py apk <build.toml> [same options]
+                                                      the same pipeline, packaged as an APK
   python tools/android.py apk <scene.toml> [--out DIR] [--package ID] [--release]
                               [--version-code N] [--version-name S]
-                                                      native build + `zaro export android` + Gradle
-  python tools/android.py aab <scene.toml> [--release] [--version-code N] [--version-name S]
-                              [--out DIR] [--package ID]
-                                                      App Bundle for Google Play, checked with
-                                                      bundletool, plus native-debug-symbols.zip
-  python tools/android.py install-aab [--out DIR]     install the last AAB on the device (bundletool)
-  python tools/android.py run [--out DIR] [-- zaro args...]
-                                                      install the APK and start it (args optional)
+                                                      quick APK of a scene without a build file
+  python tools/android.py install-aab [--out PROJECT] install the newest AAB on the device (bundletool)
+  python tools/android.py run [--out PROJECT] [-- zaro args...]
+                                                      install the newest APK and start it
   python tools/android.py perf [--out DIR] [--enemies N] [--frames N] [--warmup N] [--size WxH]
                                                       headless benchmark on the device, pulls perf.json
 
@@ -25,10 +27,10 @@ interactively, or accepts it with --accept-licenses.
 
 Commands that use a device need exactly one device in `adb devices` (or ANDROID_SERIAL set).
 
-`aab --release` signs with the game's upload key, read only from the environment:
+`--release` signs with the game's upload key, read only from the environment:
 ZARO_UPLOAD_KEYSTORE (path to the keystore), ZARO_UPLOAD_KEYSTORE_PASSWORD, ZARO_UPLOAD_KEY_ALIAS
-and ZARO_UPLOAD_KEY_PASSWORD. It also needs --version-code. Without the variables it stops; other
-builds use the debug key. Keeping the key in a game's CI: docs/android-release.md.
+and ZARO_UPLOAD_KEY_PASSWORD. It also needs a release environment and a version code; `zaro build`
+checks all of them before it builds anything. Other builds use the debug key. Keeping the key in a game's CI: docs/android-release.md.
 """
 
 from __future__ import annotations
@@ -74,10 +76,6 @@ GRADLE = ("https://services.gradle.org/distributions/gradle-9.8.2-bin.zip",
           "sha256", "21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607")
 BUNDLETOOL = ("https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar",
               "sha256", "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29")  # Apache-2.0
-
-# The game's upload key (D-025). Never stored in a project or in this repository.
-UPLOAD_KEY_ENV = ("ZARO_UPLOAD_KEYSTORE", "ZARO_UPLOAD_KEYSTORE_PASSWORD", "ZARO_UPLOAD_KEY_ALIAS",
-                  "ZARO_UPLOAD_KEY_PASSWORD")
 
 ACTIVITY = "dev.zaro.ZaroActivity"
 DEFAULT_OUT = ROOT / "build" / "android-project"
@@ -308,6 +306,8 @@ def take_flag(args: list[str], name: str) -> bool:
 
 
 def cmd_apk(args: list[str]) -> int:
+    if args and is_build_file(args[0]):
+        return zaro_build(args, "apk")
     release = take_flag(args, "--release")
     out = build_project("apk", args, "assembleRelease" if release else "assembleDebug")
     apk = out / "app" / "build" / "outputs" / "apk" / ("release" if release else "debug")
@@ -327,21 +327,6 @@ def bundletool(*args: str, capture: bool = False) -> str:
     cmd = [java_tool("java"), "-jar", bundletool_jar(), *args]
     r = run(cmd, stdout=subprocess.PIPE if capture else None, text=True)
     return r.stdout or ""
-
-
-def check_upload_key(args: list[str]) -> None:
-    """A release bundle needs the upload key from the environment and a version code."""
-    missing = [v for v in UPLOAD_KEY_ENV if not os.environ.get(v)]
-    if missing:
-        sys.exit("android.py: error: aab --release signs with the game's upload key, but "
-                 f"{', '.join(missing)} {'is' if len(missing) == 1 else 'are'} not set "
-                 "(see docs/android-release.md); without --release the bundle is debug-signed")
-    if not Path(os.environ["ZARO_UPLOAD_KEYSTORE"]).is_file():
-        sys.exit(f"android.py: error: ZARO_UPLOAD_KEYSTORE={os.environ['ZARO_UPLOAD_KEYSTORE']} "
-                 "is not a file")
-    if "--version-code" not in args:
-        sys.exit("android.py: error: aab --release needs --version-code N (every upload to Google "
-                 "Play needs a higher one)")
 
 
 def zip_symbols(dest: Path) -> None:
@@ -394,42 +379,134 @@ def check_split_alignment(out: Path, aab: Path) -> None:
     print(f"16 KB zip alignment: ok ({checked} APKs with native libraries)")
 
 
-def cmd_aab(args: list[str]) -> int:
-    release = take_flag(args, "--release")
-    if release:
-        check_upload_key(args)
+def is_build_file(path: str) -> bool:
+    """A game build file (D-027) has a [game] table; anything else is taken as a scene."""
+    try:
+        return any(line.strip() == "[game]" for line in Path(path).read_text(encoding="utf-8").splitlines())
+    except OSError:
+        return False
+
+
+def zaro_build(args: list[str], package: str) -> int:
+    """`zaro build <build.toml> --target android`: the pipeline runs every stage and calls back the
+    stage-* commands below for post, package and sign."""
+    cmd = [host_zaro(), "build", "--target", "android", "--package", package, *args]
+    print("+", " ".join(str(c) for c in cmd), flush=True)
+    return subprocess.run([str(c) for c in cmd], env=tool_env()).returncode
+
+
+def outputs(project: Path, kind: str, release: bool) -> Path:
     variant = "release" if release else "debug"
-    out = build_project("aab", args, "bundleRelease" if release else "bundleDebug")
-    aab = out / "app" / "build" / "outputs" / "bundle" / variant / f"app-{variant}.aab"
-    bundletool("validate", f"--bundle={aab}", capture=True)  # prints every file; failures raise
-    config = bundletool("dump", "config", f"--bundle={aab}", capture=True)
-    if "PAGE_ALIGNMENT_16K" not in config:
-        sys.exit(f"android.py: error: {aab} does not request 16 KB zip alignment for native "
-                 "libraries (PAGE_ALIGNMENT_16K); Google Play needs it (D-025)")
-    check_split_alignment(out, aab)
-    signer = bundle_signer(aab)
-    if release and "CN=Android Debug" in signer:
-        sys.exit(f"android.py: error: {aab} is signed with the debug key")
-    symbols = out / "native-debug-symbols.zip"
-    zip_symbols(symbols)
-    print(f"signer={signer}")
-    print(f"aab={aab}")
-    print(f"symbols={symbols}")
+    if kind == "aab":
+        return project / "app" / "build" / "outputs" / "bundle" / variant / f"app-{variant}.aab"
+    return project / "app" / "build" / "outputs" / "apk" / variant / f"app-{variant}.apk"
+
+
+def stage_args(args: list[str], command: str) -> tuple[Path, str, bool]:
+    kind = option(args, "--kind", "aab")
+    release = take_flag(args, "--release")
+    if len(args) != 1 or kind not in ("aab", "apk"):
+        sys.exit(f"android.py: error: {command} <project> [--kind aab|apk] [--release]")
+    return Path(args[0]), kind, release
+
+
+def size_report(project: Path) -> dict:
+    """Sizes of what the package will hold: each native library, the assets, the largest assets."""
+    main = project / "app" / "src" / "main"
+    libs = {p.relative_to(main / "jniLibs").as_posix(): p.stat().st_size
+            for p in sorted((main / "jniLibs").glob("*/*.so"))}
+    assets = {p.relative_to(main / "assets").as_posix(): p.stat().st_size
+              for p in sorted((main / "assets").rglob("*")) if p.is_file()}
+    largest = sorted(assets.items(), key=lambda kv: kv[1], reverse=True)[:5]
+    return {"native_libraries": libs, "assets_total": sum(assets.values()), "asset_count": len(assets),
+            "largest_assets": dict(largest)}
+
+
+def cmd_stage_post(args: list[str]) -> int:
+    """zaro build's post stage for android: native-debug-symbols.zip and a size report."""
+    project = Path(args[0]) if len(args) == 1 else sys.exit("android.py: error: stage-post <project>")
+    zip_symbols(project / "native-debug-symbols.zip")
+    report = size_report(project)
+    import json
+    (project / "size_report.json").write_text(json.dumps(report, indent=2) + "\n")
+    mb = 1024 * 1024
+    libs = ", ".join(f"{name} {size / mb:.1f} MB" for name, size in report["native_libraries"].items())
+    print(f"size: native {libs}; assets {report['assets_total'] / mb:.1f} MB in {report['asset_count']} files")
+    print(f"symbols={project / 'native-debug-symbols.zip'}")
     return 0
 
 
+def cmd_stage_package(args: list[str]) -> int:
+    """zaro build's package stage for android: Gradle, then bundletool's checks for an AAB."""
+    project, kind, release = stage_args(args, "stage-package")
+    if cmd_doctor([]) != 0:
+        return 1
+    task = ("bundle" if kind == "aab" else "assemble") + ("Release" if release else "Debug")
+    run([gradle_exe(), "-p", project, task, "--console=plain"])
+    out = outputs(project, kind, release)
+    if kind == "aab":
+        bundletool("validate", f"--bundle={out}", capture=True)  # prints every file; failures raise
+        config = bundletool("dump", "config", f"--bundle={out}", capture=True)
+        if "PAGE_ALIGNMENT_16K" not in config:
+            sys.exit(f"android.py: error: {out} does not request 16 KB zip alignment for native "
+                     "libraries (PAGE_ALIGNMENT_16K); Google Play needs it (D-025)")
+        check_split_alignment(project, out)
+    print(f"{kind}={out} ({out.stat().st_size / (1024 * 1024):.1f} MB)")
+    return 0
+
+
+def package_signer(path: Path) -> str:
+    if path.suffix == ".aab":
+        return bundle_signer(path)
+    apksigner = sdk_root() / "build-tools" / BUILD_TOOLS / f"apksigner{BAT}"
+    r = run([apksigner, "verify", "--print-certs", path], stdout=subprocess.PIPE, text=True)
+    lines = [line.strip() for line in r.stdout.splitlines()]
+    owner = next((line.split(":", 1)[1].strip() for line in lines if "certificate DN:" in line), "")
+    sha = next((line.split(":", 1)[1].strip() for line in lines if "SHA-256 digest:" in line), "")
+    return f"{owner} (SHA-256 {sha})"
+
+
+def cmd_stage_sign(args: list[str]) -> int:
+    """zaro build's sign stage for android: who signed the package; a release must not use the
+    debug key."""
+    project, kind, release = stage_args(args, "stage-sign")
+    out = outputs(project, kind, release)
+    signer = package_signer(out)
+    if release and "CN=Android Debug" in signer:
+        sys.exit(f"android.py: error: {out} is signed with the debug key; a release needs the upload key")
+    print(f"signer={signer}")
+    return 0
+
+
+def cmd_aab(args: list[str]) -> int:
+    if not args or not is_build_file(args[0]):
+        sys.exit("android.py: error: aab needs a game build file (D-027), e.g. examples/crowd/build.toml; "
+                 "it runs `zaro build <build.toml> --target android`")
+    return zaro_build(args, "aab")
+
+
+def latest_project(kind: str, out: str | None) -> Path:
+    """The project of the newest package of that kind: --out, the scene export, or zaro build's."""
+    candidates = [Path(out)] if out else [DEFAULT_OUT, *sorted((ROOT / "build" / "zaro-build").glob("*/*-project"))]
+    found = []
+    for project in candidates:
+        pattern = "bundle/*/*.aab" if kind == "aab" else "apk/*/*.apk"
+        found += [(p.stat().st_mtime, project, p) for p in (project / "app" / "build" / "outputs").glob(pattern)]
+    if not found:
+        sys.exit(f"android.py: error: no {kind.upper()} found; build one with `python tools/android.py {kind} ...`")
+    return max(found, key=lambda f: f[0])[1]
+
+
 def cmd_install_aab(args: list[str]) -> int:
-    out = Path(option(args, "--out", str(DEFAULT_OUT)))
-    bundles = sorted((out / "app" / "build" / "outputs" / "bundle").glob("*/*.aab"),
+    project = latest_project("aab", option(args, "--out"))
+    bundles = sorted((project / "app" / "build" / "outputs" / "bundle").glob("*/*.aab"),
                      key=lambda p: p.stat().st_mtime)
-    if not bundles:
-        sys.exit(f"android.py: error: no AAB under {out}; run `python tools/android.py aab <scene>`")
-    apks = out / "app" / "build" / "outputs" / "device.apks"
+    apks = project / "app" / "build" / "outputs" / "device.apks"
     # The APKs for this device are signed with the local debug key; Google Play signs its own.
     bundletool("build-apks", f"--bundle={bundles[-1]}", f"--output={apks}", "--overwrite",
                "--connected-device", f"--adb={adb_exe()}")
     bundletool("install-apks", f"--apks={apks}", f"--adb={adb_exe()}")
-    print(f"installed {bundles[-1].name} ({project_package(out)})")
+    print(f"installed {bundles[-1].name} ({project_package(project)})")
     return 0
 
 
@@ -450,9 +527,7 @@ def adb(*cmd: str, check: bool = True, capture: bool = False) -> str:
 
 
 def install_and_start(out: Path, zaro_args: list[str]) -> str:
-    apks = sorted((out / "app" / "build" / "outputs" / "apk").rglob("*.apk"))
-    if not apks:
-        sys.exit(f"android.py: error: no APK under {out}; run `python tools/android.py apk <scene>`")
+    apks = sorted((out / "app" / "build" / "outputs" / "apk").rglob("*.apk"), key=lambda p: p.stat().st_mtime)
     package = project_package(out)
     adb("install", "-r", str(apks[-1]))
     adb("shell", "am", "force-stop", package)
@@ -465,7 +540,7 @@ def install_and_start(out: Path, zaro_args: list[str]) -> str:
 
 
 def cmd_run(args: list[str]) -> int:
-    out = Path(option(args, "--out", str(DEFAULT_OUT)))
+    out = latest_project("apk", option(args, "--out"))
     zaro_args = args[args.index("--") + 1:] if "--" in args else []
     install_and_start(out, zaro_args)
     print("android.py: logs: adb logcat -s zaro")
@@ -473,7 +548,7 @@ def cmd_run(args: list[str]) -> int:
 
 
 def cmd_perf(args: list[str]) -> int:
-    out = Path(option(args, "--out", str(DEFAULT_OUT)))
+    out = latest_project("apk", option(args, "--out"))
     enemies = option(args, "--enemies", "20000")
     frames = option(args, "--frames", "1800")
     warmup = option(args, "--warmup", "300")
@@ -513,7 +588,9 @@ def cmd_perf(args: list[str]) -> int:
 
 
 COMMANDS = {"setup": cmd_setup, "doctor": cmd_doctor, "apk": cmd_apk, "aab": cmd_aab,
-            "install-aab": cmd_install_aab, "run": cmd_run, "perf": cmd_perf}
+            "install-aab": cmd_install_aab, "run": cmd_run, "perf": cmd_perf,
+            # zaro build's android stages (D-027); not meant to be run by hand.
+            "stage-post": cmd_stage_post, "stage-package": cmd_stage_package, "stage-sign": cmd_stage_sign}
 
 
 def main(argv: list[str]) -> int:

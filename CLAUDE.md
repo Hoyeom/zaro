@@ -36,8 +36,8 @@ phases sessions pick work from are in [docs/ROADMAP.md](docs/ROADMAP.md).
 | Gradle project for an APK | `build/debug/zaro export android examples/crowd/scene.toml [--out DIR]` |
 | APK in one step (native build, export, Gradle) | `python tools/android.py apk examples/crowd/scene.toml` |
 | Install and start on a device / benchmark it | `python tools/android.py run`, `python tools/android.py perf [--enemies N]` |
-| Google Play App Bundle (upload key from the environment) | `python tools/android.py aab <scene> --release --version-code N` |
-| Run a game's build pipeline / only validate and show it | `build/debug/zaro build examples/crowd/build.toml [--env NAME]`, `... --plan` |
+| Google Play App Bundle through `zaro build` (upload key from the environment) | `python tools/android.py aab <build.toml> --env <release env> --release --version-code N` |
+| Run a game's build pipeline / only validate and show it | `build/debug/zaro build examples/crowd/build.toml [--env NAME] [--target android]`, `... --plan` |
 | Enable the git hooks (once per clone) | `git config core.hooksPath tools/githooks` |
 
 `tools/build.py` wraps the presets in `CMakePresets.json` (`debug`, `release`, `profile`).

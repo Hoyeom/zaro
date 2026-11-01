@@ -26,8 +26,8 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
   builds locally and in CI; the on-device check below is pending. Release bundles (D-025) build,
   validate and sign with a game's upload key locally and in CI (with a throwaway key). Plugins
   add Gradle dependencies, manifest entries and sources through build extensions (D-026).
-  `zaro build` (D-027) runs the validate and pre stages from a game build file; the Android
-  export and bundle move onto its native, export, post, package and sign stages next.
+  `zaro build` (D-027) runs every release build through one staged pipeline; Android is its
+  first target.
   Installing a bundle on a device is pending.
 - **Scope**:
   - Android build of the engine and the `zaro` runtime: SDL3 Android backend, wgpu on Vulkan, the
@@ -42,7 +42,7 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
   - iOS follows with Metal, an Xcode export and a CI build on macOS.
 - **Done when**: `examples/crowd/scene.toml` runs on a mid-range Android phone with its script at a
   stable 60 fps with at least 20,000 enemies, and the headless perf report can be pulled with `adb`.
-  For the release build: `python tools/android.py aab <scene> --release` produces an AAB signed with
+  For the release build: `python tools/android.py aab <build.toml> --release` produces an AAB signed with
   a game-supplied upload key plus a `native-debug-symbols.zip` built from the unstripped `.so`
   files, `bundletool validate` passes, every `.so` is 16 KB aligned, and the AAB installs on a
   device through `bundletool build-apks` and `install-apks` (the device part waits for a phone).

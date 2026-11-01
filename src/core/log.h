@@ -43,6 +43,8 @@ enum ErrorId {
     kErrBuildSpec = 1000,     // ZE1000 build file or [[step]] invalid, or a step names no built-in step
     kErrBuildStep = 1001,     // ZE1001 a build step failed (its program's exit code, or a built-in step's error)
     kErrBuildRelease = 1002,  // ZE1002 a release environment enables debug_tools or a debug* config key
+    kErrBuildTarget = 1003,   // ZE1003 a target stage failed, or a release build lacks a release environment,
+                              //        a version code or the upload key
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

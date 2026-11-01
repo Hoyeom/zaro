@@ -680,9 +680,19 @@ Status of all entries below: **accepted, 2026-11-01**.
   - Per-step input and output tracking (a make-like graph): more than games need now. Steps are
     few and fast, and the native build and Gradle keep their own incremental builds.
 - **Consequences**: every step that is not built in is a program the game or plugin repository
-  ships, so those repositories carry their generators as code. Next, the Android export and
-  `tools/android.py aab` move onto the native, export, post, package and sign stages. Today they
-  still run on their own (D-022, D-025).
+  ships, so those repositories carry their generators as code.
+- **Android, the first target**: `zaro build --target android` runs the stages with the tools of
+  the checkout zaro was built from:
+  - native: `tools/build.py android`
+  - export: `zaro export android`, packing `build_info.toml` and leaving the build file out
+  - post: the build extensions, then the post steps, then `tools/android.py stage-post`
+    (`native-debug-symbols.zip` and `size_report.json`)
+  - package: `stage-package` (Gradle, then bundletool and the 16 KB checks)
+  - sign: `stage-sign` (who signed the package; a release must not be debug-signed)
+
+  `--release` needs a release environment, a version code and the upload key variables, all
+  checked in validate (ZE1003). `tools/android.py aab|apk <build.toml>` runs it. A standalone
+  `zaro export android` still applies the build extensions itself.
 
 ## M2 result (2026-11-01)
 

@@ -118,8 +118,8 @@ jobs:
         run: python tools/build.py release
       - name: APK
         run: python tools/android.py apk examples/crowd/scene.toml
-      - name: App Bundle, debug key (bundletool validate, 16 KB alignment)
-        run: python tools/android.py aab examples/crowd/scene.toml
+      - name: App Bundle through zaro build, debug key (bundletool validate, 16 KB alignment)
+        run: python tools/android.py aab examples/crowd/build.toml
       # The release signing path with a key made for this run only; real upload keys live in each
       # game's repository (docs/android-release.md, D-025).
       - name: Release App Bundle, throwaway upload key
@@ -132,7 +132,7 @@ jobs:
           keytool -genkeypair -keystore "$ZARO_UPLOAD_KEYSTORE" -storetype PKCS12 -alias upload \
             -keyalg RSA -keysize 2048 -validity 1 -dname "CN=ZARO CI throwaway upload key" \
             -storepass "$ZARO_UPLOAD_KEYSTORE_PASSWORD" -keypass "$ZARO_UPLOAD_KEY_PASSWORD"
-          python tools/android.py aab examples/crowd/scene.toml --release \
+          python tools/android.py aab examples/crowd/build.toml --env production --release \
             --version-code "${{ github.run_number }}"
           rm -f "$ZARO_UPLOAD_KEYSTORE"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
