@@ -1,7 +1,7 @@
 # Korean, the default language of examples/hello.
 [hud]
 title = "안녕, ZARO"
-speed = "속도"
+speed = "속도 {speed} m/s"
 settings = "설정"
 hint = "WASD 또는 방향키로 이동"
 

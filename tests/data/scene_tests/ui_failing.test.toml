@@ -1,0 +1,14 @@
+# Must fail: the second click is on a button behind the open popup (ZE0603), which stops the run.
+[test]
+scene = "../../../examples/hello/scene.toml"
+ticks = 30
+
+[[click]]
+tick = 10
+screen = "hud"
+node = "settings_button"
+
+[[click]]
+tick = 20
+screen = "hud"
+node = "settings_button"

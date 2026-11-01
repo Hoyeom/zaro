@@ -1,0 +1,31 @@
+# Close hides the popup again, and the HUD button behind it works once more.
+[test]
+scene = "../scene.toml"
+ticks = 40
+
+[[click]]
+tick = 10
+screen = "hud"
+node = "settings_button"
+
+[[click]]
+tick = 20
+screen = "settings"
+node = "close"
+
+[[click]]
+tick = 30
+screen = "hud"
+node = "settings_button"
+
+[[expect]]
+screen = "settings"
+node = "popup"
+component = "Layout"
+field = "visible"
+equals = true
+
+[[expect]]
+screen = "hud"
+node = "title"
+text = "안녕, ZARO"

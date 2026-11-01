@@ -37,6 +37,7 @@ struct Context {
     uint32_t image_count = 0;
     uint32_t image_dirty[4] = {0, 0, 0, 0};
     const scene::StringTable* strings = nullptr;
+    const scene::UiState* state = nullptr;
 };
 
 Context* create_context(const ContextDesc& desc) {
@@ -135,10 +136,12 @@ ImageInfo image_info(const Context* c, int image) {
 
 void set_strings(Context* c, const scene::StringTable* table) { c->strings = table; }
 
-const char* resolve_text(const Context* c, const char* text) {
-    if (text[0] != '@' || !c->strings) return text;
-    const char* value = scene::find_string(c->strings, text + 1);
-    return value ? value : text;
+void set_ui_state(Context* c, const scene::UiState* state) { c->state = state; }
+
+const char* resolve_text(const Context* c, const char* text, char* out, size_t size) {
+    const char* value = text[0] == '@' && c->strings ? scene::find_string(c->strings, text + 1) : nullptr;
+    scene::format_text(c->state, value ? value : text, out, size);
+    return out;
 }
 
 void begin_frame(Context* c) { begin_frame(c->text); }

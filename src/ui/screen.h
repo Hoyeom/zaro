@@ -102,8 +102,15 @@ bool pointer_captured(const Screen* screen);
 void draw_screen(Screen* screen, DrawList* list);
 
 Rect node_rect(const Screen* screen, int node);
+// The text a Label (or else a Button) shows, after string tables and placeholders; "" otherwise.
+const char* node_text(const Screen* screen, int node, char* out, size_t size);
+// Adds a click event for the button as if it had been pressed and released, if it is shown,
+// enabled and not behind a modal (scene tests use this). Call after update_screen.
+bool click_node(Screen* screen, int node);
 bool node_shown(const Screen* screen, int node);  // visible itself and all its ancestors
 int focused_node(const Screen* screen);
+// True while a Modal of the screen is shown; screens below it then get no input.
+bool has_open_modal(const Screen* screen);
 bool focus_visible(const Screen* screen);
 void set_focus(Screen* screen, int node, bool visible);
 int hovered_node(const Screen* screen);

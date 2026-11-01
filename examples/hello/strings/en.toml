@@ -1,7 +1,7 @@
 # English.
 [hud]
 title = "Hello, ZARO"
-speed = "Speed"
+speed = "Speed {speed} m/s"
 settings = "Settings"
 hint = "Move with WASD or the arrow keys"
 
