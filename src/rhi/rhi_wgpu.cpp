@@ -700,7 +700,7 @@ void compute_end(Device* d) {
     d->compute = nullptr;
 }
 
-void render_begin(Device* d, const char* name, const float clear[4]) {
+void render_begin(Device* d, const char* name, const float clear[4], uint32_t depth) {
     FrameSlot& slot = d->slots[d->frame_index % kSlots];
     WGPURenderPassColorAttachment ca = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
     ca.view = d->frame_view;
@@ -709,8 +709,8 @@ void render_begin(Device* d, const char* name, const float clear[4]) {
     if (clear) ca.clearValue = {clear[0], clear[1], clear[2], clear[3]};
     WGPURenderPassDepthStencilAttachment da = WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT;
     da.view = d->depth_view;
-    da.depthLoadOp = WGPULoadOp_Clear;
-    da.depthStoreOp = WGPUStoreOp_Discard;
+    da.depthLoadOp = (depth & kDepthLoad) ? WGPULoadOp_Load : WGPULoadOp_Clear;
+    da.depthStoreOp = (depth & kDepthStore) ? WGPUStoreOp_Store : WGPUStoreOp_Discard;
     da.depthClearValue = 1.0f;
     WGPURenderPassDescriptor rd = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
     rd.label = sv(name);
@@ -725,10 +725,10 @@ void render_begin(Device* d, const char* name, const float clear[4]) {
     d->render = wgpuCommandEncoderBeginRenderPass(d->encoder, &rd);
 }
 
-void draw(Device* d, RenderPipeline* p, BindGroup* g, uint32_t vertices, uint32_t instances) {
+void draw(Device* d, RenderPipeline* p, BindGroup* g, uint32_t vertices, uint32_t instances, uint32_t first_instance) {
     wgpuRenderPassEncoderSetPipeline(d->render, p->pipeline);
     wgpuRenderPassEncoderSetBindGroup(d->render, 0, g->group, 0, nullptr);
-    wgpuRenderPassEncoderDraw(d->render, vertices, instances, 0, 0);
+    wgpuRenderPassEncoderDraw(d->render, vertices, instances, 0, first_instance);
     d->draw_calls++;
 }
 

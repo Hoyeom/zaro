@@ -12,8 +12,9 @@ zaro schema
 ```
 
 This prints every registered component as JSON: fields, types, defaults, allowed ranges and docs.
-Agents should read it before writing a scene instead of guessing names. Today the components are
-the crowd demo's: `CrowdArena`, `CrowdSpawner` and `PlayerController`.
+Agents should read it before writing a scene instead of guessing names. Today the scene components
+are the crowd demo's `CrowdArena`, `CrowdSpawner` and `PlayerController`, and `Sprite`; the UI
+widgets are listed with `"kind": "ui"`.
 
 ## 2. Write a scene
 

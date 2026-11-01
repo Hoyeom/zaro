@@ -1,0 +1,18 @@
+# Sprite animations run on the tick clock without a GPU: after 10 ticks (1/6 s) the blob's idle
+# animation (8 fps) shows its second frame, and the screen sprite without an animation keeps frame 2.
+# Run with: zaro test tests/data/sprites
+[test]
+scene = "../scene.toml"
+ticks = 10
+
+[[expect]]
+entity = "blob"
+component = "Sprite"
+field = "frame"
+equals = 1
+
+[[expect]]
+entity = "badge"
+component = "Sprite"
+field = "frame"
+equals = 2

@@ -1,4 +1,5 @@
-#include "ui/image.h"
+// PNG decoding through stb_image (PNG only). This is the only file that includes stb_image.h.
+#include "core/png.h"
 
 // stb_image is third-party C written for other warning levels; compile it quietly.
 #if defined(_MSC_VER)
@@ -24,9 +25,9 @@
 #pragma GCC diagnostic pop
 #endif
 
-namespace zaro::ui {
+namespace zaro {
 
-bool decode_png(const char* path, uint8_t** rgba, uint32_t* width, uint32_t* height) {
+bool read_png_rgba8(const char* path, uint8_t** rgba, uint32_t* width, uint32_t* height) {
     int w = 0, h = 0, channels = 0;
     stbi_uc* pixels = stbi_load(path, &w, &h, &channels, 4);
     if (!pixels) return false;
@@ -36,6 +37,14 @@ bool decode_png(const char* path, uint8_t** rgba, uint32_t* width, uint32_t* hei
     return true;
 }
 
-void free_image(uint8_t* rgba) { stbi_image_free(rgba); }
+void free_png(uint8_t* rgba) { stbi_image_free(rgba); }
 
-}  // namespace zaro::ui
+bool png_size(const char* path, uint32_t* width, uint32_t* height) {
+    int w = 0, h = 0, channels = 0;
+    if (!stbi_info(path, &w, &h, &channels)) return false;
+    *width = (uint32_t)w;
+    *height = (uint32_t)h;
+    return true;
+}
+
+}  // namespace zaro

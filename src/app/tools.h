@@ -13,8 +13,8 @@ void register_all_components();
 // `zaro schema`: prints the component schema as JSON. Returns the exit code.
 int print_schema();
 
-// `zaro check <file>`: loads and validates a scene (with its screens, string tables and script,
-// running only the script's top level) or a single screen file. Returns 0 when valid,
+// `zaro check <file>`: loads and validates a scene (with its screens, string tables, sprite sheets
+// and script, running only the script's top level) or a single screen file. Returns 0 when valid,
 // 1 when the scene has errors (printed as text, or as a JSON array with json = true).
 int check_scene(const char* path, bool json);
 
@@ -35,8 +35,9 @@ struct ExportOptions {
 
 // `zaro export android <scene>`: writes a Gradle project (D-022) from the Android runtime package
 // (cmake/ZaroAndroid.cmake) plus the scene's directory (scene tests excluded) and the files the
-// scene names outside it (script, prefabs, screens, their images, string tables) under assets/game/. The
-// APK runs `zaro run game/<scene>` unless launched with other arguments. Returns 0 on success,
+// scene names outside it (script, prefabs, screens, their images, sprite sheets with their images,
+// string tables) under assets/game/. The APK runs `zaro run game/<scene>` unless launched with other
+// arguments. Returns 0 on success,
 // 1 when the scene is invalid or a file cannot be written, 2 on bad options.
 int export_android(const ExportOptions& options);
 

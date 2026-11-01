@@ -1,6 +1,6 @@
 #include "ui/context.h"
 
-#include "ui/image.h"
+#include "core/png.h"
 #include "ui/pack.h"
 
 #include <stdio.h>
@@ -94,13 +94,13 @@ int load_image(Context* c, const char* path, DiagList* diags) {
     }
     uint8_t* rgba = nullptr;
     uint32_t w = 0, h = 0;
-    if (!decode_png(path, &rgba, &w, &h)) {
+    if (!read_png_rgba8(path, &rgba, &w, &h)) {
         diag_add(diags, kErrImageLoad, path, 0, 0, "cannot load image (missing, or not a PNG file)");
         return -1;
     }
     uint32_t x = 0, y = 0;
     if (!pack(&c->image_packer, w, h, &x, &y)) {
-        free_image(rgba);
+        free_png(rgba);
         diag_add(diags, kErrImageLoad, path, 0, 0, "%ux%u image does not fit the %ux%u image atlas", w, h,
                  c->image_size, c->image_size);
         return -1;
@@ -108,7 +108,7 @@ int load_image(Context* c, const char* path, DiagList* diags) {
     for (uint32_t row = 0; row < h; ++row) {
         memcpy(c->image_pixels + ((size_t)(y + row) * c->image_size + x) * 4, rgba + (size_t)row * w * 4, (size_t)w * 4);
     }
-    free_image(rgba);
+    free_png(rgba);
     uint32_t* d = c->image_dirty;
     if (d[2] <= d[0]) {
         d[0] = x, d[1] = y, d[2] = x + w, d[3] = y + h;

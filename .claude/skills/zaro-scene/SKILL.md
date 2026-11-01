@@ -1,6 +1,6 @@
 ---
 name: zaro-scene
-description: Scenes, prefabs and components, Luau game scripts, scene tests with golden state hashes, and headless runs with perf.json — the file formats, adding a component, the script API and sandbox, when a golden hash may be updated, and what each perf field means. Load before editing a scene, prefab or *.test.toml file or a .luau script, before adding or changing a component, before running zaro test --update, and when reading or comparing perf.json.
+description: Scenes, prefabs and components, sprites and sprite sheets, Luau game scripts, scene tests with golden state hashes, and headless runs with perf.json — the file formats, adding a component, the script API and sandbox, when a golden hash may be updated, and what each perf field means. Load before editing a scene, prefab, sprite sheet or *.test.toml file or a .luau script, before adding or changing a component, before editing src/render/sprite_renderer or shaders/sprite.slang, before running zaro test --update, and when reading or comparing perf.json.
 ---
 
 # Scenes, scripts and tests
@@ -25,6 +25,26 @@ Field types: `bool i32 u32 u64 f32 vec2 vec3 vec4 string color enum` (strings up
 `zaro check` reports every problem in one pass as `file:line:col: error[ZE04nn]` (ids in
 `src/core/log.h`), with a "did you mean" hint for misspelt components and fields. `zaro schema`
 prints every registered component as JSON; read it instead of guessing names.
+
+## Sprites (P3)
+
+A `Sprite` component shows one frame of a sprite sheet, either standing in the 3D view and facing
+the camera (`space = "world"`, position in metres) or on the screen (`space = "screen"`, pixels
+from the top-left). The sheet format is at the top of `src/scene/sprite_sheet.h`: one PNG, its
+frames (a `cell` grid or `[[frame]]` rects with pivots), `pixels_per_unit` for the world size, and
+named `[[animation]]`s.
+
+- With `animation` set, the app sets `frame` every tick from the tick clock
+  (`scene::animation_frame`), so a scene test can expect a frame after N ticks without a GPU. A
+  script that changes `animation` restarts it from that tick.
+- `zaro check` loads every sheet and reports problems as `file:line`: ZE0900 (sheet keys, frames,
+  animations), ZE0901 (image missing, or a frame outside it), ZE0902 (an animation the sheet does
+  not have, with "did you mean", or a `frame` past the last one).
+- Drawing: `app/sprite_layer` builds one `render::SpriteInstance` per visible sprite, batched by
+  sheet; `render::SpriteRenderer` draws one call per batch in the "sprites" pass after the crowd
+  (world sprites depth-tested and cut out at half alpha, then screen sprites blended in order),
+  before the UI. `SpriteInstance` and `SpriteFrameInfo` mirror `shaders/sprite.slang`.
+- PNGs are decoded by `read_png_rgba8` (`core/png.h`); the sheet loader reads only the size.
 
 ## Scripts (D-009)
 
