@@ -13,7 +13,25 @@
 //   field = "speed"
 //   equals = 5.0                   # or min = / max = for numbers
 //
-// A script that raises an error (for example a failed assert) also fails the test.
+//   [[click]]                      # clicks a button of the scene's UI before that tick's on_tick
+//   tick = 60
+//   screen = "hud"
+//   node = "settings_button"
+//
+//   [[expect]]                     # a widget field of a screen node (screen + node, not entity)
+//   screen = "settings"
+//   node = "popup"
+//   component = "Layout"
+//   field = "visible"
+//   equals = true
+//
+//   [[expect]]                     # or the text a Label or Button shows, strings and values applied
+//   screen = "hud"
+//   node = "speed"
+//   text = "속도 7.5"
+//
+// A script that raises an error (for example a failed assert) also fails the test, and so does a
+// click on a button that is hidden, disabled or behind a modal.
 #pragma once
 
 #include "core/diag.h"
@@ -24,6 +42,7 @@
 namespace zaro::scene {
 
 struct Expect {
+    char screen[64];  // empty: `entity` names a scene entity; otherwise it names a node of this screen
     char entity[64];
     const reflect::ComponentDesc* component;
     const reflect::FieldDesc* field;
@@ -31,6 +50,15 @@ struct Expect {
     double equals_number;  // numbers and booleans (0 or 1)
     char equals_string[reflect::kStringCapacity];
     double min, max;
+    bool has_text;
+    char text[256];
+    int line;
+};
+
+struct Click {
+    uint32_t tick;
+    char screen[64];
+    char node[64];
     int line;
 };
 
@@ -47,6 +75,9 @@ struct TestSpec {
     static constexpr uint32_t kMaxExpects = 64;
     Expect expects[kMaxExpects];
     uint32_t expect_count;
+    static constexpr uint32_t kMaxClicks = 64;
+    Click clicks[kMaxClicks];
+    uint32_t click_count;
 };
 
 // Parses a test file. Problems are ZE0600 diagnostics with file and line; returns false on any.

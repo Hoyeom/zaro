@@ -1,6 +1,7 @@
 // `zaro test`: runs *.test.toml files (format in src/scene/test_spec.h) without a GPU.
 #include "app/crowd_app.h"
 #include "app/tools.h"
+#include "app/ui_layer.h"
 #include "core/diag.h"
 #include "platform/platform.h"
 #include "scene/scene.h"
@@ -33,8 +34,20 @@ void collect(const char* path, void* user) {
 
 int compare_paths(const void* a, const void* b) { return strcmp(*(char* const*)a, *(char* const*)b); }
 
-// Reads a field of the scene after the run as a number (booleans as 0/1) or a string.
-bool read_field(const scene::Scene* s, const scene::Expect& e, double* number, const char** string) {
+// The scene, or for a screen expectation the screen file, that the expectation names.
+const scene::Scene* expect_document(const scene::Scene* s, UiLayer* ui, const scene::Expect& e) {
+    if (!e.screen[0]) return s;
+    scene::Scene* const* docs = ui ? screen_documents(ui) : nullptr;
+    for (uint32_t i = 0; i < screen_count(ui); ++i) {
+        if (strcmp(docs[i]->name, e.screen) == 0) return docs[i];
+    }
+    return nullptr;
+}
+
+// Reads a field after the run as a number (booleans as 0/1) or a string.
+bool read_field(const scene::Scene* s, const scene::Expect& e, double* number, const char** string,
+                char (&text)[reflect::kStringCapacity]) {
+    if (!s) return false;
     const scene::Entity* ent = scene::find_entity(s, e.entity);
     if (!ent) return false;
     const unsigned char* data = (const unsigned char*)scene::get_component(ent, e.component);
@@ -47,21 +60,39 @@ bool read_field(const scene::Scene* s, const scene::Expect& e, double* number, c
         case reflect::FieldType::kU64: *number = (double)*(const uint64_t*)p; return true;
         case reflect::FieldType::kF32: *number = *(const float*)p; return true;
         case reflect::FieldType::kString: *string = (const char*)p; return true;
+        case reflect::FieldType::kColor:
+        case reflect::FieldType::kEnum:
+            reflect::format_text_value(*e.field, p, text, sizeof(text));
+            *string = text;
+            return true;
         default: return false;
     }
 }
 
 bool nearly_equal(double a, double b) { return fabs(a - b) <= 1e-6 * (fabs(a) > 1.0 ? fabs(a) : 1.0); }
 
-void check_expects(const scene::TestSpec& spec, const scene::Scene* s, DiagList* d) {
+void check_expects(const scene::TestSpec& spec, const scene::Scene* s, UiLayer* ui, DiagList* d) {
     for (uint32_t i = 0; i < spec.expect_count; ++i) {
         const scene::Expect& e = spec.expects[i];
+        if (e.has_text) {
+            char shown[1024];
+            const char* got = ui ? node_text(ui, e.screen, e.entity, shown, sizeof(shown)) : nullptr;
+            if (!got) {
+                diag_add(d, kErrTestExpect, spec.path, e.line, 1, "screen '%s' has no node '%s'", e.screen, e.entity);
+            } else if (strcmp(got, e.text) != 0) {
+                diag_add(d, kErrTestExpect, spec.path, e.line, 1, "%s/%s shows \"%s\", expected \"%s\"", e.screen,
+                         e.entity, got, e.text);
+            }
+            continue;
+        }
         if (!e.component || !e.field) continue;
         double x = 0.0;
         const char* str = nullptr;
-        if (!read_field(s, e, &x, &str)) {
-            diag_add(d, kErrTestExpect, spec.path, e.line, 1, "entity '%s' with a %s component not found after the run",
-                     e.entity, e.component->name);
+        char text[reflect::kStringCapacity];
+        if (!read_field(expect_document(s, ui, e), e, &x, &str, text)) {
+            diag_add(d, kErrTestExpect, spec.path, e.line, 1, "%s%s%s '%s' with a %s component not found after the run",
+                     e.screen[0] ? "screen '" : "", e.screen, e.screen[0] ? "' node" : "entity", e.entity,
+                     e.component->name);
             continue;
         }
         const char* name = e.field->name;
@@ -153,12 +184,13 @@ Outcome run_one(const char* path, bool update, DiagList* d) {
     o.seed_set = spec->has_seed;
     o.seed = spec->seed;
     scene::Scene* s = nullptr;
+    UiLayer* ui = nullptr;
     SimulateResult res;
     const uint32_t before = d->count;
-    const bool ran = simulate_scene(o, spec->ticks, d, &s, &res);
+    const bool ran = simulate_scene(o, spec->ticks, spec, d, &s, &ui, &res);
     r.hash = res.state_hash;
     r.ticks = res.ticks;
-    if (ran && s) check_expects(*spec, s, d);
+    if (ran && s) check_expects(*spec, s, ui, d);
     if (ran) {
         if (update && (!spec->has_state_hash || spec->state_hash != res.state_hash)) {
             r.updated = write_state_hash(*spec, res.state_hash);
@@ -171,6 +203,7 @@ Outcome run_one(const char* path, bool update, DiagList* d) {
         }
     }
     r.passed = ran && d->count == before;
+    destroy_ui_layer(ui);
     scene::free_scene(s);
     delete spec;
     return r;

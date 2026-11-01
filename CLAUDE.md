@@ -24,9 +24,11 @@ phases sessions pick work from are in [docs/ROADMAP.md](docs/ROADMAP.md).
 | Simulation only, no GPU | `build/debug/zaro run examples/crowd/scene.toml --sim-only --frames 300` |
 | List components (fields, types, defaults, ranges) as JSON | `build/debug/zaro schema` |
 | Validate a scene without running it | `build/debug/zaro check examples/crowd/scene.toml [--json]` |
+| Validate a scene's screens and strings, or one screen | `build/debug/zaro check examples/hello/scene.toml`, `... check examples/hello/ui/hud.toml` |
 | Run scene tests (no GPU) | `build/debug/zaro test examples/crowd/tests [--json]` |
 | Accept a changed simulation as the new golden | `build/debug/zaro test <paths> --update` |
 | Render a scene to PNG | `build/debug/zaro screenshot examples/crowd/scene.toml out.png [--frames N]` |
+| Render a scene's UI in another language | `build/debug/zaro screenshot examples/hello/scene.toml out.png --lang en` |
 | All `run` options | `build/debug/zaro help` |
 | Enable the git hooks (once per clone) | `git config core.hooksPath tools/githooks` |
 
@@ -36,7 +38,8 @@ the CMake/Ninja bundled with Visual Studio to `PATH`. Nothing needs to be on `PA
 Its last output line is `build_seconds=<n>`.
 
 The first configure downloads pinned dependencies into `.cache/deps/` (see
-`cmake/ZaroDeps.cmake`). All presets share that directory.
+`cmake/ZaroDeps.cmake`). All presets share the downloads and sources there; dependencies built
+from source compile into each preset's own `build/<preset>/_deps/`.
 
 ## Layout
 
@@ -67,7 +70,8 @@ ownership and the rest of the layering rules are in the `zaro-code` skill.
 | `scene` | loads TOML scenes and prefabs into registered components; the only module that includes tomlc17 | core |
 | `script` | sandboxed Luau scripts acting on a scene through reflection; the only module that includes Luau | core, scene |
 | `render` | draws plain data (the view); never sees sim types | core, rhi |
-| `app` | owns the frame loop and wires sim to render | all of the above |
+| `ui` | game UI: fonts, text layout, glyph atlas, screens, widgets; no GPU | core, scene |
+| `app` | owns the frame loop and wires sim and ui to render | all of the above |
 | `cli` | the `zaro` command | core, app |
 
 ## Skills
@@ -78,6 +82,8 @@ Load a skill before working in the situation it names; it holds what would other
   parallel simulation, Slang shaders, the Windows header-dependency repair.
 - **`zaro-scene`**: scenes, prefabs and components, Luau scripts, scene tests and golden hashes,
   headless runs and perf.json.
+- **`zaro-ui`**: text and the glyph atlas, screen files, widgets, string tables, and how a frame's
+  UI is built and drawn.
 - **`zaro-docs`**: how documentation is written in this public repository and where each fact goes.
 - **`zaro-git`**: branches, commits, pull requests, auto-merge and CI. **Load it before writing a
   commit message.**

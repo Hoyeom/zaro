@@ -149,6 +149,16 @@ bool assign_field(const ComponentDesc* comp, const FieldDesc& f, const toml_datu
             }
             memcpy(dst, v.u.str.ptr, (size_t)v.u.str.len + 1);
             return true;
+        case FieldType::kColor:
+        case FieldType::kEnum: {
+            if (v.type != TOML_STRING) return type_error();
+            char err[300];
+            if (!reflect::parse_text_value(f, v.u.str.ptr, dst, err, sizeof(err))) {
+                diag_add(diags, kErrSceneRange, file, v.lineno, v.colno, "%s.%s %s", comp->name, f.name, err);
+                return false;
+            }
+            return true;
+        }
     }
     return type_error();
 }
@@ -172,23 +182,40 @@ struct ComponentSet {
         c.desc = desc;
         c.data = malloc(desc->size);
         memcpy(c.data, init ? init : desc->defaults, desc->size);
+        c.line = 0;
+        c.field_lines = (int*)calloc(desc->field_count ? desc->field_count : 1, sizeof(int));
         return &c;
     }
     void release() {
-        for (uint32_t i = 0; i < count; ++i) free(items[i].data);
+        for (uint32_t i = 0; i < count; ++i) {
+            free(items[i].data);
+            free(items[i].field_lines);
+        }
         count = 0;
     }
 };
 
+reflect::ComponentKind component_kind(DocKind kind) {
+    return kind == DocKind::kScreen ? reflect::ComponentKind::kUi : reflect::ComponentKind::kScene;
+}
+
 // Applies one component table (`[Name]` or `[entity.Name]`) to a set.
-void apply_component_table(const char* comp_name, const toml_datum_t& table, ComponentSet* set, const char* file,
-                           DiagList* diags) {
+void apply_component_table(const char* comp_name, const toml_datum_t& table, ComponentSet* set, DocKind kind,
+                           const char* file, DiagList* diags) {
     const ComponentDesc* desc = reflect::find_component(comp_name);
     if (!desc) {
         const char* hint = reflect::suggest_component(comp_name);
         diag_add(diags, kErrSceneUnknownComponent, file, table.lineno, table.colno,
                  "unknown component '%s'%s%s%s (list them with `zaro schema`)", comp_name,
                  hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+        return;
+    }
+    if (desc->kind != component_kind(kind)) {
+        diag_add(diags, kErrSceneUnknownComponent, file, table.lineno, table.colno,
+                 desc->kind == reflect::ComponentKind::kUi
+                     ? "'%s' is a UI widget; widgets go on [[node]]s of a [screen] file"
+                     : "'%s' is a scene component; it goes on [[entity]]s of a [scene] file",
+                 comp_name);
         return;
     }
     ComponentData* c = set->get_or_add(desc, nullptr);
@@ -207,8 +234,9 @@ void apply_component_table(const char* comp_name, const toml_datum_t& table, Com
                      hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
             continue;
         }
-        assign_field(desc, *f, v, c->data, file, diags);
+        if (assign_field(desc, *f, v, c->data, file, diags)) c->field_lines[f - desc->fields] = v.lineno;
     }
+    c->line = table.lineno;
 }
 
 struct Prefab {
@@ -220,6 +248,7 @@ struct Prefab {
 
 struct Loader {
     const char* scene_path;
+    DocKind kind;
     DiagList* diags;
     Prefab* prefabs[kMaxPrefabs];
     uint32_t prefab_count = 0;
@@ -253,7 +282,7 @@ struct Loader {
                              "unexpected top-level key '%s' in a prefab (expected [prefab] or a component table)", key);
                     continue;
                 }
-                apply_component_table(key, v, &p->set, path, diags);
+                apply_component_table(key, v, &p->set, kind, path, diags);
             }
             if (!has_header) diag_add(diags, kErrSceneStructure, path, 1, 1, "a prefab needs a [prefab] table");
         }
@@ -284,11 +313,14 @@ bool copy_string(const toml_datum_t& v, char* out, size_t size, const char* what
 }
 
 void load_entity(Loader& loader, const toml_datum_t& t, Entity* e, const char* file, DiagList* diags) {
+    const bool screen = loader.kind == DocKind::kScreen;
+    const char* what = screen ? "node" : "entity";
     e->line = t.lineno;
+    e->parent_index = -1;
     ComponentSet set;
     const toml_datum_t prefab_v = toml_get(t, "prefab");
     if (prefab_v.type != TOML_UNKNOWN &&
-        copy_string(prefab_v, e->prefab, sizeof(e->prefab), "entity prefab", file, diags)) {
+        copy_string(prefab_v, e->prefab, sizeof(e->prefab), screen ? "node prefab" : "entity prefab", file, diags)) {
         const Prefab* p = loader.prefab(e->prefab, prefab_v);
         if (p && p->ok) {
             for (uint32_t i = 0; i < p->set.count; ++i) set.get_or_add(p->set.items[i].desc, p->set.items[i].data);
@@ -302,17 +334,21 @@ void load_entity(Loader& loader, const toml_datum_t& t, Entity* e, const char* f
         const char* key = t.u.tab.key[i];
         const toml_datum_t& v = t.u.tab.value[i];
         if (strcmp(key, "name") == 0) {
-            has_name = copy_string(v, e->name, sizeof(e->name), "entity name", file, diags);
+            has_name = copy_string(v, e->name, sizeof(e->name), screen ? "node name" : "entity name", file, diags);
         } else if (strcmp(key, "prefab") == 0) {
             continue;
+        } else if (screen && strcmp(key, "parent") == 0) {
+            copy_string(v, e->parent, sizeof(e->parent), "node parent", file, diags);
         } else if (v.type == TOML_TABLE) {
-            apply_component_table(key, v, &set, file, diags);
+            apply_component_table(key, v, &set, loader.kind, file, diags);
         } else {
             diag_add(diags, kErrSceneStructure, file, v.lineno, v.colno,
-                     "unexpected entity key '%s' (expected name, prefab or a component table)", key);
+                     screen ? "unexpected node key '%s' (expected name, parent, prefab or a widget table)"
+                            : "unexpected entity key '%s' (expected name, prefab or a component table)",
+                     key);
         }
     }
-    if (!has_name) diag_add(diags, kErrSceneStructure, file, t.lineno, t.colno, "entity needs a name");
+    if (!has_name) diag_add(diags, kErrSceneStructure, file, t.lineno, t.colno, "%s needs a name", what);
     e->component_count = set.count;
     e->components = (ComponentData*)calloc(set.count ? set.count : 1, sizeof(ComponentData));
     memcpy(e->components, set.items, sizeof(ComponentData) * set.count);
@@ -320,7 +356,121 @@ void load_entity(Loader& loader, const toml_datum_t& t, Entity* e, const char* f
 
 }  // namespace
 
-Scene* load_scene(const char* path, DiagList* diags) {
+namespace {
+
+// Reads an array of strings into fixed slots. Returns the count, or adds diagnostics.
+uint32_t copy_string_array(const toml_datum_t& v, char* out, uint32_t stride, uint32_t max, const char* what,
+                           const char* file, DiagList* diags) {
+    if (v.type != TOML_ARRAY) {
+        diag_add(diags, kErrSceneType, file, v.lineno, v.colno, "%s must be an array of strings, got %s", what,
+                 kind_name(v.type));
+        return 0;
+    }
+    if ((uint32_t)v.u.arr.size > max) {
+        diag_add(diags, kErrSceneRange, file, v.lineno, v.colno, "%s has more than %u entries", what, max);
+        return 0;
+    }
+    uint32_t n = 0;
+    for (int32_t i = 0; i < v.u.arr.size; ++i) {
+        if (copy_string(v.u.arr.elem[i], out + (size_t)n * stride, stride, what, file, diags)) ++n;
+    }
+    return n;
+}
+
+void load_scene_header(const toml_datum_t& header, Scene* s, const char* path, DiagList* diags) {
+    for (int32_t i = 0; i < header.u.tab.size; ++i) {
+        const char* key = header.u.tab.key[i];
+        const toml_datum_t& v = header.u.tab.value[i];
+        char rel[kPathCapacity];
+        if (strcmp(key, "name") == 0) {
+            copy_string(v, s->name, sizeof(s->name), "scene name", path, diags);
+        } else if (strcmp(key, "script") == 0) {
+            if (copy_string(v, rel, sizeof(rel), "scene script", path, diags)) {
+                path_join_relative(path, rel, s->script, sizeof(s->script));
+            }
+        } else if (strcmp(key, "ui") == 0) {
+            char rels[kMaxSceneScreens][kPathCapacity];
+            s->ui_line = v.lineno;
+            s->ui_count = copy_string_array(v, rels[0], kPathCapacity, kMaxSceneScreens, "scene ui", path, diags);
+            for (uint32_t k = 0; k < s->ui_count; ++k) path_join_relative(path, rels[k], s->ui[k], kPathCapacity);
+        } else if (strcmp(key, "strings") == 0) {
+            s->strings_line = v.lineno;
+            if (copy_string(v, rel, sizeof(rel) - 1, "scene strings", path, diags)) {
+                path_join_relative(path, rel, s->strings, sizeof(s->strings) - 1);
+                const size_t len = strlen(s->strings);
+                if (len && s->strings[len - 1] != '/') memcpy(s->strings + len, "/", 2);
+            }
+        } else if (strcmp(key, "languages") == 0) {
+            s->language_count = copy_string_array(v, s->languages[0], kLanguageCapacity, kMaxLanguages,
+                                                  "scene languages", path, diags);
+        } else {
+            diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
+                     "unexpected key '%s' in [scene] (expected name, script, ui, strings or languages)", key);
+        }
+    }
+    if (s->strings[0] && !s->language_count) {
+        diag_add(diags, kErrSceneStructure, path, s->strings_line, 1, "strings needs languages = [\"..\", ...]");
+    }
+    if (!s->strings[0] && s->language_count) {
+        diag_add(diags, kErrSceneStructure, path, header.lineno, header.colno, "languages needs strings = \"<dir>\"");
+    }
+}
+
+void load_screen_header(const toml_datum_t& header, Scene* s, const char* path, DiagList* diags) {
+    for (int32_t i = 0; i < header.u.tab.size; ++i) {
+        const char* key = header.u.tab.key[i];
+        const toml_datum_t& v = header.u.tab.value[i];
+        if (strcmp(key, "name") == 0) {
+            copy_string(v, s->name, sizeof(s->name), "screen name", path, diags);
+        } else if (strcmp(key, "navigable") == 0) {
+            if (v.type == TOML_BOOLEAN) s->navigable = v.u.boolean;
+            else diag_add(diags, kErrSceneType, path, v.lineno, v.colno, "navigable must be a boolean");
+        } else if (strcmp(key, "reference") == 0) {
+            const bool ok = v.type == TOML_ARRAY && v.u.arr.size == 2 && is_number(v.u.arr.elem[0]) &&
+                            is_number(v.u.arr.elem[1]) && number(v.u.arr.elem[0]) >= 1.0 &&
+                            number(v.u.arr.elem[1]) >= 1.0;
+            if (ok) {
+                s->reference[0] = (float)number(v.u.arr.elem[0]);
+                s->reference[1] = (float)number(v.u.arr.elem[1]);
+            } else {
+                diag_add(diags, kErrSceneType, path, v.lineno, v.colno,
+                         "reference must be [width, height] with both at least 1");
+            }
+        } else {
+            diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
+                     "unexpected key '%s' in [screen] (expected name, reference or navigable)", key);
+        }
+    }
+}
+
+// Links every node to its parent, which must be an earlier node of the screen.
+void resolve_parents(Scene* s, const toml_datum_t& nodes, DiagList* diags) {
+    for (uint32_t i = 0; i < s->entity_count; ++i) {
+        Entity& e = s->entities[i];
+        if (!e.parent[0]) continue;
+        for (uint32_t j = 0; j < i; ++j) {
+            if (strcmp(s->entities[j].name, e.parent) == 0) e.parent_index = (int)j;
+        }
+        if (e.parent_index >= 0) continue;
+        const toml_datum_t at = toml_get(nodes.u.arr.elem[i], "parent");
+        bool later = false;
+        for (uint32_t j = i; j < s->entity_count; ++j) later = later || strcmp(s->entities[j].name, e.parent) == 0;
+        if (later) {
+            diag_add(diags, kErrSceneParent, s->path, at.lineno, at.colno,
+                     "parent '%s' must come before node '%s' in the file", e.parent, e.name);
+            continue;
+        }
+        const char* names[kMaxEntities];
+        for (uint32_t j = 0; j < i; ++j) names[j] = s->entities[j].name;
+        const char* hint = reflect::suggest_name(e.parent, names, i);
+        diag_add(diags, kErrSceneParent, s->path, at.lineno, at.colno, "unknown parent node '%s'%s%s%s", e.parent,
+                 hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+    }
+}
+
+enum class Want : uint8_t { kAny, kScene, kScreen };
+
+Scene* load(const char* path, Want expect, DiagList* diags) {
     const uint32_t errors_before = diags->count;
     Loaded l;
     if (!load_toml(path, &l, diags, kErrSceneSyntax, nullptr, 0, 0)) {
@@ -329,63 +479,70 @@ Scene* load_scene(const char* path, DiagList* diags) {
     }
     Scene* s = (Scene*)calloc(1, sizeof(Scene));
     snprintf(s->path, sizeof(s->path), "%s", path);
+    s->reference[0] = 1280.0f;
+    s->reference[1] = 720.0f;
+    const toml_datum_t top = l.result.toptab;
+    const toml_datum_t scene_header = toml_get(top, "scene");
+    const toml_datum_t screen_header = toml_get(top, "screen");
+    const bool screen = screen_header.type != TOML_UNKNOWN && scene_header.type == TOML_UNKNOWN;
+    s->kind = screen ? DocKind::kScreen : DocKind::kScene;
+    const char* header_key = screen ? "screen" : "scene";
+    const char* items_key = screen ? "node" : "entity";
+    const toml_datum_t header = screen ? screen_header : scene_header;
     Loader loader;
     loader.scene_path = path;
+    loader.kind = s->kind;
     loader.diags = diags;
 
-    const toml_datum_t top = l.result.toptab;
-    const toml_datum_t header = toml_get(top, "scene");
-    if (header.type != TOML_TABLE) {
-        diag_add(diags, kErrSceneStructure, path, 1, 1, "a scene needs a [scene] table with a name");
+    if ((expect == Want::kScene && screen) || (expect == Want::kScreen && !screen)) {
+        diag_add(diags, kErrSceneStructure, path, 1, 1, "expected a %s file with a [%s] table, got a %s file",
+                 expect == Want::kScene ? "scene" : "screen", expect == Want::kScene ? "scene" : "screen",
+                 screen ? "screen" : "scene");
+    } else if (header.type != TOML_TABLE) {
+        diag_add(diags, kErrSceneStructure, path, 1, 1, "a %s needs a [%s] table with a name",
+                 expect == Want::kScreen ? "screen" : "scene", expect == Want::kScreen ? "screen" : "scene");
     } else {
-        for (int32_t i = 0; i < header.u.tab.size; ++i) {
-            const char* key = header.u.tab.key[i];
-            const toml_datum_t& v = header.u.tab.value[i];
-            if (strcmp(key, "name") == 0) {
-                copy_string(v, s->name, sizeof(s->name), "scene name", path, diags);
-            } else if (strcmp(key, "script") == 0) {
-                char rel[kPathCapacity];
-                if (copy_string(v, rel, sizeof(rel), "scene script", path, diags)) {
-                    path_join_relative(path, rel, s->script, sizeof(s->script));
-                }
-            } else {
-                diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
-                         "unexpected key '%s' in [scene] (expected name or script)", key);
-            }
+        if (screen) load_screen_header(header, s, path, diags);
+        else load_scene_header(header, s, path, diags);
+        if (!s->name[0]) {
+            diag_add(diags, kErrSceneStructure, path, header.lineno, header.colno, "[%s] needs a name", header_key);
         }
-        if (!s->name[0]) diag_add(diags, kErrSceneStructure, path, header.lineno, header.colno, "[scene] needs a name");
     }
 
     for (int32_t i = 0; i < top.u.tab.size; ++i) {
         const char* key = top.u.tab.key[i];
-        if (strcmp(key, "scene") != 0 && strcmp(key, "entity") != 0) {
+        if (strcmp(key, header_key) != 0 && strcmp(key, items_key) != 0) {
             const toml_datum_t& v = top.u.tab.value[i];
             diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
-                     "unexpected top-level key '%s' (expected [scene] or [[entity]])", key);
+                     "unexpected top-level key '%s' (expected [%s] or [[%s]])", key, header_key, items_key);
         }
     }
 
-    const toml_datum_t ents = toml_get(top, "entity");
+    const toml_datum_t ents = toml_get(top, items_key);
     if (ents.type == TOML_ARRAY) {
         const uint32_t n = (uint32_t)ents.u.arr.size < kMaxEntities ? (uint32_t)ents.u.arr.size : kMaxEntities;
         s->entities = (Entity*)calloc(n ? n : 1, sizeof(Entity));
         for (uint32_t i = 0; i < n; ++i) {
             const toml_datum_t& t = ents.u.arr.elem[i];
             if (t.type != TOML_TABLE) {
-                diag_add(diags, kErrSceneStructure, path, t.lineno, t.colno, "entity must be a table ([[entity]])");
+                diag_add(diags, kErrSceneStructure, path, t.lineno, t.colno, "%s must be a table ([[%s]])", items_key,
+                         items_key);
                 continue;
             }
             Entity* e = &s->entities[s->entity_count++];
             load_entity(loader, t, e, path, diags);
             for (uint32_t j = 0; j + 1 < s->entity_count; ++j) {
                 if (e->name[0] && strcmp(s->entities[j].name, e->name) == 0) {
-                    diag_add(diags, kErrSceneDuplicate, path, t.lineno, t.colno,
-                             "entity name '%s' is already used on line %d", e->name, s->entities[j].line);
+                    diag_add(diags, kErrSceneDuplicate, path, t.lineno, t.colno, "%s name '%s' is already used on line %d",
+                             items_key, e->name, s->entities[j].line);
                 }
             }
         }
+        // Parents are looked up by position in the array, so every element must have become a node.
+        if (screen && s->entity_count == n) resolve_parents(s, ents, diags);
     } else if (ents.type != TOML_UNKNOWN) {
-        diag_add(diags, kErrSceneStructure, path, ents.lineno, ents.colno, "entity must be an array of tables ([[entity]])");
+        diag_add(diags, kErrSceneStructure, path, ents.lineno, ents.colno, "%s must be an array of tables ([[%s]])",
+                 items_key, items_key);
     }
 
     free_loaded(&l);
@@ -396,10 +553,19 @@ Scene* load_scene(const char* path, DiagList* diags) {
     return s;
 }
 
+}  // namespace
+
+Scene* load_document(const char* path, DiagList* diags) { return load(path, Want::kAny, diags); }
+Scene* load_scene(const char* path, DiagList* diags) { return load(path, Want::kScene, diags); }
+Scene* load_screen(const char* path, DiagList* diags) { return load(path, Want::kScreen, diags); }
+
 void free_scene(Scene* s) {
     if (!s) return;
     for (uint32_t i = 0; i < s->entity_count; ++i) {
-        for (uint32_t j = 0; j < s->entities[i].component_count; ++j) free(s->entities[i].components[j].data);
+        for (uint32_t j = 0; j < s->entities[i].component_count; ++j) {
+            free(s->entities[i].components[j].data);
+            free(s->entities[i].components[j].field_lines);
+        }
         free(s->entities[i].components);
     }
     free(s->entities);
@@ -416,6 +582,13 @@ const Entity* find_entity(const Scene* s, const char* name) {
 const void* get_component(const Entity* e, const ComponentDesc* desc) {
     for (uint32_t i = 0; i < e->component_count; ++i) {
         if (e->components[i].desc == desc) return e->components[i].data;
+    }
+    return nullptr;
+}
+
+const ComponentData* find_component_data(const Entity* e, const ComponentDesc* desc) {
+    for (uint32_t i = 0; i < e->component_count; ++i) {
+        if (e->components[i].desc == desc) return &e->components[i];
     }
     return nullptr;
 }

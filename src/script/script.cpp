@@ -1,6 +1,7 @@
 #include "script/script.h"
 
 #include "core/reflect.h"
+#include "scene/ui_state.h"
 
 #include <lua.h>
 #include <luacode.h>
@@ -26,6 +27,9 @@ struct Script {
     char path[scene::kPathCapacity] = {};
     char chunkname[scene::kPathCapacity + 1] = {};
     scene::Scene* scene = nullptr;
+    scene::UiState* ui = nullptr;
+    scene::Scene* const* screens = nullptr;
+    uint32_t screen_count = 0;
     uint64_t tick = 0;
     double max_call_seconds = 1.0;
     Clock::time_point deadline;
@@ -107,12 +111,8 @@ const FieldDesc* field_arg(lua_State* L, const ComponentDesc* desc, int arg) {
 int vector_size(FieldType t) { return t == FieldType::kVec2 ? 2 : (t == FieldType::kVec3 ? 3 : 4); }
 const char* const kAxes[4] = {"x", "y", "z", "w"};
 
-int zaro_get(lua_State* L) {
-    scene::Entity* e = entity_arg(L, 1);
-    const ComponentDesc* desc = nullptr;
-    const uint8_t* data = (const uint8_t*)component_arg(L, e, 2, &desc);
-    const FieldDesc* f = field_arg(L, desc, 3);
-    const uint8_t* p = data + f->offset;
+// Pushes a field's value: number, boolean, string or {x, y[, z[, w]]}.
+void push_field(lua_State* L, const FieldDesc* f, const uint8_t* p) {
     switch (f->type) {
         case FieldType::kBool: lua_pushboolean(L, *(const bool*)p); break;
         case FieldType::kI32: lua_pushnumber(L, *(const int32_t*)p); break;
@@ -120,6 +120,13 @@ int zaro_get(lua_State* L) {
         case FieldType::kU64: lua_pushnumber(L, (double)*(const uint64_t*)p); break;
         case FieldType::kF32: lua_pushnumber(L, *(const float*)p); break;
         case FieldType::kString: lua_pushstring(L, (const char*)p); break;
+        case FieldType::kColor:
+        case FieldType::kEnum: {
+            char text[reflect::kStringCapacity];
+            reflect::format_text_value(*f, p, text, sizeof(text));
+            lua_pushstring(L, text);
+            break;
+        }
         case FieldType::kVec2:
         case FieldType::kVec3:
         case FieldType::kVec4: {
@@ -132,6 +139,14 @@ int zaro_get(lua_State* L) {
             break;
         }
     }
+}
+
+int zaro_get(lua_State* L) {
+    scene::Entity* e = entity_arg(L, 1);
+    const ComponentDesc* desc = nullptr;
+    const uint8_t* data = (const uint8_t*)component_arg(L, e, 2, &desc);
+    const FieldDesc* f = field_arg(L, desc, 3);
+    push_field(L, f, data + f->offset);
     return 1;
 }
 
@@ -142,25 +157,21 @@ double number_in_range(lua_State* L, const ComponentDesc* desc, const FieldDesc*
     return x;
 }
 
-int zaro_set(lua_State* L) {
-    scene::Entity* e = entity_arg(L, 1);
-    const ComponentDesc* desc = nullptr;
-    uint8_t* data = (uint8_t*)component_arg(L, e, 2, &desc);
-    const FieldDesc* f = field_arg(L, desc, 3);
-    uint8_t* p = data + f->offset;
-    const int t = lua_type(L, 4);
+// Stores the Lua value at `arg` into a field, with the scene loader's type and range checks.
+void store_field(lua_State* L, const ComponentDesc* desc, const FieldDesc* f, uint8_t* p, int arg) {
+    const int t = lua_type(L, arg);
     const char* tn = reflect::type_name(f->type);
     switch (f->type) {
         case FieldType::kBool:
-            if (t != LUA_TBOOLEAN) luaL_error(L, "%s.%s expects %s, got %s", desc->name, f->name, tn, luaL_typename(L, 4));
-            *(bool*)p = lua_toboolean(L, 4) != 0;
+            if (t != LUA_TBOOLEAN) luaL_error(L, "%s.%s expects %s, got %s", desc->name, f->name, tn, luaL_typename(L, arg));
+            *(bool*)p = lua_toboolean(L, arg) != 0;
             break;
         case FieldType::kI32:
         case FieldType::kU32:
         case FieldType::kU64:
         case FieldType::kF32: {
-            if (t != LUA_TNUMBER) luaL_error(L, "%s.%s expects %s, got %s", desc->name, f->name, tn, luaL_typename(L, 4));
-            const double x = number_in_range(L, desc, f, lua_tonumber(L, 4));
+            if (t != LUA_TNUMBER) luaL_error(L, "%s.%s expects %s, got %s", desc->name, f->name, tn, luaL_typename(L, arg));
+            const double x = number_in_range(L, desc, f, lua_tonumber(L, arg));
             if (f->type == FieldType::kF32) {
                 *(float*)p = (float)x;
                 break;
@@ -176,23 +187,36 @@ int zaro_set(lua_State* L) {
             break;
         }
         case FieldType::kString: {
-            if (t != LUA_TSTRING) luaL_error(L, "%s.%s expects %s, got %s", desc->name, f->name, tn, luaL_typename(L, 4));
+            if (t != LUA_TSTRING) luaL_error(L, "%s.%s expects %s, got %s", desc->name, f->name, tn, luaL_typename(L, arg));
             size_t len = 0;
-            const char* str = lua_tolstring(L, 4, &len);
+            const char* str = lua_tolstring(L, arg, &len);
             if (len >= reflect::kStringCapacity) {
                 luaL_error(L, "%s.%s is %d bytes (max %u)", desc->name, f->name, (int)len, reflect::kStringCapacity - 1);
             }
             memcpy(p, str, len + 1);
             break;
         }
+        case FieldType::kColor:
+        case FieldType::kEnum: {
+            if (t != LUA_TSTRING) luaL_error(L, "%s.%s expects %s, got %s", desc->name, f->name, tn, luaL_typename(L, arg));
+            // luaL_error does not return, so the message must be copied to the Lua stack first.
+            char err[300];
+            uint32_t value = 0;
+            if (!reflect::parse_text_value(*f, lua_tostring(L, arg), &value, err, sizeof(err))) {
+                lua_pushfstring(L, "%s.%s %s", desc->name, f->name, err);
+                lua_error(L);
+            }
+            *(uint32_t*)p = value;
+            break;
+        }
         case FieldType::kVec2:
         case FieldType::kVec3:
         case FieldType::kVec4: {
             const int n = vector_size(f->type);
-            if (t != LUA_TTABLE) luaL_error(L, "%s.%s expects %s {x, y...}, got %s", desc->name, f->name, tn, luaL_typename(L, 4));
+            if (t != LUA_TTABLE) luaL_error(L, "%s.%s expects %s {x, y...}, got %s", desc->name, f->name, tn, luaL_typename(L, arg));
             float v[4];
             for (int i = 0; i < n; ++i) {
-                lua_getfield(L, 4, kAxes[i]);
+                lua_getfield(L, arg, kAxes[i]);
                 if (lua_type(L, -1) != LUA_TNUMBER) luaL_error(L, "%s.%s needs a number in .%s", desc->name, f->name, kAxes[i]);
                 v[i] = (float)lua_tonumber(L, -1);
                 lua_pop(L, 1);
@@ -201,7 +225,97 @@ int zaro_set(lua_State* L) {
             break;
         }
     }
+}
+
+int zaro_set(lua_State* L) {
+    scene::Entity* e = entity_arg(L, 1);
+    const ComponentDesc* desc = nullptr;
+    uint8_t* data = (uint8_t*)component_arg(L, e, 2, &desc);
+    const FieldDesc* f = field_arg(L, desc, 3);
+    store_field(L, desc, f, data + f->offset, 4);
     return 0;
+}
+
+// --- ui.* bindings (P2 step 4): view-model values, widget fields of the scene's screens, and
+// commands for the app. Same rules as zaro.*: no objects with destructors.
+
+scene::Scene* screen_arg(lua_State* L, int arg) {
+    Script* s = self(L);
+    const char* name = luaL_checklstring(L, arg, nullptr);
+    const char* names[scene::kMaxSceneScreens];
+    for (uint32_t i = 0; i < s->screen_count; ++i) {
+        if (strcmp(s->screens[i]->name, name) == 0) return s->screens[i];
+        names[i] = s->screens[i]->name;
+    }
+    const char* hint = reflect::suggest_name(name, names, s->screen_count);
+    luaL_error(L, "no screen named '%s'%s%s%s", name, hint ? " (did you mean '" : "", hint ? hint : "",
+               hint ? "'?)" : "");
+}
+
+scene::Entity* node_arg(lua_State* L, scene::Scene* screen, int arg) {
+    const char* name = luaL_checklstring(L, arg, nullptr);
+    for (uint32_t i = 0; i < screen->entity_count; ++i) {
+        if (strcmp(screen->entities[i].name, name) == 0) return &screen->entities[i];
+    }
+    luaL_error(L, "screen '%s' has no node '%s'", screen->name, name);
+}
+
+int ui_set(lua_State* L) {
+    Script* s = self(L);
+    const char* key = luaL_checklstring(L, 1, nullptr);
+    if (!s->ui) luaL_error(L, "ui.set: the scene has no ui");
+    const int t = lua_type(L, 2);
+    if (t == LUA_TNUMBER) scene::set_value_number(s->ui, key, lua_tonumber(L, 2));
+    else if (t == LUA_TSTRING) scene::set_value_string(s->ui, key, lua_tostring(L, 2));
+    else luaL_error(L, "ui.set('%s', value) expects a number or a string, got %s", key, luaL_typename(L, 2));
+    return 0;
+}
+
+int ui_get(lua_State* L) {
+    Script* s = self(L);
+    const char* key = luaL_checklstring(L, 1, nullptr);
+    double number = 0.0;
+    const char* string = nullptr;
+    if (!s->ui || !scene::get_value(s->ui, key, &number, &string)) lua_pushnil(L);
+    else if (string) lua_pushstring(L, string);
+    else lua_pushnumber(L, number);
+    return 1;
+}
+
+int ui_get_field(lua_State* L) {
+    scene::Entity* e = node_arg(L, screen_arg(L, 1), 2);
+    const ComponentDesc* desc = nullptr;
+    const uint8_t* data = (const uint8_t*)component_arg(L, e, 3, &desc);
+    const FieldDesc* f = field_arg(L, desc, 4);
+    push_field(L, f, data + f->offset);
+    return 1;
+}
+
+int ui_set_field(lua_State* L) {
+    scene::Entity* e = node_arg(L, screen_arg(L, 1), 2);
+    const ComponentDesc* desc = nullptr;
+    uint8_t* data = (uint8_t*)component_arg(L, e, 3, &desc);
+    const FieldDesc* f = field_arg(L, desc, 4);
+    store_field(L, desc, f, data + f->offset, 5);
+    return 0;
+}
+
+int ui_language(lua_State* L) {
+    Script* s = self(L);
+    const char* code = luaL_checklstring(L, 1, nullptr);
+    if (!s->ui) luaL_error(L, "ui.language: the scene has no ui");
+    const scene::Scene* sc = s->scene;
+    const char* names[scene::kMaxLanguages];
+    for (uint32_t i = 0; i < sc->language_count; ++i) {
+        if (strcmp(sc->languages[i], code) == 0) {
+            scene::push_command(s->ui, scene::UiCommandKind::kLanguage, code);
+            return 0;
+        }
+        names[i] = sc->languages[i];
+    }
+    const char* hint = reflect::suggest_name(code, names, sc->language_count);
+    luaL_error(L, "ui.language: '%s' is not one of the scene's languages%s%s%s", code,
+               hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
 }
 
 int zaro_has(lua_State* L) {
@@ -305,6 +419,9 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     snprintf(s->path, sizeof(s->path), "%s", desc.path);
     snprintf(s->chunkname, sizeof(s->chunkname), "=%s", desc.path);
     s->scene = desc.scene;
+    s->ui = desc.ui;
+    s->screens = desc.screens;
+    s->screen_count = desc.screen_count;
     s->max_call_seconds = desc.max_call_seconds;
 
     lua_State* L = luaL_newstate();
@@ -336,6 +453,17 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     lua_setreadonly(L, -1, 1);
     lua_setglobal(L, "zaro");
 
+    static const luaL_Reg kUiApi[] = {{"set", ui_set},           {"get", ui_get},
+                                      {"get_field", ui_get_field}, {"set_field", ui_set_field},
+                                      {"language", ui_language},   {nullptr, nullptr}};
+    lua_createtable(L, 0, 5);
+    for (const luaL_Reg* r = kUiApi; r->name; ++r) {
+        lua_pushcfunction(L, r->func, r->name);
+        lua_setfield(L, -2, r->name);
+    }
+    lua_setreadonly(L, -1, 1);
+    lua_setglobal(L, "ui");
+
     luaL_sandbox(L);  // standard library and `zaro` become read-only
     s->T = lua_newthread(L);
     s->thread_ref = lua_ref(L, -1);
@@ -361,6 +489,13 @@ bool call_tick(Script* s, uint64_t tick, DiagList* diags) {
     s->tick = tick;
     lua_pushnumber(s->T, (double)tick);
     return call_hook(s, "on_tick", 1, diags);
+}
+
+bool call_ui(Script* s, const char* action, const char* screen, const char* node, DiagList* diags) {
+    lua_pushstring(s->T, action);
+    lua_pushstring(s->T, screen);
+    lua_pushstring(s->T, node);
+    return call_hook(s, "on_ui", 3, diags);
 }
 
 bool reload(Script* s, DiagList* diags) { return run_file(s, diags); }

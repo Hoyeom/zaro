@@ -21,12 +21,18 @@ enum ErrorId {
     kErrScenePrefab = 405,    // ZE0405 prefab file missing or itself invalid
     kErrSceneStructure = 406, // ZE0406 required key missing or unknown top-level key
     kErrSceneDuplicate = 407, // ZE0407 two entities share a name
+    kErrSceneParent = 408,    // ZE0408 a screen node's parent is unknown or comes after it
     kErrScriptCompile = 500,  // ZE0500 script missing or has a syntax error
     kErrScriptRuntime = 501,  // ZE0501 script raised an error (includes misuse of the zaro API)
     kErrScriptTimeout = 502,  // ZE0502 one script call ran longer than its time budget
     kErrTestSpec = 600,       // ZE0600 test file missing or invalid
     kErrTestExpect = 601,     // ZE0601 an [[expect]] did not hold after the run
     kErrTestStateHash = 602,  // ZE0602 the run's state hash differs from the golden one
+    kErrTestClick = 603,      // ZE0603 a [[click]] found no shown, enabled button to click
+    kErrFontLoad = 700,       // ZE0700 font file missing or not a TrueType/OpenType font
+    kErrImageLoad = 701,      // ZE0701 image missing, not a PNG, or no room in the image atlas
+    kErrStringKey = 702,      // ZE0702 an @key text names no entry of a string table
+    kErrStringTable = 703,    // ZE0703 string table missing, invalid, or missing a key other languages have
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

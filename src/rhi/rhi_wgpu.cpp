@@ -33,6 +33,14 @@ struct ComputePipeline {
 struct RenderPipeline {
     WGPURenderPipeline pipeline = nullptr;
 };
+struct Texture {
+    WGPUTexture texture = nullptr;
+    WGPUTextureView view = nullptr;
+    uint32_t texel_bytes = 1;
+};
+struct Sampler {
+    WGPUSampler sampler = nullptr;
+};
 
 namespace {
 
@@ -418,6 +426,55 @@ void write_buffer(Device* d, Buffer* b, uint64_t offset, const void* data, uint6
     wgpuQueueWriteBuffer(d->queue, b->buffer, offset, data, (size_t)size);
 }
 
+Texture* create_texture(Device* d, uint32_t width, uint32_t height, TextureFormat format, const char* label) {
+    WGPUTextureDescriptor td = WGPU_TEXTURE_DESCRIPTOR_INIT;
+    td.label = sv(label);
+    td.size = {width, height, 1};
+    td.format = format == TextureFormat::kR8 ? WGPUTextureFormat_R8Unorm : WGPUTextureFormat_RGBA8UnormSrgb;
+    td.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+    Texture* t = new Texture();
+    t->texture = wgpuDeviceCreateTexture(d->device, &td);
+    t->view = wgpuTextureCreateView(t->texture, nullptr);
+    t->texel_bytes = format == TextureFormat::kR8 ? 1 : 4;
+    return t;
+}
+
+void destroy_texture(Texture* t) {
+    if (!t) return;
+    wgpuTextureViewRelease(t->view);
+    wgpuTextureRelease(t->texture);
+    delete t;
+}
+
+void write_texture(Device* d, Texture* t, uint32_t x, uint32_t y, uint32_t w, uint32_t h, const void* data,
+                   uint32_t bytes_per_row) {
+    if (!w || !h) return;
+    WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    dst.texture = t->texture;
+    dst.origin = {x, y, 0};
+    WGPUTexelCopyBufferLayout layout = WGPU_TEXEL_COPY_BUFFER_LAYOUT_INIT;
+    layout.bytesPerRow = bytes_per_row;
+    layout.rowsPerImage = h;
+    const WGPUExtent3D size = {w, h, 1};
+    const size_t bytes = (size_t)bytes_per_row * (h - 1) + (size_t)w * t->texel_bytes;
+    wgpuQueueWriteTexture(d->queue, &dst, data, bytes, &layout, &size);
+}
+
+Sampler* create_sampler(Device* d, bool linear) {
+    WGPUSamplerDescriptor sd = WGPU_SAMPLER_DESCRIPTOR_INIT;
+    sd.magFilter = linear ? WGPUFilterMode_Linear : WGPUFilterMode_Nearest;
+    sd.minFilter = sd.magFilter;
+    Sampler* s = new Sampler();
+    s->sampler = wgpuDeviceCreateSampler(d->device, &sd);
+    return s;
+}
+
+void destroy_sampler(Sampler* s) {
+    if (!s) return;
+    wgpuSamplerRelease(s->sampler);
+    delete s;
+}
+
 Shader* load_shader(Device* d, const char* path) {
     FILE* f = fopen(path, "rb");
     if (!f) {
@@ -459,6 +516,11 @@ BindLayout* create_bind_layout(Device* d, const BindingDesc* bindings, uint32_t 
             case BindingType::kUniform: e.buffer.type = WGPUBufferBindingType_Uniform; break;
             case BindingType::kStorageRead: e.buffer.type = WGPUBufferBindingType_ReadOnlyStorage; break;
             case BindingType::kStorageReadWrite: e.buffer.type = WGPUBufferBindingType_Storage; break;
+            case BindingType::kTexture:
+                e.texture.sampleType = WGPUTextureSampleType_Float;
+                e.texture.viewDimension = WGPUTextureViewDimension_2D;
+                break;
+            case BindingType::kSampler: e.sampler.type = WGPUSamplerBindingType_Filtering; break;
         }
         entries[i] = e;
     }
@@ -486,8 +548,12 @@ BindGroup* create_bind_group(Device* d, BindLayout* layout, const BindEntry* ent
     for (uint32_t i = 0; i < count && i < 16; ++i) {
         WGPUBindGroupEntry x = WGPU_BIND_GROUP_ENTRY_INIT;
         x.binding = entries[i].binding;
-        x.buffer = entries[i].buffer->buffer;
-        x.size = entries[i].buffer->size;
+        if (entries[i].buffer) {
+            x.buffer = entries[i].buffer->buffer;
+            x.size = entries[i].buffer->size;
+        }
+        if (entries[i].texture) x.textureView = entries[i].texture->view;
+        if (entries[i].sampler) x.sampler = entries[i].sampler->sampler;
         e[i] = x;
     }
     WGPUBindGroupDescriptor gd = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
@@ -526,6 +592,12 @@ RenderPipeline* create_render_pipeline(Device* d, const RenderPipelineDesc& desc
     WGPUColorTargetState target = WGPU_COLOR_TARGET_STATE_INIT;
     target.format = d->color_format;
     target.writeMask = WGPUColorWriteMask_All;
+    WGPUBlendState blend = WGPU_BLEND_STATE_INIT;
+    if (desc.alpha_blend) {
+        blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_One, WGPUBlendFactor_OneMinusSrcAlpha};
+        blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One, WGPUBlendFactor_OneMinusSrcAlpha};
+        target.blend = &blend;
+    }
     WGPUFragmentState fs = WGPU_FRAGMENT_STATE_INIT;
     fs.module = desc.shader->module;
     fs.entryPoint = sv(desc.fragment_entry);
@@ -533,8 +605,10 @@ RenderPipeline* create_render_pipeline(Device* d, const RenderPipelineDesc& desc
     fs.targets = &target;
     WGPUDepthStencilState ds = WGPU_DEPTH_STENCIL_STATE_INIT;
     ds.format = WGPUTextureFormat_Depth32Float;
-    ds.depthWriteEnabled = WGPUOptionalBool_True;
-    ds.depthCompare = WGPUCompareFunction_Less;
+    // Every pass has a depth attachment, so pipelines without depth keep the format and turn the
+    // test and the writes off.
+    ds.depthWriteEnabled = desc.depth ? WGPUOptionalBool_True : WGPUOptionalBool_False;
+    ds.depthCompare = desc.depth ? WGPUCompareFunction_Less : WGPUCompareFunction_Always;
     WGPURenderPipelineDescriptor rd = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
     rd.label = sv(desc.label);
     rd.layout = desc.layout->pipeline_layout;
@@ -609,9 +683,9 @@ void render_begin(Device* d, const char* name, const float clear[4]) {
     FrameSlot& slot = d->slots[d->frame_index % kSlots];
     WGPURenderPassColorAttachment ca = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
     ca.view = d->frame_view;
-    ca.loadOp = WGPULoadOp_Clear;
+    ca.loadOp = clear ? WGPULoadOp_Clear : WGPULoadOp_Load;
     ca.storeOp = WGPUStoreOp_Store;
-    ca.clearValue = {clear[0], clear[1], clear[2], clear[3]};
+    if (clear) ca.clearValue = {clear[0], clear[1], clear[2], clear[3]};
     WGPURenderPassDepthStencilAttachment da = WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT;
     da.view = d->depth_view;
     da.depthLoadOp = WGPULoadOp_Clear;

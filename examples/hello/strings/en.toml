@@ -1,0 +1,14 @@
+# English.
+[hud]
+title = "Hello, ZARO"
+speed = "Speed {speed} m/s"
+settings = "Settings"
+hint = "Move with WASD or the arrow keys"
+
+[settings]
+title = "Settings"
+sound = "Sound"
+on = "On"
+off = "Off"
+language = "Language"
+close = "Close"

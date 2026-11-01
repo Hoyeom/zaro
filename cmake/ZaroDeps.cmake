@@ -1,11 +1,14 @@
 # Third-party dependencies, pinned by version and SHA-256 (D-004, D-012 licenses).
 #
-# Downloads are cached in .cache/deps so every preset shares them. Prebuilt binaries are used
-# where the upstream project ships them (wgpu-native, Slang); the rest builds from source.
+# Downloads and sources are cached in .cache/deps so every preset shares them. Prebuilt binaries
+# are used where the upstream project ships them (wgpu-native, Slang); the rest builds from source.
+# Dependencies built from source get their binary directory inside the preset's build tree
+# (_ZARO_DEP_BIN), so presets with different compilers or flags never share objects.
 
 include(FetchContent)
 set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/.cache/deps" CACHE PATH "" FORCE)
 set(FETCHCONTENT_QUIET OFF)
+set(_ZARO_DEP_BIN ${CMAKE_BINARY_DIR}/_deps)
 
 if(WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64")
   set(_zaro_host windows-x86_64)
@@ -71,7 +74,7 @@ set(SDL_GPU OFF CACHE BOOL "" FORCE)
 set(SDL_RENDER OFF CACHE BOOL "" FORCE)
 set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
 set(SDL_AUDIO OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(SDL3 SYSTEM
+FetchContent_Declare(SDL3 SYSTEM BINARY_DIR ${_ZARO_DEP_BIN}/sdl3-build
   URL https://github.com/libsdl-org/SDL/releases/download/release-3.4.18/SDL3-3.4.18.tar.gz
   URL_HASH SHA256=9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3)
 FetchContent_MakeAvailable(SDL3)
@@ -79,7 +82,7 @@ FetchContent_MakeAvailable(SDL3)
 # --- enkiTS v1.12 (zlib) -------------------------------------------------------------------------
 set(ENKITS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ENKITS_BUILD_C_INTERFACE OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(enkiTS SYSTEM
+FetchContent_Declare(enkiTS SYSTEM BINARY_DIR ${_ZARO_DEP_BIN}/enkits-build
   URL https://github.com/dougbinks/enkiTS/archive/refs/tags/v1.12.tar.gz
   URL_HASH SHA256=8373b6199d56816bd3ba58432eae74e2ebd5afcfdffb723073cc34730b189fd5)
 FetchContent_MakeAvailable(enkiTS)
@@ -103,7 +106,7 @@ target_compile_options(zaro_tomlc17 PRIVATE $<$<C_COMPILER_ID:MSVC>:/utf-8>)
 set(LUAU_BUILD_CLI OFF CACHE BOOL "" FORCE)
 set(LUAU_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 # EXCLUDE_FROM_ALL: only the targets ZARO links (VM, Compiler and their deps) are built.
-FetchContent_Declare(luau SYSTEM EXCLUDE_FROM_ALL
+FetchContent_Declare(luau SYSTEM EXCLUDE_FROM_ALL BINARY_DIR ${_ZARO_DEP_BIN}/luau-build
   URL https://github.com/luau-lang/luau/archive/refs/tags/0.743.tar.gz
   URL_HASH SHA256=be23707d541710a978f2c559c069e22ba9c7c449e07d60472fb4e074914bc91d)
 FetchContent_MakeAvailable(luau)
@@ -117,11 +120,61 @@ foreach(t Luau.Common Luau.Ast Luau.Compiler Luau.VM)
   endif()
 endforeach()
 
+# --- stb_truetype 1.26 (public domain or MIT), font rasterizer for the ui module (D-019) ----------
+# One header, pinned by commit; src/ui/font.cpp holds the implementation.
+FetchContent_Declare(stb_truetype
+  URL https://raw.githubusercontent.com/nothings/stb/003501f6d7a8668ce8b6d875e34dd97ad0d5d5b5/stb_truetype.h
+  URL_HASH SHA256=ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab
+  DOWNLOAD_NO_EXTRACT TRUE SOURCE_SUBDIR _none)
+FetchContent_MakeAvailable(stb_truetype)
+add_library(zaro_stb_truetype INTERFACE)
+target_include_directories(zaro_stb_truetype SYSTEM INTERFACE ${stb_truetype_SOURCE_DIR})
+
+# --- stb_image 2.30 (public domain or MIT), PNG decoding for UI images -----------------------------
+# Same pinned commit; src/ui/image.cpp holds the implementation (PNG only).
+FetchContent_Declare(stb_image
+  URL https://raw.githubusercontent.com/nothings/stb/003501f6d7a8668ce8b6d875e34dd97ad0d5d5b5/stb_image.h
+  URL_HASH SHA256=594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
+  DOWNLOAD_NO_EXTRACT TRUE SOURCE_SUBDIR _none)
+FetchContent_MakeAvailable(stb_image)
+add_library(zaro_stb_image INTERFACE)
+target_include_directories(zaro_stb_image SYSTEM INTERFACE ${stb_image_SOURCE_DIR})
+
+# --- Noto Sans KR (SIL OFL 1.1), the bundled default font (D-019) --------------------------------
+# Unmodified OTF files from notofonts/noto-cjk, pinned by commit. Copied to <bin>/fonts/.
+set(_noto_base https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans)
+FetchContent_Declare(noto_sans_kr_regular
+  URL ${_noto_base}/SubsetOTF/KR/NotoSansKR-Regular.otf
+  URL_HASH SHA256=69975a0ac8472717870aefeab0a4d52739308d90856b9955313b2ad5e0148d68
+  DOWNLOAD_NO_EXTRACT TRUE SOURCE_SUBDIR _none)
+FetchContent_Declare(noto_sans_kr_bold
+  URL ${_noto_base}/SubsetOTF/KR/NotoSansKR-Bold.otf
+  URL_HASH SHA256=5a6ceb287ed2fc6cfc6213144ebea68cbd94b20fc9eb873d8486493bf02d9bda
+  DOWNLOAD_NO_EXTRACT TRUE SOURCE_SUBDIR _none)
+FetchContent_Declare(noto_sans_kr_license
+  URL ${_noto_base}/LICENSE
+  URL_HASH SHA256=6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2
+  DOWNLOAD_NO_EXTRACT TRUE SOURCE_SUBDIR _none)
+FetchContent_MakeAvailable(noto_sans_kr_regular noto_sans_kr_bold noto_sans_kr_license)
+set(ZARO_FONT_FILES
+  ${noto_sans_kr_regular_SOURCE_DIR}/NotoSansKR-Regular.otf
+  ${noto_sans_kr_bold_SOURCE_DIR}/NotoSansKR-Bold.otf)
+set(ZARO_FONT_LICENSE ${noto_sans_kr_license_SOURCE_DIR}/LICENSE)
+
+# Copies the bundled fonts and their license to <bin>/fonts/ after `target` builds.
+function(zaro_add_fonts target)
+  add_custom_command(TARGET ${target} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/fonts
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ZARO_FONT_FILES} ${CMAKE_BINARY_DIR}/fonts
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ZARO_FONT_LICENSE} ${CMAKE_BINARY_DIR}/fonts/NotoSansKR-LICENSE.txt
+    VERBATIM)
+endfunction()
+
 # --- Tracy v0.14.1 (BSD-3), only with ZARO_TRACY ---------------------------------------------------
 if(ZARO_TRACY)
   set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
   set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
-  FetchContent_Declare(tracy SYSTEM
+  FetchContent_Declare(tracy SYSTEM BINARY_DIR ${_ZARO_DEP_BIN}/tracy-build
     URL https://github.com/wolfpld/tracy/archive/refs/tags/v0.14.1.tar.gz
     URL_HASH SHA256=bf4af567e9c7524d07f3caa745fad02fb33bd5694f11910750382d1efbb251c1)
   FetchContent_MakeAvailable(tracy)

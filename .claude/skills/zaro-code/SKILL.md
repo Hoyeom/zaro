@@ -15,7 +15,7 @@ it, and link dependencies in CMakeLists.txt follow the same graph.
   `app`. `render` draws plain data and never sees `sim` types.
 - Third-party headers belong to one module only: `SDL3/` → platform, `webgpu/` → rhi,
   `TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` → scene,
-  `lua.h`/`lualib.h`/`luacode.h` → script. A new dependency gets an owner in `THIRD_PARTY_OWNERS`.
+  `lua.h`/`lualib.h`/`luacode.h` → script, `stb_truetype.h` → `ui/font.cpp`. A new dependency gets an owner in `THIRD_PARTY_OWNERS`.
 - A new module needs, in the same PR:
   - an entry in `MODULE_DEPS` (tools/lint.py)
   - its scope in `SCOPES` (tools/git_rules.py)
@@ -70,6 +70,6 @@ and records `#deps 0` for an object (`ninja -C build/<preset> -t deps`). `tools/
 such ZARO objects after each build and rebuilds them alone, which records the dependencies.
 
 - Running `cmake --build` directly skips that repair.
-- Third-party objects under `.cache/` are not repaired; they change only with a dependency bump,
+- Third-party objects under `_deps/` are not repaired; they change only with a dependency bump,
   which reconfigures.
 - English MSVC output does not need the repair.

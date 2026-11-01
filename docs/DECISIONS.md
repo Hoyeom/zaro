@@ -316,6 +316,9 @@ Status of all entries below: **accepted, 2026-11-01**.
   - Prebaked bitmap fonts: they cannot cover Korean at several sizes in a reasonable atlas.
 - **Revisit when**: a target needs scripts that require shaping (Arabic, Indic, Thai), or text
   below about 12 px on low-DPI screens looks too soft.
+- **Current state (P2 step 1)**: `src/ui/font.cpp` wraps stb_truetype 1.26; `src/ui/text.cpp`
+  holds the 2048 x 2048 atlas (shelf packing, a 16,384-slot glyph cache) and line layout. Glyph
+  positions snap to whole pixels. Kerning comes from the font's `kern` and GPOS pair tables.
 
 ## D-020 UI screens: TOML files of nodes with reflected widget components
 
@@ -342,6 +345,13 @@ Status of all entries below: **accepted, 2026-11-01**.
     table header.
   - Immediate-mode UI written in Luau: flexible, but screens could no longer be checked without
     running code, and layouts would not be text assets.
+- **Current state (P2 step 3)**: `scene::load_document` reads both kinds of file. String tables are
+  one TOML file per language whose nested tables flatten to dotted keys; `zaro check` on a scene
+  checks every `@key` against every language. A screen's `reference` size scales it to the
+  target (the largest scale at which it fits).
+- **Current state (P2 step 4)**: Luau binds to the UI through a view model (`ui.set`, `{name}`
+  placeholders in texts) and through the same reflection as scenes (`ui.set_field`), so screens
+  stay pure data and every change a script makes can be checked by a scene test.
 
 ## M2 result (2026-11-01)
 

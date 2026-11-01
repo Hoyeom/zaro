@@ -19,7 +19,9 @@ To add a component:
    with a doc string for the component and for every field.
 3. Register it from `app::register_all_components` (`src/app/tools.cpp`).
 
-Field types: `bool i32 u32 u64 f32 vec2 vec3 vec4 string` (strings up to 127 bytes).
+Field types: `bool i32 u32 u64 f32 vec2 vec3 vec4 string color enum` (strings up to 127 bytes).
+`color` is written `"#RRGGBB"` or `"#RRGGBBAA"` (sRGB) and `enum` as one of the names that
+`zaro schema` lists under `choices`; both are `uint32_t` members (`ZARO_FIELD_ENUM` for enums).
 `zaro check` reports every problem in one pass as `file:line:col: error[ZE04nn]` (ids in
 `src/core/log.h`), with a "did you mean" hint for misspelt components and fields. `zaro schema`
 prints every registered component as JSON; read it instead of guessing names.
@@ -37,6 +39,13 @@ script changes are read back the same tick. Today these are `CrowdSpawner.speed`
 `PlayerController.speed`; count, arena and seed are fixed at start. `zaro check` also compiles the
 script and runs its top level.
 
+Scripts drive the scene's UI through `ui` (same header): `ui.set(key, value)` sets a view-model
+value that texts show as `{key}` (`{key:,}` groups digits), `ui.get_field`/`ui.set_field` read and
+change any widget field of a screen node (for example `Layout.visible` to open a popup), and
+`ui.language(code)` switches the string tables after the call. A clicked button with an `action`
+calls `on_ui(action, screen, node)` before the frame's ticks. The view model and the command queue
+are `scene::UiState` (`src/scene/ui_state.h`), owned by the app's UI layer.
+
 A failing script ends a headless run with exit code 1. In a window it is paused and reloads when the
 file is saved.
 
@@ -52,11 +61,16 @@ file is saved.
 
 `zaro test` runs `*.test.toml` files (format at the top of `src/scene/test_spec.h`). It looks in the
 given files or directories, or in `tests/` when none are given. Each test runs its scene for N ticks
-without a GPU, with the scripted player and the scene's script. It then checks the `[[expect]]`
-values (`equals`, `min`, `max`) and the optional golden `state_hash`.
+without a GPU, with the scripted player, the scene's script and its UI. `[[click]]` entries click a
+screen's button before a given tick's `on_tick`. It then checks the `[[expect]]` values (`equals`,
+`min`, `max`; with `screen` + `node` a widget field, or `text` for what a node shows) and the
+optional golden `state_hash`.
 
 - Failures are `file:line` diagnostics: ZE0600 invalid test file, ZE0601 expectation not met,
-  ZE0602 state hash differs. A script error fails the test as well.
+  ZE0602 state hash differs, ZE0603 a click found no shown, enabled button (or one behind a modal).
+  A script error fails the test as well.
+- `zaro screenshot ... --click hud/settings_button` clicks on the first frames, so a screenshot can
+  show a popup.
 - `--update` writes the current hash into each file. Use it only when a behaviour change is
   intended, and say so in the commit.
 - CI runs the tests on Windows, Linux and macOS (ARM). The same golden hash must hold on all three.
