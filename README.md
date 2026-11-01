@@ -39,11 +39,9 @@ A GPU with compute shaders is required; `zaro run --sim-only` runs the simulatio
 1. ~~**M1**: 50,000 enemies chase the player at 60 fps; a headless run writes `perf.json` (fps, draw calls, entity count, GPU time).~~ Done, see [docs/DECISIONS.md](docs/DECISIONS.md#m1-result-2026-11-01).
 2. ~~**CI**: GitHub Actions builds and tests on Windows, Linux and macOS.~~ Done. Performance-regression gating is still open.
 3. ~~**M2, agent workflow**: TOML scenes and prefabs, Luau game scripts, `zaro screenshot` and `zaro test`, component schema export, docs and examples.~~ Done, see [docs/guide.md](docs/guide.md). The Luau type checker is still to come.
-4. **M3, first game**: a small survivors-like built with ZARO, plus a tutorial that walks through making it.
-5. **Launch**: the engine is announced together with that game (D-016).
-6. **Plugins**: the C ABI plugin interface, `zaro plugin add <name>`, validated first with Steamworks (`zaro-steam`).
-7. **Web**: a WebGPU build.
-8. **Mobile**: Vulkan and Metal, Gradle and Xcode project export, platform bridges (JNI, Objective-C++), and Firebase, in-app purchase and ad plugins.
+4. **Multi-platform foundations** (D-018): mobile builds (Android first), a UI system with Korean text, 2D sprites, and live services through a private backend plugin. The phases are in [docs/ROADMAP.md](docs/ROADMAP.md).
+5. **Launch**: the engine is announced together with the first part of the owner's mobile game built on it (D-016, D-018).
+6. **Later**: iOS store release, a WebGPU build, a crowd-action game, Steamworks.
 
 Consoles are supported through private porting layers outside this repository (NDA).
 Design kept open for later: gamepad/touch input, CJK fonts and IME, localization, audio, game UI, save-format versioning, physics, a local MCP server.

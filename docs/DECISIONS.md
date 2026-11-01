@@ -223,7 +223,8 @@ Status of all entries below: **accepted, 2026-11-01**.
     layers and paid plugins; each lives in its own private repository.
 - **Launch criteria**: M2 (TOML scenes and prefabs, Luau scripts, `zaro screenshot` and `zaro
   test`, docs and examples), then M3 (a survivors-like built with ZARO, with a tutorial), then
-  the announcement.
+  the announcement. *Superseded by D-018: M3 is replaced by the multi-platform phases in
+  docs/ROADMAP.md, and the announcement waits for the flagship slice (P5).*
 - **Name check (2026-11-01)**: USPTO, KIPRIS and the WIPO Global Brand Database were searched
   for "ZARO". No live mark covers game engines or developer software. The only live software
   filings are a Thai class 9 application (goods not checked) and an abandoned ZaroVerse US class
@@ -248,6 +249,41 @@ Status of all entries below: **accepted, 2026-11-01**.
   - JSON scenes, which allow no comments and are noisier to diff
 - **Not yet**: there are no entity hierarchies or component references between entities, and
   scenes do not drive `zaro run` yet (M2-3).
+
+## D-018 Own games first, on PC and mobile, with the owner's backend through a C++ plugin
+
+- **Decision**: ZARO's first users are its owner's own games, and those ship on PC and mobile.
+  The next milestones are therefore the multi-platform foundations rather than a PC-only action
+  game. They are mobile builds, a UI system, 2D sprites, and live services. The plan is in
+  docs/ROADMAP.md (P1-P5).
+  - **Live services**: the owner already runs a backend platform. Its server API is
+    engine-neutral, with HTTP and JSON contracts plus client generators, so ZARO does not build
+    its own. A private plugin (D-011) carries that platform's client.
+  - **Client implementation**: the client is reimplemented in C++. Models and routes are
+    generated from the API contracts (a C++ target beside the existing C# one), and the
+    client-side rules are ported by hand. Each port is checked against the backend's golden
+    vectors so the C++ and C# clients cannot drift apart.
+  - **Run verification**: server-side verification of a ZARO game's runs replays its command log
+    with the headless `zaro` runtime and compares state hashes (D-005).
+  - **Flagship**: a slice of the owner's mobile idle game. The announcement waits for it.
+- **Why**:
+  - On mobile, builds, UI, 2D and in-app purchases are entry requirements. Without them ZARO
+    cannot carry the owner's games.
+  - They are not the reason to choose ZARO, though: other engines have them all. The reason is the
+    agent workflow from M2 (text assets, CLI, `file:line` errors, deterministic tests,
+    screenshots), and that applies to mobile games as much as to PC ones.
+  - Reusing the existing backend avoids rebuilding servers, operations tools and live-ops.
+- **Rejected**:
+  - Embedding .NET (NativeAOT) to reuse the C# client as is. It relies on reflection-heavy
+    libraries that do not fit NativeAOT well, mobile NativeAOT is less mature, and it adds a
+    runtime with its own GC and binary size, against D-001's goal of a light engine.
+  - PC first with the survivors-like spin-off. It does not serve the owner's main line of games,
+    and it would delay the mobile foundations the flagship needs. It stays in "Later".
+- **Consequences**:
+  - Two client implementations, C# and C++, kept honest by contract generation and shared
+    vectors.
+  - The plugin ABI (D-011) gets built in P4b, earlier than planned and for the backend first,
+    not for Steamworks.
 
 ## M2 result (2026-11-01)
 
