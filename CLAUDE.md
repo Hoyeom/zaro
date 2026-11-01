@@ -14,7 +14,7 @@ phases sessions pick work from are in [docs/ROADMAP.md](docs/ROADMAP.md).
 | Build + run all tests | `python tools/build.py debug --test` |
 | Tests without a GPU (as CI runs them) | `python tools/build.py debug --test --no-gpu-tests` |
 | Engine compile-time budget | `python tools/build.py debug --engine-budget=60` (prints `engine_build_seconds`) |
-| Linux build in Docker (from Windows too) | `sh tools/ci/linux-docker.sh` |
+| Linux build in Docker (from Windows too) | `sh tools/ci/linux-docker.sh` (`--clang` to catch Clang-only warnings) |
 | Clean rebuild | `python tools/build.py debug --clean` |
 | Release / Tracy builds | `python tools/build.py release`, `python tools/build.py profile` |
 | Lint the whole tree | `python tools/lint.py` (rules: `--list-rules`) |
