@@ -28,8 +28,7 @@ struct Script {
     char chunkname[scene::kPathCapacity + 1] = {};
     scene::Scene* scene = nullptr;
     scene::UiState* ui = nullptr;
-    scene::Scene* const* screens = nullptr;
-    uint32_t screen_count = 0;
+    const UiHost* host = nullptr;
     uint64_t tick = 0;
     double max_call_seconds = 1.0;
     Clock::time_point deadline;
@@ -239,17 +238,90 @@ int zaro_set(lua_State* L) {
 // --- ui.* bindings (P2 step 4): view-model values, widget fields of the scene's screens, and
 // commands for the app. Same rules as zaro.*: no objects with destructors.
 
+const UiHost* host_of(lua_State* L, const char* what) {
+    const UiHost* h = self(L)->host;
+    if (!h) luaL_error(L, "%s: the scene has no ui", what);
+    return h;
+}
+
 scene::Scene* screen_arg(lua_State* L, int arg) {
-    Script* s = self(L);
+    const UiHost* h = host_of(L, "ui");
     const char* name = luaL_checklstring(L, arg, nullptr);
-    const char* names[scene::kMaxSceneScreens];
-    for (uint32_t i = 0; i < s->screen_count; ++i) {
-        if (strcmp(s->screens[i]->name, name) == 0) return s->screens[i];
-        names[i] = s->screens[i]->name;
-    }
-    const char* hint = reflect::suggest_name(name, names, s->screen_count);
-    luaL_error(L, "no screen named '%s'%s%s%s", name, hint ? " (did you mean '" : "", hint ? hint : "",
+    if (scene::Scene* doc = h->find_screen(h->user, name)) return doc;
+    const char* names[64];
+    const char* hint = reflect::suggest_name(name, names, h->screen_names(h->user, names, 64));
+    luaL_error(L, "screen '%s' is not shown%s%s%s", name, hint ? " (did you mean '" : "", hint ? hint : "",
                hint ? "'?)" : "");
+}
+
+// Raises err as a script error. The message is copied to the Lua stack first, because luaL_error
+// does not return and err lives in the caller's frame.
+void raise(lua_State* L, const char* err) {
+    lua_pushstring(L, err);
+    lua_error(L);
+}
+
+bool opt_flag(lua_State* L, int table, const char* key) {
+    lua_getfield(L, table, key);
+    const bool on = lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+    return on;
+}
+
+int ui_open(lua_State* L) {
+    const UiHost* h = host_of(L, "ui.open");
+    const char* name = luaL_checklstring(L, 1, nullptr);
+    const char* key = nullptr;
+    bool wait = false, force = false, unskippable = false;
+    if (lua_type(L, 2) == LUA_TTABLE) {
+        lua_getfield(L, 2, "key");
+        if (lua_type(L, -1) == LUA_TSTRING) key = lua_tostring(L, -1);  // stays on the stack while used
+        wait = opt_flag(L, 2, "wait");
+        force = opt_flag(L, 2, "force");
+        unskippable = opt_flag(L, 2, "unskippable");
+    } else if (!lua_isnoneornil(L, 2)) {
+        luaL_error(L, "ui.open(screen, options): options must be a table, got %s", luaL_typename(L, 2));
+    }
+    char err[300];
+    if (!h->open(h->user, name, key, wait, force, unskippable, err, sizeof(err))) raise(L, err);
+    return 0;
+}
+
+int ui_ready(lua_State* L) {
+    const UiHost* h = host_of(L, "ui.ready");
+    const char* name = luaL_checklstring(L, 1, nullptr);
+    if (!h->ready(h->user, name)) luaL_error(L, "ui.ready: no screen '%s' is opening", name);
+    return 0;
+}
+
+int ui_close(lua_State* L) {
+    const UiHost* h = host_of(L, "ui.close");
+    lua_pushboolean(L, h->close(h->user, luaL_checklstring(L, 1, nullptr)));
+    return 1;
+}
+
+int ui_back(lua_State* L) {
+    const UiHost* h = host_of(L, "ui.back");
+    h->back(h->user);
+    return 0;
+}
+
+int ui_home(lua_State* L) {
+    const UiHost* h = host_of(L, "ui.home");
+    h->home(h->user);
+    return 0;
+}
+
+int ui_abort_all(lua_State* L) {
+    const UiHost* h = host_of(L, "ui.abort_all");
+    h->abort_all(h->user);
+    return 0;
+}
+
+int ui_state(lua_State* L) {
+    const UiHost* h = host_of(L, "ui.state");
+    lua_pushstring(L, h->state(h->user, luaL_checklstring(L, 1, nullptr)));
+    return 1;
 }
 
 scene::Entity* node_arg(lua_State* L, scene::Scene* screen, int arg) {
@@ -301,21 +373,10 @@ int ui_set_field(lua_State* L) {
 }
 
 int ui_language(lua_State* L) {
-    Script* s = self(L);
-    const char* code = luaL_checklstring(L, 1, nullptr);
-    if (!s->ui) luaL_error(L, "ui.language: the scene has no ui");
-    const scene::Scene* sc = s->scene;
-    const char* names[scene::kMaxLanguages];
-    for (uint32_t i = 0; i < sc->language_count; ++i) {
-        if (strcmp(sc->languages[i], code) == 0) {
-            scene::push_command(s->ui, scene::UiCommandKind::kLanguage, code);
-            return 0;
-        }
-        names[i] = sc->languages[i];
-    }
-    const char* hint = reflect::suggest_name(code, names, sc->language_count);
-    luaL_error(L, "ui.language: '%s' is not one of the scene's languages%s%s%s", code,
-               hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+    const UiHost* h = host_of(L, "ui.language");
+    char err[300];
+    if (!h->language(h->user, luaL_checklstring(L, 1, nullptr), err, sizeof(err))) raise(L, err);
+    return 0;
 }
 
 int zaro_has(lua_State* L) {
@@ -394,7 +455,10 @@ bool run_file(Script* s, DiagList* diags) {
     return true;
 }
 
-bool call_hook(Script* s, const char* name, int nargs, DiagList* diags) {
+// Calls a global hook with the nargs values on top of the stack. *result (if given) is true when
+// the hook returned true. A missing hook is not an error.
+bool call_hook(Script* s, const char* name, int nargs, DiagList* diags, bool* result = nullptr) {
+    if (result) *result = false;
     lua_getfield(s->T, LUA_GLOBALSINDEX, name);
     if (lua_type(s->T, -1) != LUA_TFUNCTION) {
         lua_pop(s->T, 1 + nargs);
@@ -402,12 +466,16 @@ bool call_hook(Script* s, const char* name, int nargs, DiagList* diags) {
     }
     if (nargs) lua_insert(s->T, -(nargs + 1));  // function below its arguments
     arm(s);
-    const int status = lua_pcall(s->T, nargs, 0, 0);
+    const int status = lua_pcall(s->T, nargs, result ? 1 : 0, 0);
     s->deadline_armed = false;
     if (status != 0) {
         report(s, kErrScriptRuntime, lua_tostring(s->T, -1), diags);
         lua_pop(s->T, 1);
         return false;
+    }
+    if (result) {
+        *result = lua_toboolean(s->T, -1) != 0;
+        lua_pop(s->T, 1);
     }
     return true;
 }
@@ -420,8 +488,7 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     snprintf(s->chunkname, sizeof(s->chunkname), "=%s", desc.path);
     s->scene = desc.scene;
     s->ui = desc.ui;
-    s->screens = desc.screens;
-    s->screen_count = desc.screen_count;
+    s->host = desc.host;
     s->max_call_seconds = desc.max_call_seconds;
 
     lua_State* L = luaL_newstate();
@@ -453,10 +520,12 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     lua_setreadonly(L, -1, 1);
     lua_setglobal(L, "zaro");
 
-    static const luaL_Reg kUiApi[] = {{"set", ui_set},           {"get", ui_get},
-                                      {"get_field", ui_get_field}, {"set_field", ui_set_field},
-                                      {"language", ui_language},   {nullptr, nullptr}};
-    lua_createtable(L, 0, 5);
+    static const luaL_Reg kUiApi[] = {
+        {"set", ui_set},         {"get", ui_get},     {"get_field", ui_get_field}, {"set_field", ui_set_field},
+        {"language", ui_language}, {"open", ui_open}, {"ready", ui_ready},         {"close", ui_close},
+        {"back", ui_back},       {"home", ui_home},   {"abort_all", ui_abort_all}, {"state", ui_state},
+        {nullptr, nullptr}};
+    lua_createtable(L, 0, 12);
     for (const luaL_Reg* r = kUiApi; r->name; ++r) {
         lua_pushcfunction(L, r->func, r->name);
         lua_setfield(L, -2, r->name);
@@ -496,6 +565,17 @@ bool call_ui(Script* s, const char* action, const char* screen, const char* node
     lua_pushstring(s->T, screen);
     lua_pushstring(s->T, node);
     return call_hook(s, "on_ui", 3, diags);
+}
+
+bool call_back(Script* s, const char* screen, bool* claimed, DiagList* diags) {
+    lua_pushstring(s->T, screen);
+    return call_hook(s, "on_back", 1, diags, claimed);
+}
+
+bool call_screen(Script* s, const char* event, const char* screen, DiagList* diags) {
+    lua_pushstring(s->T, event);
+    lua_pushstring(s->T, screen);
+    return call_hook(s, "on_screen", 2, diags);
 }
 
 bool reload(Script* s, DiagList* diags) { return run_file(s, diags); }

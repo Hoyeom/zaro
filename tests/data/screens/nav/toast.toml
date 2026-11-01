@@ -1,0 +1,13 @@
+# Not modal: the screens below keep their input.
+[screen]
+name = "toast"
+transition = "fade"
+transition_time = 0.1
+
+[[node]]
+name = "box"
+[node.Layout]
+width = 100
+height = 30
+anchor = [1.0, 1.0]
+[node.Panel]

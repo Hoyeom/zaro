@@ -1,0 +1,30 @@
+# Back (Escape, Android back, gamepad B) and the navigation policy (D-021):
+#   tick 10  the HUD button opens the popup; its entrance takes 0.15 s (9 ticks)
+#   tick 12  back during the skippable entrance jumps to its end: the popup stays, now open
+#   tick 30  back closes the open popup; its exit takes 9 ticks
+#   tick 50  back with nothing open reaches the root: nothing closes, the HUD stays
+[test]
+scene = "../scene.toml"
+ticks = 60
+
+[[click]]
+tick = 10
+screen = "hud"
+node = "settings_button"
+
+[[back]]
+tick = 12
+
+[[back]]
+tick = 30
+
+[[back]]
+tick = 50
+
+[[expect]]
+screen = "settings"
+state = "closed"
+
+[[expect]]
+screen = "hud"
+state = "open"

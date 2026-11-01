@@ -47,7 +47,7 @@ width = 120
 height = 48
 [node.Button]
 text = "@hud.settings"
-action = "open_settings"
+action = "open:settings"
 size = 22
 
 [[node]]

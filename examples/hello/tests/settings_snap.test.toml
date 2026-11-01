@@ -1,0 +1,27 @@
+# Back during the entrance snaps it to the end instead of closing: right after the press the popup
+# is open and takes clicks (tick 12, three ticks into a nine-tick entrance).
+[test]
+scene = "../scene.toml"
+ticks = 13
+
+[[click]]
+tick = 10
+screen = "hud"
+node = "settings_button"
+
+[[back]]
+tick = 12
+
+[[click]]
+tick = 13
+screen = "settings"
+node = "english"
+
+[[expect]]
+screen = "settings"
+state = "open"
+
+[[expect]]
+screen = "hud"
+node = "title"
+text = "Hello, ZARO"

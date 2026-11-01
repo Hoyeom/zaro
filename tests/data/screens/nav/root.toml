@@ -1,0 +1,11 @@
+# Root screen for tests/test_ui_nav.cpp: one button across the top.
+[screen]
+name = "root"
+
+[[node]]
+name = "go"
+[node.Layout]
+width = 200
+height = 50
+[node.Button]
+action = "open:popup"

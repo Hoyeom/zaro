@@ -142,8 +142,9 @@ void test_screen_tree() {
         const zaro::scene::ComponentData* label = title ? zaro::scene::find_component_data(title, &zaro::ui::kLabelDesc)
                                                         : nullptr;
         expect(label && label->field_lines[0] > title->line, "field lines are recorded");
-        const auto* layout = (const zaro::ui::Layout*)zaro::scene::get_component(&s->entities[0], &zaro::ui::kLayoutDesc);
-        expect(layout && !layout->visible, "the popup starts hidden");
+        expect(s->transition == zaro::scene::kTransitionPop && s->dismissible && s->skippable &&
+                   s->transition_time > 0.14f && s->transition_time < 0.16f,
+               "the popup pops in, is dismissible and skippable, with the default 0.15 s");
     }
     zaro::scene::free_scene(s);
     delete diags;

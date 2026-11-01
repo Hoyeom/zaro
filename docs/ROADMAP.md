@@ -69,6 +69,14 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
     an upper screen blocks the screens below. `examples/hello` opens and closes its popup, switches
     language and shows the player's speed; tests `settings`, `settings_close`, and screenshots of the
     popup in both languages. With this the P2 "done when" check is met; steps 5 and 6 remain.
+    Merged (#20).
+  - Step 5 (navigation policy, D-021): `ui::Navigator` with root and openable screens, back,
+    close, home and abort-all, the opening/entering/open/closing lifecycle with fade and pop
+    transitions, claims through `on_back`, keys for reuse; `open:<screen>`, `close`, `back` and
+    `home` button actions; `ui.open`/`close`/`back`/`home`/`abort_all`/`ready`/`state`, the
+    `on_back` and `on_screen` hooks; `[[back]]` and `state` in scene tests; `zaro check` reports
+    `open:` actions that name no screen. Test `ui_navigation`; hello's popup is now an openable
+    screen.
 - **Waits for**: nothing.
 - **Runs beside**: P1, P4a. P3 shares the texture atlas work, so P3 starts after P2's atlas lands.
 
