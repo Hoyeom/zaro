@@ -338,6 +338,9 @@ def cmd_perf(args: list[str]) -> int:
         time.sleep(3)
         if adb("shell", f"ls {remote} 2>/dev/null", check=False, capture=True).strip():
             break
+        if not adb("shell", "pidof", package, check=False, capture=True).strip():
+            adb("logcat", "-d", "-s", "zaro", "SDL", "AndroidRuntime", "DEBUG", check=False)
+            sys.exit("android.py: error: the app ended without writing perf.json (log above)")
     else:
         sys.exit("android.py: error: no perf.json after 15 minutes; see `adb logcat -s zaro`")
     time.sleep(1)
@@ -346,9 +349,13 @@ def cmd_perf(args: list[str]) -> int:
     adb("logcat", "-d", "-s", "zaro", check=False)
     import json
     d = json.loads(local.read_text())
-    print(f"perf: {d['enemies']} enemies, {d['fps']:.1f} fps, frame avg {d['frame_ms']['avg']:.2f} ms "
-          f"p99 {d['frame_ms']['p99']:.2f} ms max {d['frame_ms']['max']:.2f} ms, "
-          f"sim {d['cpu_ms']['sim']:.2f} ms, {d['adapter']} ({d['backend']}), {d['threads']} threads")
+    ms = d["frame_ms"]
+    print(f"perf: {d['enemies']} enemies, {d['fps']:.1f} fps, frame avg {ms['avg']:.2f} ms "
+          f"p99 {ms['p99']:.2f} ms max {ms['max']:.2f} ms, sim {d['cpu_ms']['sim']:.2f} ms, "
+          f"{d['adapter']} ({d['backend']}), {d['threads']} threads")
+    # Roadmap P1 "Done when": at least 20,000 enemies at a stable 60 fps (p99 within one frame).
+    ok = d["enemies"] >= 20000 and ms["p99"] <= 1000.0 / 60.0
+    print(f"p1_target={'pass' if ok else 'fail'} (needs >= 20000 enemies and p99 <= 16.67 ms)")
     print(f"perf_json={local}")
     return 0
 
