@@ -1,0 +1,113 @@
+# examples/neon: a small arena where the player sweeps a few thousand glowing enemies (P6, D-029).
+# This file holds its look (zaro-fx): the neon arena, the enemies as glowing triangles, the player
+# as a ring with a trail, sparks, shake and flash on every hit, and bloom over all of it. Gameplay,
+# audio and the saved best score join it from the other P6 tracks.
+#   zaro run examples/neon/scene.toml
+#   zaro screenshot examples/neon/scene.toml neon.png --frames 120
+[scene]
+name = "neon"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 96
+seed = 3
+[entity.ArenaLook]
+ground = "#04050c"
+grid = "#1b3fa0"
+grid_intensity = 1.6
+grid_spacing = 4.0
+obstacle = "#1c1238"
+obstacle_intensity = 1.0
+sky = "#020208"
+
+# The arena's edge: one glowing outline around the 96 m square.
+[[entity]]
+name = "border"
+[entity.Shape]
+kind = "rect"
+position = [48.0, 0.05, 48.0]
+size = [95.0, 95.0]
+thickness = 0.35
+color = "#b04dff"
+intensity = 2.5
+glow = 1.2
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 4000
+speed = 4.5
+[entity.CrowdShape]
+kind = "polygon"
+sides = 3
+size = 0.9
+thickness = 0.1
+color = "#ff2b6a"
+intensity = 1.4
+glow = 0.25
+glow_strength = 0.35
+hue_jitter = 0.08
+[entity.CrowdFx]
+particles = 10
+color = "#ffb040"
+intensity = 4.0
+speed = 7.0
+life = 0.45
+size = 0.12
+shake = 0.06
+player_flash = 1.0
+
+[[entity]]
+name = "player"
+[entity.PlayerController]
+speed = 8.0
+[entity.Shape]
+kind = "ring"
+follow = "player"
+position = [0.0, 0.06, 0.0]
+size = [1.5, 1.5]
+thickness = 0.16
+color = "#3de8ff"
+intensity = 3.5
+glow = 0.35
+trail = 0.35
+trail_width = 0.3
+flash_decay = 3.0
+
+# A small spinning core inside the ring.
+[[entity]]
+name = "core"
+[entity.Shape]
+kind = "polygon"
+sides = 4
+follow = "player"
+position = [0.0, 0.07, 0.0]
+size = [0.6, 0.6]
+spin = 120.0
+color = "#e8fbff"
+intensity = 2.5
+glow = 0.2
+
+# Sparks trailing behind the player.
+[[entity]]
+name = "exhaust"
+[entity.ParticleEmitter]
+follow = "player"
+position = [0.0, 0.3, 0.0]
+rate = 60.0
+color = "#3de8ff"
+intensity = 2.5
+speed = 1.5
+life = 0.4
+size = 0.08
+
+[[entity]]
+name = "camera"
+[entity.Bloom]
+threshold = 1.0
+intensity = 0.9
+radius = 0.75
+[entity.ScreenFx]
+shake_strength = 0.45
+flash_color = "#ff5080"
