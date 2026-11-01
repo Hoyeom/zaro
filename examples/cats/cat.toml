@@ -1,4 +1,4 @@
-# Nabi the cat: SVG frames, cooked into a PNG atlas by the zaro tool (D-027). Cook explicitly with:
+# Nabi the cat: SVG frames, cooked into a PNG atlas by the zaro tool (D-028). Cook explicitly with:
 #   zaro cook examples/cats/cat.toml
 [sheet]
 svg = [

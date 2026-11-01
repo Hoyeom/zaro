@@ -480,7 +480,7 @@ Status of all entries below: **accepted, 2026-11-01**.
 
 ## D-024 SVG art: PlutoSVG on PlutoVG, in the zaro tool's cook step only
 
-- **Status**: accepted, 2026-11-02. **Superseded by D-027** (same day): PlutoSVG does not draw
+- **Status**: accepted, 2026-11-02. **Superseded by D-028** (same day): PlutoSVG does not draw
   `clipPath` or `<style>` sheets, contrary to the "Why" below.
 - **Decision**: SVG character art is rasterized into sprite atlases by PlutoSVG (MIT) drawing with
   PlutoVG (MIT), pinned at plutosvg v0.0.8 and plutovg v1.3.3 (the commit plutosvg v0.0.8 pins).
@@ -634,7 +634,7 @@ Status of all entries below: **accepted, 2026-11-01**.
   manifest merger instead. Only Android has a section today; iOS adds its own table when P1
   reaches it.
 
-## D-027 SVG art: LunaSVG (with its PlutoVG), in the zaro tool's cook step only
+## D-028 SVG art: LunaSVG (with its PlutoVG), in the zaro tool's cook step only
 
 - **Status**: accepted, 2026-11-02. Supersedes D-024.
 - **Decision**: SVG character art is drawn into sprite atlases by LunaSVG 3.5.0 (MIT), with the

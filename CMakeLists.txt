@@ -61,7 +61,7 @@ add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_rende
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
-# Cook-time asset tools (SVG art into sprite atlases, D-027). Only the zaro tool links them; the
+# Cook-time asset tools (SVG art into sprite atlases, D-028). Only the zaro tool links them; the
 # Android runtime is built without, so no game binary contains the SVG renderer.
 if(NOT ANDROID)
   add_library(zaro_cook STATIC src/cook/svg.cpp)

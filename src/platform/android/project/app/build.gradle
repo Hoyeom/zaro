@@ -56,7 +56,7 @@ android {
 
     androidResources {
         // AAPT's default patterns also drop every file and directory starting with '.', which would
-        // leave out the cooked sprite atlases in .zaro-cache/ (D-027). Same defaults, without that.
+        // leave out the cooked sprite atlases in .zaro-cache/ (D-028). Same defaults, without that.
         ignoreAssetsPatterns.clear()
         ignoreAssetsPatterns.addAll(['!.svn', '!.git', '!.ds_store', '!*.scc', '<dir>_*', '!CVS', '!thumbs.db',
                                      '!picasa.ini', '!*~'])

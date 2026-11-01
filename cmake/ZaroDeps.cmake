@@ -186,7 +186,7 @@ target_include_directories(zaro_cjson SYSTEM PUBLIC ${cjson_SOURCE_DIR})
 set_target_properties(zaro_cjson PROPERTIES C_STANDARD 17)
 
 # --- LunaSVG 3.5.0 (MIT) with its bundled PlutoVG 1.3.1 (MIT; FreeType License parts), SVG art ----
-# Rasterizes SVG character art in the zaro tool's cook step only (D-027); never built for Android,
+# Rasterizes SVG character art in the zaro tool's cook step only (D-028); never built for Android,
 # so no game binary contains it. src/cook/svg.cpp is the one file that includes lunasvg.h. Both are
 # compiled without exceptions and RTTI, as ZARO code is. System fonts are never loaded, so the
 # output does not depend on the machine.
