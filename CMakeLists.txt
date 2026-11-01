@@ -111,6 +111,17 @@ if(ZARO_BUILD_TESTS)
                      $<TARGET_FILE:zaro>)
   endif()
 
+  # A scene drives the run: its script raises the horde speed every 600 ticks.
+  add_test(NAME example_crowd_scene_run
+           COMMAND zaro run examples/crowd/scene.toml --sim-only --warmup 0 --frames 700 --enemies 2000
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(example_crowd_scene_run PROPERTIES PASS_REGULAR_EXPRESSION "script: wave 1 speed 4.5")
+  # A failing script fails a headless run.
+  add_test(NAME script_error_fails_run
+           COMMAND zaro run tests/data/scripts/failing_scene.toml --sim-only --warmup 0 --frames 10
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(script_error_fails_run PROPERTIES WILL_FAIL TRUE)
+
   # No GPU needed: runs on CI runners.
   add_test(NAME crowd_sim_only COMMAND zaro run --sim-only --enemies 5000 --warmup 0 --frames 120)
   set_tests_properties(crowd_sim_only PROPERTIES PASS_REGULAR_EXPRESSION "state_hash=[0-9a-f]+ ticks=120")

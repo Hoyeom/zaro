@@ -53,5 +53,7 @@ const Entity* find_entity(const Scene* scene, const char* name);
 const void* get_component(const Entity* entity, const reflect::ComponentDesc* desc);
 // First entity (in file order) that has the component, or nullptr.
 const void* first_component(const Scene* scene, const reflect::ComponentDesc* desc, const Entity** entity);
+// Writable variant for the owner of the scene (the app and scripts change values at run time).
+void* first_component_mut(Scene* scene, const reflect::ComponentDesc* desc);
 
 }  // namespace zaro::scene

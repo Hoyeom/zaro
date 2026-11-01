@@ -15,7 +15,7 @@ void print_usage() {
          "\n"
          "commands:\n"
          "  version    print engine and plugin ABI version\n"
-         "  run        run the crowd demo (the only demo so far)\n"
+         "  run        run a scene: zaro run [scene.toml] [options] (no scene: built-in crowd demo)\n"
          "  schema     print every component (fields, types, defaults, ranges) as JSON\n"
          "  check      validate a scene without running it: zaro check <scene.toml> [--json]\n"
          "  help       print this message\n"
@@ -25,8 +25,8 @@ void print_usage() {
          "  --sim-only           headless without a GPU (simulation + state hash)\n"
          "  --frames N           measured frames in headless mode (default 600)\n"
          "  --warmup N           frames before measuring (default 60)\n"
-         "  --enemies N          enemy count (default 50000)\n"
-         "  --seed N             simulation seed (default 1)\n"
+         "  --enemies N          enemy count; overrides the scene (default 50000)\n"
+         "  --seed N             simulation seed; overrides the scene (default 1)\n"
          "  --threads N          worker threads, 0 = hardware count (default 0)\n"
          "  --size WxH           render size (default 1920x1080)\n"
          "  --zoom F             camera distance multiplier (default 1)\n"
@@ -73,12 +73,14 @@ int cmd_run(int argc, char** argv) {
             if (!need(&o.warmup)) return usage_error("--warmup needs a number, got", next ? next : "");
         } else if (strcmp(a, "--enemies") == 0) {
             if (!need(&o.enemies)) return usage_error("--enemies needs a number, got", next ? next : "");
+            o.enemies_set = true;
         } else if (strcmp(a, "--threads") == 0) {
             if (!need(&o.threads)) return usage_error("--threads needs a number, got", next ? next : "");
         } else if (strcmp(a, "--seed") == 0) {
             uint32_t seed = 0;
             if (!need(&seed)) return usage_error("--seed needs a number, got", next ? next : "");
             o.seed = seed;
+            o.seed_set = true;
         } else if (strcmp(a, "--size") == 0) {
             unsigned w = 0, h = 0;
             if (!next || sscanf(next, "%ux%u", &w, &h) != 2 || !w || !h) {
@@ -106,6 +108,8 @@ int cmd_run(int argc, char** argv) {
             if (!next) return usage_error("--screenshot needs a path, got", "");
             o.screenshot_path = next;
             ++i;
+        } else if (a[0] != '-' && !o.scene_path) {
+            o.scene_path = a;
         } else {
             return usage_error("unknown option", a);
         }

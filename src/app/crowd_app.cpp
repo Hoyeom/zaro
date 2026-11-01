@@ -1,12 +1,16 @@
 #include "app/crowd_app.h"
 
+#include "app/tools.h"
+#include "core/diag.h"
 #include "core/jobs.h"
-#include "core/log.h"
 #include "core/png.h"
 #include "core/profile.h"
 #include "platform/platform.h"
 #include "render/crowd_renderer.h"
+#include "scene/scene.h"
+#include "script/script.h"
 #include "sim/crowd.h"
+#include "sim/crowd_components.h"
 #include "zaro/zaro.h"
 
 #include <stdio.h>
@@ -16,6 +20,37 @@
 namespace zaro::app {
 
 namespace {
+
+// What one run owns: the simulation, and optionally the scene it came from and its script.
+struct Game {
+    sim::Crowd* crowd = nullptr;
+    scene::Scene* scene = nullptr;
+    script::Script* script = nullptr;
+    bool script_paused = false;  // windowed: a failing script waits for the next reload
+    DiagList* diags = nullptr;
+};
+
+void print_diags(Game& g) {
+    diag_print_text(g.diags, stderr);
+    g.diags->count = 0;
+    g.diags->dropped = 0;
+}
+
+// One fixed tick: the script's on_tick, then the values it may have changed, then the sim.
+// Returns false if the script failed.
+bool game_tick(Game& g, const sim::CrowdInput& input) {
+    bool ok = true;
+    if (g.script && !g.script_paused) {
+        ok = script::call_tick(g.script, sim::tick(g.crowd) + 1, g.diags);
+        const auto* spawner = (const sim::CrowdSpawner*)scene::first_component(g.scene, &sim::kCrowdSpawnerDesc, nullptr);
+        const auto* player =
+            (const sim::PlayerController*)scene::first_component(g.scene, &sim::kPlayerControllerDesc, nullptr);
+        sim::set_tuning(g.crowd, spawner ? spawner->speed : sim::CrowdSpawner{}.speed,
+                        player ? player->speed : sim::PlayerController{}.speed);
+    }
+    sim::step(g.crowd, input);
+    return ok;
+}
 
 struct Stats {
     double* frame_ms = nullptr;
@@ -69,6 +104,10 @@ bool write_perf_json(const char* path, const RunOptions& o, const Stats& s, doub
     fprintf(f, "  \"schema\": 1,\n");
     fprintf(f, "  \"zaro_version\": \"%u.%u.%u\",\n", v.major, v.minor, v.patch);
     fprintf(f, "  \"demo\": \"crowd\",\n");
+    fputs("  \"scene\": ", f);
+    if (o.scene_path) json_write_string(f, o.scene_path);
+    else fputs("null", f);
+    fputs(",\n", f);
     fprintf(f, "  \"mode\": \"%s\",\n", o.sim_only ? "sim-only" : (o.headless ? "headless" : "windowed"));
     fprintf(f, "  \"adapter\": \"%s\",\n", device ? rhi::adapter_name(device) : "");
     fprintf(f, "  \"backend\": \"%s\",\n", device ? rhi::backend_name(device) : "none");
@@ -125,7 +164,8 @@ render::CrowdScene make_scene(const sim::Crowd* crowd, const float* instances, f
 
 double ms_since(uint64_t start) { return platform::ticks_to_seconds(platform::now_ticks() - start) * 1000.0; }
 
-int run_headless(const RunOptions& o, sim::Crowd* crowd, float* instances) {
+int run_headless(const RunOptions& o, Game& g, float* instances) {
+    sim::Crowd* crowd = g.crowd;
     rhi::Device* device = nullptr;
     render::CrowdRenderer* renderer = nullptr;
     if (!o.sim_only) {
@@ -154,7 +194,11 @@ int run_headless(const RunOptions& o, sim::Crowd* crowd, float* instances) {
     for (uint32_t frame = 0; frame < total; ++frame) {
         if (frame == o.warmup) measure_start = platform::now_ticks();
         const uint64_t t0 = platform::now_ticks();
-        sim::step(crowd, sim::scripted_input(sim::tick(crowd)));
+        if (!game_tick(g, sim::scripted_input(sim::tick(crowd)))) {
+            print_diags(g);
+            exit_code = 1;
+            break;
+        }
         const double sim_ms = ms_since(t0);
         double prep_ms = 0.0;
         if (device) {
@@ -201,7 +245,8 @@ int run_headless(const RunOptions& o, sim::Crowd* crowd, float* instances) {
     return exit_code;
 }
 
-int run_windowed(const RunOptions& o, sim::Crowd* crowd, float* instances) {
+int run_windowed(const RunOptions& o, Game& g, float* instances) {
+    sim::Crowd* crowd = g.crowd;
     platform::Window* window = platform::create_window("ZARO crowd", (int)o.width, (int)o.height);
     if (!window) return 1;
     int pw = 0, ph = 0;
@@ -230,6 +275,7 @@ int run_windowed(const RunOptions& o, sim::Crowd* crowd, float* instances) {
     }
 
     uint64_t shaders_mtime = shader_mtime(dir);
+    uint64_t script_mtime = g.script ? platform::file_mtime(script::script_path(g.script)) : 0;
     uint64_t last = platform::now_ticks();
     uint64_t title_timer = last;
     double accumulator = 0.0, sim_ms_acc = 0.0;
@@ -245,7 +291,11 @@ int run_windowed(const RunOptions& o, sim::Crowd* crowd, float* instances) {
         uint32_t steps = 0;
         while (accumulator >= sim::kTickSeconds && steps < 5) {
             const uint64_t t0 = platform::now_ticks();
-            sim::step(crowd, sim::CrowdInput{input.move_x, -input.move_y});
+            if (!game_tick(g, sim::CrowdInput{input.move_x, -input.move_y})) {
+                print_diags(g);
+                g.script_paused = true;
+                log_info("script paused until %s is saved again", script::script_path(g.script));
+            }
             sim_ms_acc += ms_since(t0);
             accumulator -= sim::kTickSeconds;
             ++steps;
@@ -286,6 +336,19 @@ int run_windowed(const RunOptions& o, sim::Crowd* crowd, float* instances) {
                 rhi::wait_idle(device);
                 if (render::reload_shaders(renderer)) log_info("shaders reloaded");
             }
+            // Script hot reload: save the .luau file while this window runs.
+            if (g.script) {
+                const uint64_t sm = platform::file_mtime(script::script_path(g.script));
+                if (sm != script_mtime) {
+                    script_mtime = sm;
+                    if (script::reload(g.script, g.diags)) {
+                        g.script_paused = false;
+                        log_info("script reloaded");
+                    } else {
+                        print_diags(g);
+                    }
+                }
+            }
         }
     }
     render::destroy_crowd_renderer(renderer);
@@ -298,19 +361,70 @@ int run_windowed(const RunOptions& o, sim::Crowd* crowd, float* instances) {
 
 int run_crowd(const RunOptions& o) {
     const bool headless = o.headless || o.sim_only;
+    Game g;
+    g.diags = new DiagList();
+    sim::CrowdConfig cfg;
+    if (o.scene_path) {
+        register_all_components();
+        g.scene = scene::load_scene(o.scene_path, g.diags);
+        if (!g.scene) {
+            diag_print_text(g.diags, stderr);
+            delete g.diags;
+            return 1;
+        }
+        if (const auto* a = (const sim::CrowdArena*)scene::first_component(g.scene, &sim::kCrowdArenaDesc, nullptr)) {
+            cfg.grid_size = a->grid_size;
+            cfg.seed = a->seed;
+        }
+        if (const auto* sp = (const sim::CrowdSpawner*)scene::first_component(g.scene, &sim::kCrowdSpawnerDesc, nullptr)) {
+            cfg.enemy_count = sp->count;
+            cfg.enemy_speed = sp->speed;
+            cfg.enemy_radius = sp->radius;
+        }
+        if (const auto* p =
+                (const sim::PlayerController*)scene::first_component(g.scene, &sim::kPlayerControllerDesc, nullptr)) {
+            cfg.player_speed = p->speed;
+        }
+    }
+    if (!o.scene_path || o.enemies_set) cfg.enemy_count = o.enemies;
+    if (!o.scene_path || o.seed_set) cfg.seed = o.seed;
+    // Keep the scene's spawner in step with a CLI override, so scripts read the real count.
+    if (g.scene && o.enemies_set) {
+        if (auto* sp = (sim::CrowdSpawner*)scene::first_component_mut(g.scene, &sim::kCrowdSpawnerDesc)) {
+            sp->count = o.enemies;
+        }
+    }
+
+    if (g.scene && g.scene->script[0]) {
+        script::ScriptDesc sd;
+        sd.path = g.scene->script;
+        sd.scene = g.scene;
+        sd.seed = cfg.seed;
+        g.script = script::load_script(sd, g.diags);
+        if (!g.script || !script::call_start(g.script, g.diags)) {
+            diag_print_text(g.diags, stderr);
+            script::destroy_script(g.script);
+            scene::free_scene(g.scene);
+            delete g.diags;
+            return 1;
+        }
+    }
+
     if (!platform::init(headless)) return 1;
     jobs::init(o.threads);
+    g.crowd = sim::create_crowd(cfg);
+    float* instances = (float*)malloc(sizeof(float) * 4 * (cfg.enemy_count ? cfg.enemy_count : 1));
 
-    sim::CrowdConfig cfg;
-    cfg.enemy_count = o.enemies;
-    cfg.seed = o.seed;
-    sim::Crowd* crowd = sim::create_crowd(cfg);
-    float* instances = (float*)malloc(sizeof(float) * 4 * (o.enemies ? o.enemies : 1));
-
-    const int code = headless ? run_headless(o, crowd, instances) : run_windowed(o, crowd, instances);
+    RunOptions effective = o;
+    effective.enemies = cfg.enemy_count;
+    effective.seed = cfg.seed;
+    const int code = headless ? run_headless(effective, g, instances) : run_windowed(effective, g, instances);
 
     free(instances);
-    sim::destroy_crowd(crowd);
+    sim::destroy_crowd(g.crowd);
+    script::destroy_script(g.script);
+    scene::free_scene(g.scene);
+    delete g.diags;
     jobs::shutdown();
     platform::shutdown();
     return code;

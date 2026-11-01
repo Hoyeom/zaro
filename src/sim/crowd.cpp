@@ -399,6 +399,11 @@ void step(Crowd* c, const CrowdInput& input) {
     c->tick++;
 }
 
+void set_tuning(Crowd* c, float enemy_speed, float player_speed) {
+    c->cfg.enemy_speed = enemy_speed;
+    c->cfg.player_speed = player_speed;
+}
+
 uint64_t tick(const Crowd* c) { return c->tick; }
 uint32_t enemy_count(const Crowd* c) { return c->n; }
 uint64_t total_hits(const Crowd* c) { return c->hits.load(std::memory_order_relaxed); }

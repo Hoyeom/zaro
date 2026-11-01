@@ -26,8 +26,8 @@ Requirements: CMake ≥ 3.28, Ninja, a C++20 compiler, Python 3. On Windows, Vis
 
 ```sh
 python tools/build.py release
-build/release/zaro run                                   # window: WASD to move, Esc to quit
-build/release/zaro run --headless --perf perf.json       # benchmark, no window
+build/release/zaro run examples/crowd/scene.toml                          # window: WASD, Esc quits
+build/release/zaro run examples/crowd/scene.toml --headless --perf perf.json  # benchmark, no window
 ```
 
 The first build downloads pinned dependencies (SDL3, wgpu-native, Slang, enkiTS) into `.cache/deps/`.

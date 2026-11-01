@@ -1,0 +1,9 @@
+# A scene whose script fails on the first tick: `zaro run` must exit non-zero.
+[scene]
+name = "failing"
+script = "runtime.luau"
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 100
