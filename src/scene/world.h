@@ -14,8 +14,8 @@
 namespace zaro::scene {
 
 // Position, turn and size relative to the parent, or to the world at the top level. A parent
-// moves, turns and scales its children; turning by `rotation` degrees takes +x toward -z (right-
-// handed about +y, like Shape.rotation). An
+// moves, turns and scales its children; turning by `rotation` degrees takes +x toward +z, like
+// Shape.rotation and ParticleEmitter.direction. An
 // entity without one sits at its parent's origin.
 struct Transform {
     float position[3] = {0.0f, 0.0f, 0.0f};
