@@ -293,6 +293,15 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro screenshot examples/cats/scene.toml ${CMAKE_BINARY_DIR}/cats.png --frames 30 --size 960x540
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(screenshot_cats PROPERTIES LABELS gpu)
+  # The neon arena (P6): its look stays valid, its effects run on the tick clock, and it renders.
+  add_test(NAME example_neon_scene COMMAND zaro check examples/neon/scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME example_neon_tests COMMAND zaro test examples/neon/tests
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME screenshot_neon
+           COMMAND zaro screenshot examples/neon/scene.toml ${CMAKE_BINARY_DIR}/neon.png --frames 200 --size 960x540
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_neon PROPERTIES LABELS gpu)
 
   # The example scene stays valid, and `zaro schema` stays valid JSON.
   add_test(NAME example_crowd_scene COMMAND zaro check examples/crowd/scene.toml

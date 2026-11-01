@@ -1,0 +1,18 @@
+# The neon look on the tick clock, without a GPU (zaro-fx): by tick 300 enemies reach the player
+# every few ticks, so the player's ring is flashing and the camera is shaking.
+# Run with: zaro test examples/neon/tests
+[test]
+scene = "../scene.toml"
+ticks = 300
+
+[[expect]]
+entity = "player"
+component = "Shape"
+field = "flash"
+min = 0.8
+
+[[expect]]
+entity = "camera"
+component = "ScreenFx"
+field = "shake"
+min = 0.2
