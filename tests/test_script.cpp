@@ -3,9 +3,11 @@
 #include "core/detmath.h"
 #include "core/diag.h"
 #include "scene/scene.h"
+#include "scene/tween.h"
 #include "scene/world.h"
 #include "script/script.h"
 #include "sim/crowd_components.h"
+#include "sim/sprite_components.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -239,11 +241,31 @@ void test_detmath() {
     expect(worst_exp < 1e-13, "det_exp2 matches exp2");
 }
 
+// Tweens (D-031): tween.luau asserts values; this steps the tweens after each tick like the app.
+void test_tweens() {
+    Run r("tests/data/scripts/tween.luau", 1, 1.0, "tests/data/scripts/tween_scene.toml");
+    expect(r.script && zaro::script::call_start(r.script, r.diags), "tween.luau on_start");
+    if (!r.script) return;
+    bool ok = true;
+    for (uint64_t t = 1; t <= 70 && ok; ++t) {
+        r.scene->tick = t;
+        ok = zaro::script::call_tick(r.script, t, r.diags);
+        uint32_t done[16];
+        const uint32_t n = zaro::scene::step_tweens(r.scene, t, nullptr, nullptr, done, 16);
+        ok = ok && zaro::script::finish_tweens(r.script, done, n, r.diags);
+    }
+    expect(ok, "tweens from scripts, prefabs and the scene file follow their curves");
+    if (!ok) zaro::diag_print_text(r.diags, stderr);
+    expect(zaro::scene::ease(zaro::scene::kEaseOutBounce, 1.0) == 1.0 && zaro::scene::ease(zaro::scene::kEaseInExpo, 0.0) == 0.0,
+           "eases start at 0 and end at 1");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     zaro::sim::register_crowd_components();
     zaro::scene::register_scene_components();
+    zaro::sim::register_sprite_components();
     test_hooks();
     test_errors();
     test_sandbox();
@@ -253,6 +275,7 @@ int main(int argc, char** argv) {
     test_events();
     test_hierarchy();
     test_detmath();
+    test_tweens();
     if (g_failures) {
         fprintf(stderr, "test_script: %d failure(s)\n", g_failures);
         return 1;

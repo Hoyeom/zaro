@@ -78,6 +78,14 @@ every tick, and `zaro.world` computes it on demand, both with `core/detmath.h` (
 `sin`/`cos`, which can differ by platform and break golden hashes). A Sprite on an entity with a
 Transform or a parent is drawn at its `position` offset in the entity's space.
 
+Tweens (D-031, format and eases at the top of `src/scene/tween.h`): `[[entity.tween]]` in a scene,
+`[[tween]]` in a prefab (started on each entity spawned from it), `zaro.tween` and `ui.tween` in
+scripts. They ease f32, vector and colour fields of visual components only (ZE1202 in files, ZE0501
+in scripts, for a gameplay component such as `Transform`). They advance on the tick clock and are
+applied at the end of each tick, after the simulation, so a scene test can expect a tweened value
+after N ticks. A new tween on a field replaces the old one; `zaro.set` on the field stops it. The
+names of eases and loops are in `zaro schema` (`tween_eases`, `tween_loops`).
+
 Timers and events (D-031) run in the fixed tick and are kept inside the script: `zaro.after`,
 `zaro.every` (seconds of tick time, rounded to whole ticks), `zaro.on`/`zaro.emit` and
 `zaro.cancel`. A tick runs the due timers, on_tick, then the queued events (handlers may emit more);

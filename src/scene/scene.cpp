@@ -299,9 +299,167 @@ bool copy_string(const toml_datum_t& v, char* out, size_t size, const char* what
     return true;
 }
 
+// Tweens parsed from a file, waiting for their entity (or kept by a prefab).
+struct TweenList {
+    TweenSpec* items = nullptr;
+    uint32_t count = 0, capacity = 0;
+    void add(const TweenSpec& t) {
+        if (count == capacity) {
+            capacity = capacity ? capacity * 2 : 8;
+            items = (TweenSpec*)realloc(items, sizeof(TweenSpec) * capacity);
+        }
+        items[count++] = t;
+    }
+    ~TweenList() { free(items); }
+};
+
+// Reads a tween's `to` or `from` for the field into lanes.
+bool tween_value(const toml_datum_t& v, const FieldDesc* f, float lanes[4], const char* key, const char* file,
+                 DiagList* diags) {
+    const int n = f->type == FieldType::kVec2 ? 2 : (f->type == FieldType::kVec3 ? 3 : (f->type == FieldType::kVec4 ? 4 : 0));
+    if (f->type == FieldType::kF32 && is_number(v)) {
+        lanes[0] = (float)number(v);
+        return true;
+    }
+    if (n && v.type == TOML_ARRAY && v.u.arr.size == n) {
+        for (int i = 0; i < n; ++i) {
+            if (!is_number(v.u.arr.elem[i])) break;
+            lanes[i] = (float)number(v.u.arr.elem[i]);
+            if (i == n - 1) return true;
+        }
+    }
+    if (f->type == FieldType::kColor && v.type == TOML_STRING) {
+        char err[300];
+        uint32_t c = 0;
+        if (!reflect::parse_text_value(*f, v.u.str.ptr, &c, err, sizeof(err))) {
+            diag_add(diags, kErrTween, file, v.lineno, v.colno, "tween %s: %s", key, err);
+            return false;
+        }
+        for (int i = 0; i < 4; ++i) lanes[i] = (float)((c >> (8 * i)) & 0xffu);
+        return true;
+    }
+    diag_add(diags, kErrTween, file, v.lineno, v.colno, "tween %s must be %s for %s", key,
+             f->type == FieldType::kF32 ? "a number" : (n ? "an array of numbers" : "a colour \"#rrggbb[aa]\""),
+             reflect::type_name(f->type));
+    return false;
+}
+
+// One [[tween]] table, checked against the components the entity or prefab has.
+bool parse_tween(const toml_datum_t& t, const ComponentData* comps, uint32_t ncomps, TweenSpec* out, const char* file,
+                 DiagList* diags) {
+    if (t.type != TOML_TABLE) {
+        diag_add(diags, kErrTween, file, t.lineno, t.colno, "tween must be a table ([[tween]])");
+        return false;
+    }
+    const uint32_t before = diags->count;
+    memset(out, 0, sizeof(*out));
+    out->time = -1.0;
+    const toml_datum_t comp = toml_get(t, "component");
+    const toml_datum_t field = toml_get(t, "field");
+    if (comp.type != TOML_STRING || field.type != TOML_STRING) {
+        diag_add(diags, kErrTween, file, t.lineno, t.colno, "a tween needs component and field strings");
+        return false;
+    }
+    const ComponentDesc* desc = reflect::find_component(comp.u.str.ptr);
+    const ComponentData* have = nullptr;
+    for (uint32_t i = 0; desc && i < ncomps; ++i) have = comps[i].desc == desc ? &comps[i] : have;
+    if (!have) {
+        const char* names[32];
+        uint32_t n = 0;
+        for (uint32_t i = 0; i < ncomps && n < 32; ++i) names[n++] = comps[i].desc->name;
+        const char* hint = reflect::suggest_name(comp.u.str.ptr, names, n);
+        diag_add(diags, kErrTween, file, comp.lineno, comp.colno, "the tween's component '%s' is not on it%s%s%s",
+                 comp.u.str.ptr, hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+        return false;
+    }
+    const FieldDesc* f = reflect::find_field(desc, field.u.str.ptr);
+    if (!f) {
+        const char* hint = reflect::suggest_field(desc, field.u.str.ptr);
+        diag_add(diags, kErrTween, file, field.lineno, field.colno, "%s has no field '%s'%s%s%s", desc->name,
+                 field.u.str.ptr, hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+        return false;
+    }
+    if (const char* why = tween_target_error(desc, f)) {
+        diag_add(diags, kErrTween, file, comp.lineno, comp.colno, "%s.%s %s", desc->name, f->name, why);
+        return false;
+    }
+    out->component = desc;
+    out->field = f;
+    bool has_to = false;
+    for (int32_t i = 0; i < t.u.tab.size; ++i) {
+        const char* key = t.u.tab.key[i];
+        const toml_datum_t& v = t.u.tab.value[i];
+        if (strcmp(key, "component") == 0 || strcmp(key, "field") == 0) {
+            continue;
+        } else if (strcmp(key, "to") == 0) {
+            has_to = tween_value(v, f, out->to, key, file, diags);
+        } else if (strcmp(key, "from") == 0) {
+            out->has_from = tween_value(v, f, out->from, key, file, diags);
+        } else if (strcmp(key, "time") == 0 || strcmp(key, "delay") == 0) {
+            const bool time = key[0] == 't';
+            if (!is_number(v) || number(v) < 0.0 || (time && number(v) <= 0.0) || number(v) > 1e6) {
+                diag_add(diags, kErrTween, file, v.lineno, v.colno, time ? "tween time must be seconds above 0"
+                                                                          : "tween delay must be seconds, 0 or more");
+            } else if (time) {
+                out->time = number(v);
+            } else {
+                out->delay = number(v);
+            }
+        } else if (strcmp(key, "ease") == 0 || strcmp(key, "loop") == 0) {
+            const bool is_ease = key[0] == 'e';
+            const char* const* names = is_ease ? kEaseNames : kLoopNames;
+            int found = -1;
+            for (int k = 0; v.type == TOML_STRING && names[k]; ++k) found = strcmp(names[k], v.u.str.ptr) == 0 ? k : found;
+            if (found < 0) {
+                uint32_t n = 0;
+                while (names[n]) ++n;
+                const char* hint = v.type == TOML_STRING ? reflect::suggest_name(v.u.str.ptr, names, n) : nullptr;
+                diag_add(diags, kErrTween, file, v.lineno, v.colno, "unknown tween %s '%s'%s%s%s (`zaro schema` lists them)",
+                         key, v.type == TOML_STRING ? v.u.str.ptr : "?", hint ? " (did you mean '" : "", hint ? hint : "",
+                         hint ? "'?)" : "");
+            } else if (is_ease) {
+                out->ease = (uint8_t)found;
+            } else {
+                out->loop = (uint8_t)found;
+            }
+        } else if (strcmp(key, "count") == 0) {
+            if (v.type != TOML_INT64 || v.u.int64 < 0 || v.u.int64 > 1000000) {
+                diag_add(diags, kErrTween, file, v.lineno, v.colno, "tween count must be a whole number, 0 or more");
+            } else {
+                out->count = (uint32_t)v.u.int64;
+            }
+        } else {
+            diag_add(diags, kErrTween, file, v.lineno, v.colno,
+                     "unexpected tween key '%s' (expected component, field, to, from, time, delay, ease, loop or count)",
+                     key);
+        }
+    }
+    if (!has_to && toml_get(t, "to").type == TOML_UNKNOWN) {
+        diag_add(diags, kErrTween, file, t.lineno, t.colno, "a tween needs `to`");
+    }
+    if (out->time < 0.0 && toml_get(t, "time").type == TOML_UNKNOWN) {
+        diag_add(diags, kErrTween, file, t.lineno, t.colno, "a tween needs `time` in seconds");
+    }
+    return diags->count == before;
+}
+
+// Every table of a `tween` array.
+void parse_tweens(const toml_datum_t& v, const ComponentData* comps, uint32_t ncomps, TweenList* out, const char* file,
+                  DiagList* diags) {
+    if (v.type != TOML_ARRAY) {
+        diag_add(diags, kErrTween, file, v.lineno, v.colno, "tween must be an array of tables ([[tween]])");
+        return;
+    }
+    for (int32_t i = 0; i < v.u.arr.size; ++i) {
+        TweenSpec spec;
+        if (parse_tween(v.u.arr.elem[i], comps, ncomps, &spec, file, diags)) out->add(spec);
+    }
+}
+
 struct Prefab {
     char path[kPathCapacity];
     char name[kNameCapacity];  // from the [prefab] table, empty if none
+    TweenList tweens;
     bool ok;
     bool missing;  // the file could not be opened (already reported at the reference)
     ComponentSet set;
@@ -314,6 +472,9 @@ struct Loader {
     DiagList* diags;
     Prefab* prefabs[kMaxPrefabs];
     uint32_t prefab_count = 0;
+    // Tweens of the file's entities, by entity index, started once the scene is loaded.
+    TweenList tweens;
+    uint32_t* tween_entity = nullptr;
 
     const Prefab* prefab(const char* rel, const toml_datum_t& at) {
         char path[kPathCapacity];
@@ -337,6 +498,7 @@ struct Loader {
         if (loaded) {
             const toml_datum_t top = l.result.toptab;
             bool has_header = false;
+            toml_datum_t tween_array{};
             for (int32_t i = 0; i < top.u.tab.size; ++i) {
                 const char* key = top.u.tab.key[i];
                 const toml_datum_t& v = top.u.tab.value[i];
@@ -344,6 +506,10 @@ struct Loader {
                     has_header = true;
                     const toml_datum_t name = toml_get(v, "name");
                     if (name.type != TOML_UNKNOWN) copy_string(name, p->name, sizeof(p->name), "prefab name", path, diags);
+                    continue;
+                }
+                if (strcmp(key, "tween") == 0 && kind == DocKind::kScene) {
+                    tween_array = v;
                     continue;
                 }
                 if (v.type != TOML_TABLE) {
@@ -354,13 +520,23 @@ struct Loader {
                 apply_component_table(key, v, &p->set, kind, theme, path, diags);
             }
             if (!has_header) diag_add(diags, kErrSceneStructure, path, 1, 1, "a prefab needs a [prefab] table");
+            if (tween_array.type != TOML_UNKNOWN) {
+                parse_tweens(tween_array, p->set.items, p->set.count, &p->tweens, path, diags);
+            }
         }
         free_loaded(&l);
         p->ok = diags->count == errors_before;
         return p;
     }
 
+    void add_tween(const TweenSpec& t, uint32_t entity) {
+        tweens.add(t);
+        tween_entity = (uint32_t*)realloc(tween_entity, sizeof(uint32_t) * tweens.capacity);
+        tween_entity[tweens.count - 1] = entity;
+    }
+
     ~Loader() {
+        free(tween_entity);
         for (uint32_t i = 0; i < prefab_count; ++i) {
             prefabs[i]->set.release();
             delete prefabs[i];
@@ -368,17 +544,21 @@ struct Loader {
     }
 };
 
-void load_entity(Loader& loader, const toml_datum_t& t, Entity* e, const char* file, DiagList* diags) {
+void load_entity(Loader& loader, const toml_datum_t& t, Entity* e, uint32_t index, const char* file,
+                 DiagList* diags) {
     const bool screen = loader.kind == DocKind::kScreen;
     const char* what = screen ? "node" : "entity";
     e->line = t.lineno;
     e->parent_index = -1;
     ComponentSet set;
+    const Prefab* from_prefab = nullptr;
+    toml_datum_t tweens{};
     const toml_datum_t prefab_v = toml_get(t, "prefab");
     if (prefab_v.type != TOML_UNKNOWN &&
         copy_string(prefab_v, e->prefab, sizeof(e->prefab), screen ? "node prefab" : "entity prefab", file, diags)) {
         const Prefab* p = loader.prefab(e->prefab, prefab_v);
         if (p && p->ok) {
+            from_prefab = p;
             for (uint32_t i = 0; i < p->set.count; ++i) set.get_or_add(p->set.items[i].desc, p->set.items[i].data);
         } else if (p && !p->missing) {
             diag_add(diags, kErrScenePrefab, file, prefab_v.lineno, prefab_v.colno, "prefab '%s' has errors (see above)",
@@ -395,12 +575,14 @@ void load_entity(Loader& loader, const toml_datum_t& t, Entity* e, const char* f
             continue;
         } else if (strcmp(key, "parent") == 0) {
             copy_string(v, e->parent, sizeof(e->parent), screen ? "node parent" : "entity parent", file, diags);
+        } else if (!screen && strcmp(key, "tween") == 0) {
+            tweens = v;
         } else if (v.type == TOML_TABLE) {
             apply_component_table(key, v, &set, loader.kind, loader.theme, file, diags);
         } else {
             diag_add(diags, kErrSceneStructure, file, v.lineno, v.colno,
                      screen ? "unexpected node key '%s' (expected name, parent, prefab or a widget table)"
-                            : "unexpected entity key '%s' (expected name, parent, prefab or a component table)",
+                            : "unexpected entity key '%s' (expected name, parent, prefab, tween or a component table)",
                      key);
         }
     }
@@ -408,6 +590,13 @@ void load_entity(Loader& loader, const toml_datum_t& t, Entity* e, const char* f
     e->component_count = set.count;
     e->components = (ComponentData*)calloc(set.count ? set.count : 1, sizeof(ComponentData));
     memcpy(e->components, set.items, sizeof(ComponentData) * set.count);
+    // The prefab's tweens, then the entity's own; a later one on the same field replaces an earlier.
+    for (uint32_t i = 0; from_prefab && i < from_prefab->tweens.count; ++i) loader.add_tween(from_prefab->tweens.items[i], index);
+    if (tweens.type != TOML_UNKNOWN) {
+        TweenList own;
+        parse_tweens(tweens, e->components, e->component_count, &own, file, diags);
+        for (uint32_t i = 0; i < own.count; ++i) loader.add_tween(own.items[i], index);
+    }
 }
 
 }  // namespace
@@ -604,6 +793,11 @@ void load_spawn_prefabs(Loader& loader, Scene* s, DiagList* diags) {
             }
         }
         snprintf(sp.name, sizeof(sp.name), "%s", p->name);
+        if (p->tweens.count) {
+            sp.tweens = (TweenSpec*)malloc(sizeof(TweenSpec) * p->tweens.count);
+            memcpy(sp.tweens, p->tweens.items, sizeof(TweenSpec) * p->tweens.count);
+            sp.tween_count = p->tweens.count;
+        }
         sp.component_count = p->set.count;
         sp.components = (ComponentData*)calloc(p->set.count ? p->set.count : 1, sizeof(ComponentData));
         for (uint32_t c = 0; c < p->set.count; ++c) {
@@ -696,7 +890,7 @@ Scene* load(const char* path, Want expect, DiagList* diags) {
                 continue;
             }
             Entity* e = &s->entities[s->entity_count++];
-            load_entity(loader, t, e, path, diags);
+            load_entity(loader, t, e, s->entity_count - 1, path, diags);
             for (uint32_t j = 0; j + 1 < s->entity_count; ++j) {
                 if (e->name[0] && strcmp(s->entities[j].name, e->name) == 0) {
                     diag_add(diags, kErrSceneDuplicate, path, t.lineno, t.colno, "%s name '%s' is already used on line %d",
@@ -719,6 +913,10 @@ Scene* load(const char* path, Want expect, DiagList* diags) {
     s->next_id = s->entity_count + 1;
     s->entity_capacity = s->entities ? (s->entity_count ? s->entity_count : 1) : 0;
     load_spawn_prefabs(loader, s, diags);
+    for (uint32_t i = 0; i < loader.tweens.count; ++i) {
+        const uint32_t e = loader.tween_entity[i];
+        if (e < s->entity_count) start_tween(s, loader.tweens.items[i], s->entities[e].id, nullptr, nullptr, 0, 0);
+    }
 
     // Build extensions are checked with the scene, so `zaro check` reports them (D-026).
     for (uint32_t i = 0; i < s->build_extension_count; ++i) {
@@ -763,8 +961,10 @@ void free_scene(Scene* s) {
     for (uint32_t i = 0; s->prefabs && i < s->prefab_count; ++i) {
         for (uint32_t j = 0; j < s->prefabs[i].component_count; ++j) free(s->prefabs[i].components[j].data);
         free(s->prefabs[i].components);
+        free(s->prefabs[i].tweens);
     }
     free(s->prefabs);
+    free_tweens(s);
     free(s);
 }
 

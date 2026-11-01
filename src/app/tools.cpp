@@ -34,7 +34,8 @@ void register_all_components() {
 
 int print_schema() {
     register_all_components();
-    reflect::write_schema_json(stdout);
+    const reflect::SchemaList lists[] = {{"tween_eases", scene::kEaseNames}, {"tween_loops", scene::kLoopNames}};
+    reflect::write_schema_json(stdout, lists, 2);
     return 0;
 }
 

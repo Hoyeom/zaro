@@ -1,0 +1,13 @@
+[prefab]
+name = "blip"
+
+[Sprite]
+sheet = "none.toml"
+scale = 0.0
+
+[[tween]]
+component = "Sprite"
+field = "scale"
+to = 1.0
+time = 0.25
+ease = "out_back"

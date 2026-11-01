@@ -1,0 +1,23 @@
+# Tweens from scripts and from scene files (tests/test_script.cpp, test_tweens; D-031).
+[scene]
+name = "tween-test"
+prefabs = ["blip.toml"]
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 0
+
+[[entity]]
+name = "dot"
+[entity.Transform]
+[entity.Sprite]
+sheet = "none.toml"
+[[entity.tween]]
+component = "Sprite"
+field = "color"
+from = "#000000"
+to = "#ff0000"
+time = 0.5
+loop = "pingpong"
+count = 2

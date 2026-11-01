@@ -72,7 +72,13 @@ const char* suggest_name(const char* name, const char* const* candidates, uint32
 
 // Every registered component with its fields, types, defaults, ranges and docs, as JSON.
 // This is what `zaro schema` prints; agents read it to write scenes.
-void write_schema_json(void* file /* FILE* */);
+// `lists` adds named arrays of strings after the components (nullptr-terminated each), such as the
+// tween eases, so one document describes every name a scene file may use.
+struct SchemaList {
+    const char* name;
+    const char* const* values;
+};
+void write_schema_json(void* file /* FILE* */, const SchemaList* lists = nullptr, uint32_t list_count = 0);
 
 }  // namespace zaro::reflect
 

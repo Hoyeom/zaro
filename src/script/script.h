@@ -25,6 +25,10 @@
 //   zaro.children(entity)                      -> {id, ...} in id order
 //   zaro.world(entity)                         -> {x, y, z}, rotation, scale: its Transform combined
 //                                                 with its parents' (a destroyed parent takes its children)
+//   zaro.tween(entity, component, field, to, {time = s[, from, delay, ease, loop, count, done = fn]})
+//       -> handle; eases a visual field on the tick clock (scene/tween.h has the eases and loops).
+//          A tween on the same field replaces it, zaro.set on the field stops it, zaro.cancel too;
+//          done(handle) runs in the tick it finishes.
 // Timers and events run in the fixed tick (D-031). Seconds are tick time, rounded to whole ticks
 // and at least one, so a timer made in on_start with 1.0 fires before on_tick(60).
 //   zaro.after(seconds, fn)                    -> handle; fn(tick) once, before that tick's on_tick
@@ -45,6 +49,7 @@
 //   ui.ready(screen)         -- an open with wait = true may start its entrance
 //   ui.close(screen), ui.back(), ui.home(), ui.reset()
 //   ui.state(screen)         -> "opening", "entering", "open", "closing" or "closed"
+//   ui.tween(screen, node, component, field, to, options)  -- zaro.tween on a widget field
 //   function on_ui(action, screen, node)   -- hook: a button with that action was clicked
 //   function on_back(screen)               -- hook: back was pressed while `screen` had the input;
 //                                             return true to take the press (nothing closes)
@@ -106,6 +111,8 @@ bool call_ui(Script* script, const char* action, const char* screen, const char*
 // on_back: *claimed is true if the hook returned true.
 bool call_back(Script* script, const char* screen, bool* claimed, DiagList* diags);
 bool call_screen(Script* script, const char* event, const char* screen, DiagList* diags);
+// Runs the `done` callbacks of finished tweens (scene::step_tweens) and the events they emit.
+bool finish_tweens(Script* script, const uint32_t* handles, uint32_t count, DiagList* diags);
 // Queues an event from the engine with a payload table of numbers (keys[i] = values[i]). The
 // script's handlers get it after the next hook. False if the name is empty or too long.
 bool emit_event(Script* script, const char* name, const char* const* keys, const double* values, uint32_t count);

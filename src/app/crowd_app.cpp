@@ -76,8 +76,10 @@ bool click_path(Game& g, const char* path, const char* file, int line) {
 // Returns false if the script failed.
 bool game_tick(Game& g, const sim::CrowdInput& input) {
     bool ok = true;
+    const uint64_t tick = sim::tick(g.crowd) + 1;
+    if (g.scene) g.scene->tick = tick;
     if (g.script && !g.script_paused) {
-        ok = script::call_tick(g.script, sim::tick(g.crowd) + 1, g.diags);
+        ok = script::call_tick(g.script, tick, g.diags);
         const auto* spawner = (const sim::CrowdSpawner*)scene::first_component(g.scene, &sim::kCrowdSpawnerDesc, nullptr);
         const auto* player =
             (const sim::PlayerController*)scene::first_component(g.scene, &sim::kPlayerControllerDesc, nullptr);
@@ -87,6 +89,12 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
     sim::step(g.crowd, input);
     if (g.scene) {
         scene::flush_entities(g.scene);  // what scripts destroyed this tick (D-031)
+        // Tweens after the simulation: they change only what is drawn.
+        uint32_t done[256];
+        const script::UiHost* host = ui_host(g.ui);
+        const uint32_t ndone = scene::step_tweens(g.scene, tick, host ? host->find_screen : nullptr,
+                                                  host ? host->user : nullptr, done, 256);
+        if (ndone && g.script && !g.script_paused) ok = script::finish_tweens(g.script, done, ndone, g.diags) && ok;
         scene::update_transforms(g.scene);
     }
     float px, pz;
