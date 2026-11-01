@@ -45,7 +45,7 @@ named `[[animation]]`s.
   (world sprites depth-tested and cut out at half alpha, then screen sprites blended in order),
   before the UI. `SpriteInstance` and `SpriteFrameInfo` mirror `shaders/sprite.slang`.
 - PNGs are decoded by `read_png_rgba8` (`core/png.h`); the sheet loader reads only the size.
-- SVG sheets (D-026) list one SVG file per frame and a `size`. The `zaro` tool cooks them into
+- SVG sheets (D-027) list one SVG file per frame and a `size`. The `zaro` tool cooks them into
   `.zaro-cache/<sheet>.png` (gitignored) when a run needs pixels and the content hash changed;
   `zaro cook <scene|sheet> [--force]` does it ahead of time. Scene tests and `--sim-only` runs never
   cook. Text, filters and foreign content are ZE0903 with the SVG file's line (`zaro check` too);

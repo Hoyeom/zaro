@@ -7,6 +7,7 @@
 //   screens = ["ui/settings.toml"]   # optional: screens that can be opened by name (D-021)
 //   strings = "strings"              # optional: directory of string tables, <language>.toml
 //   languages = ["ko", "en"]         # with strings: the languages it holds; the first is the default
+//   build_extensions = ["ext.toml"]  # optional: what plugins add to an Android export (scene/build_extension.h)
 //
 //   [[entity]]
 //   name = "player"                  # required, unique in the scene
@@ -49,6 +50,7 @@ constexpr uint32_t kPathCapacity = 260;
 constexpr uint32_t kMaxSceneScreens = 8;
 constexpr uint32_t kMaxLanguages = 8;
 constexpr uint32_t kLanguageCapacity = 16;
+constexpr uint32_t kMaxBuildExtensions = 16;
 
 enum class DocKind : uint8_t { kScene, kScreen };
 
@@ -88,6 +90,9 @@ struct Scene {
     int strings_line;
     char languages[kMaxLanguages][kLanguageCapacity];
     uint32_t language_count;
+    char build_extensions[kMaxBuildExtensions][kPathCapacity];  // resolved paths (build_extension.h)
+    int build_extensions_line;
+    uint32_t build_extension_count;
 
     // Screens only.
     char theme[kPathCapacity];  // resolved theme path, or empty

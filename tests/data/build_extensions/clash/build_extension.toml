@@ -1,0 +1,5 @@
+[build_extension]
+name = "clash"
+
+[android]
+sources = "java"

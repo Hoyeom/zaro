@@ -16,7 +16,7 @@ Lint rule Z010 fails when a dependency in `cmake/ZaroDeps.cmake` has no entry he
 | stb_truetype | public domain or MIT | fonts (D-019) | yes |
 | stb_image | public domain or MIT | PNG decoding | yes |
 | cJSON | MIT | `zaro import-design` (D-023) | yes |
-| LunaSVG, with its bundled PlutoVG | MIT; parts of PlutoVG under the FreeType License | `zaro cook`, SVG art into sprite atlases (D-026) | no (zaro tool only) |
+| LunaSVG, with its bundled PlutoVG | MIT; parts of PlutoVG under the FreeType License | `zaro cook`, SVG art into sprite atlases (D-027) | no (zaro tool only) |
 | Noto Sans KR | SIL Open Font License 1.1 | the bundled font (D-019) | yes |
 | Tracy | BSD-3-Clause | profiling, only in `profile` builds (D-010) | no (opt-in) |
 
@@ -29,4 +29,4 @@ headers) come from FreeType. A binary distribution of the `zaro` tool must state
 > (https://freetype.org).
 
 The Android runtime (`libmain.so`, D-022) does not contain this code: the cook module that links it
-is built only for the desktop `zaro` tool (D-026).
+is built only for the desktop `zaro` tool (D-027).

@@ -79,7 +79,7 @@ ownership and the rest of the layering rules are in the `zaro-code` skill.
 | `script` | sandboxed Luau scripts acting on a scene through reflection; the only module that includes Luau | core, scene |
 | `render` | draws plain data (the view); never sees sim types | core, rhi |
 | `ui` | game UI: fonts, text layout, glyph atlas, screens, widgets; no GPU | core, scene |
-| `cook` | build-time asset cooking: SVG art into sprite atlases; the only module that includes LunaSVG; not built for Android (D-026) | core, scene |
+| `cook` | build-time asset cooking: SVG art into sprite atlases; the only module that includes LunaSVG; not built for Android (D-027) | core, scene |
 | `app` | owns the frame loop and wires sim, sprites and ui to render | all of the above |
 | `cli` | the `zaro` command | core, app |
 

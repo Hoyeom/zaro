@@ -28,7 +28,7 @@ void destroy_sprite_layer(SpriteLayer* layer);
 // diagnostic, reported once, and the sprite keeps its frame; then this returns false.
 bool step_sprites(SpriteLayer* layer, uint64_t tick, DiagList* diags);
 
-// SVG sheets (D-026): cooks the sheet's PNG when it is missing or its content hash changed, and
+// SVG sheets (D-027): cooks the sheet's PNG when it is missing or its content hash changed, and
 // writes the new hash next to it. Only the zaro tool can cook; a runtime without the cook (Android)
 // reports a missing PNG as ZE0901. *cooked says whether it drew. Other sheets are left alone.
 bool ensure_sheet_art(const scene::SpriteSheet* sheet, bool force, DiagList* diags, bool* cooked);

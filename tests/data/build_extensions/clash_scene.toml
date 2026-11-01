@@ -1,0 +1,3 @@
+[scene]
+name = "clash"
+build_extensions = ["clash/build_extension.toml"]

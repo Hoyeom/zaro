@@ -6,6 +6,7 @@
 #include "core/log.h"
 #include "core/path.h"
 #include "platform/platform.h"
+#include "scene/build_extension.h"
 #include "scene/scene.h"
 #include "scene/sprite_sheet.h"
 #include "sim/sprite_components.h"
@@ -136,8 +137,11 @@ struct Export {
     const Substitution* subs;
     uint32_t sub_count;
     PathList assets;          // paths below app/src/main/assets, for zaro_assets.txt
+    PathList java;            // project paths of every .java or .kt file written so far
     bool ok = true;
 };
+
+constexpr char kJavaRoot[] = "app/src/main/java/";
 
 bool make_parent(const char* path) {
     char dir[kLongPath];
@@ -187,9 +191,117 @@ void copy_runtime_file(const char* path, void* user) {
     }
     static const char kAssets[] = "app/src/main/assets/";
     if (starts_with(rel, kAssets) && !add_unique(e.assets, rel + sizeof(kAssets) - 1)) e.ok = false;
+    if (starts_with(rel, kJavaRoot) && !add_unique(e.java, rel)) e.ok = false;
 }
 
-// A sprite sheet and its image. An SVG sheet is cooked first (D-026) and packs the cooked PNG; the
+void strip_trailing_slash(char* path);
+
+// --- Build extensions (D-026) ----------------------------------------------------------------------
+
+void append(char** text, const char* piece) {
+    const size_t old = *text ? strlen(*text) : 0, add = strlen(piece);
+    char* grown = (char*)realloc(*text, old + add + 1);
+    memcpy(grown + old, piece, add + 1);
+    *text = grown;
+}
+
+// What the scene's build extensions add: Gradle dependency lines, XML for <manifest> and for
+// <application>, and source directories copied once the runtime is in place.
+struct ExtensionText {
+    char* dependencies = nullptr;
+    char* manifest = nullptr;
+    char* application = nullptr;
+    scene::BuildExtension* items[scene::kMaxBuildExtensions] = {};
+    uint32_t count = 0;
+};
+
+bool gather_extensions(const scene::Scene* s, ExtensionText* x) {
+    append(&x->dependencies, "");
+    append(&x->manifest, "");
+    append(&x->application, "");
+    bool ok = true;
+    for (uint32_t i = 0; i < s->build_extension_count; ++i) {
+        DiagList* diags = new DiagList();
+        scene::BuildExtension* b = scene::load_build_extension(s->build_extensions[i], diags);
+        diag_print_text(diags, stderr);
+        delete diags;
+        if (!b) {
+            ok = false;
+            continue;
+        }
+        char line[scene::kExtensionItemCapacity + 64];
+        for (uint32_t k = 0; k < b->dependency_count; ++k) {
+            snprintf(line, sizeof(line), "    implementation '%s'\n", b->dependencies[k]);
+            append(&x->dependencies, line);
+        }
+        for (uint32_t k = 0; k < b->permission_count; ++k) {
+            snprintf(line, sizeof(line), "    <uses-permission android:name=\"%s\" />\n", b->permissions[k]);
+            append(&x->manifest, line);
+        }
+        if (b->manifest_xml) {
+            append(&x->manifest, b->manifest_xml);
+            append(&x->manifest, "\n");
+        }
+        if (b->application_xml) {
+            append(&x->application, b->application_xml);
+            append(&x->application, "\n");
+        }
+        x->items[x->count++] = b;
+    }
+    return ok;
+}
+
+struct SourceCopy {
+    Export* e;
+    const scene::BuildExtension* extension;
+    size_t root_length;  // of the extension's sources directory, with its '/'
+};
+
+// Copies one .java or .kt file under app/src/main/java; never replaces a file of the runtime or of
+// another extension.
+void copy_extension_source(const char* path, void* user) {
+    SourceCopy& c = *(SourceCopy*)user;
+    if (!ends_with(path, ".java") && !ends_with(path, ".kt")) return;
+    char rel[kPath + 32], to[kLongPath];
+    snprintf(rel, sizeof(rel), "%s%s", kJavaRoot, path + c.root_length);
+    for (uint32_t i = 0; i < c.e->java.count; ++i) {
+        if (strcmp(c.e->java.items[i], rel) == 0) {
+            log_error(kErrExport, "%s:%d: %s would replace %s, which the runtime or another build extension "
+                      "already provides", c.extension->path, c.extension->sources_line, path, rel);
+            c.e->ok = false;
+            return;
+        }
+    }
+    snprintf(to, sizeof(to), "%s/%s", c.e->out, rel);
+    if (strlen(rel) >= kPath || !add_unique(c.e->java, rel) || !make_parent(to) || !platform::copy_file(path, to)) {
+        log_error(kErrIo, "%s: cannot copy to %s", path, to);
+        c.e->ok = false;
+    }
+}
+
+void copy_extension_sources(Export& e, const ExtensionText& x) {
+    for (uint32_t i = 0; i < x.count; ++i) {
+        const scene::BuildExtension* b = x.items[i];
+        if (!b->sources[0]) continue;
+        char root[kPath];
+        snprintf(root, sizeof(root), "%s", b->sources);
+        strip_trailing_slash(root);
+        SourceCopy c{&e, b, strlen(root) + 1};
+        if (platform::file_mtime(root) == 0 || !platform::find_files(root, "", copy_extension_source, &c)) {
+            log_error(kErrExport, "%s:%d: sources directory '%s' does not exist", b->path, b->sources_line, root);
+            e.ok = false;
+        }
+    }
+}
+
+void free_extensions(ExtensionText* x) {
+    for (uint32_t i = 0; i < x->count; ++i) scene::free_build_extension(x->items[i]);
+    free(x->dependencies);
+    free(x->manifest);
+    free(x->application);
+}
+
+// A sprite sheet and its image. An SVG sheet is cooked first (D-027) and packs the cooked PNG; the
 // APK never holds the SVG files.
 void add_sheet_files(PathList& files, const char* doc_path, const char* sheet_rel, bool* ok) {
     char path[kPath];
@@ -232,11 +344,13 @@ void add_document_files(PathList& files, const scene::Scene* doc, bool* ok) {
 
 struct DirScan {
     PathList* files;
+    const scene::Scene* scene;
     bool ok;
 };
 
 // Everything in the scene's directory goes into the APK (a script may name images or screens at
-// run time), except scene tests.
+// run time), except scene tests and build extensions with their Java and Kotlin sources, which
+// become part of the project instead (D-026).
 void add_scanned_file(const char* found, void* user) {
     DirScan& scan = *(DirScan*)user;
     char path[kPath];
@@ -244,6 +358,12 @@ void add_scanned_file(const char* found, void* user) {
     if (ends_with(path, ".test.toml") || starts_with(path, "tests/") || strstr(path, "/tests/")) return;
     // SVG art and the cook's cache: the sheets that use them pack their cooked PNGs (add_sheet_files).
     if (ends_with(path, ".svg") || starts_with(path, ".zaro-cache/") || strstr(path, "/.zaro-cache/")) return;
+    if (ends_with(path, ".java") || ends_with(path, ".kt")) return;
+    for (uint32_t i = 0; i < scan.scene->build_extension_count; ++i) {
+        char extension[kPath];
+        path_join_relative("", scan.scene->build_extensions[i], extension, sizeof(extension));
+        if (strcmp(path, extension) == 0) return;
+    }
     scan.ok &= add_unique(*scan.files, path);
 }
 
@@ -275,7 +395,7 @@ int export_android(const ExportOptions& o) {
     add_unique(files, path);
     char scene_dir[kPath];
     snprintf(scene_dir, sizeof(scene_dir), "%.*s", (int)dir_length(path), path);
-    DirScan scan{&files, true};
+    DirScan scan{&files, s, true};
     platform::find_files(scene_dir[0] ? scene_dir : ".", "", add_scanned_file, &scan);
     listed &= scan.ok;
     if (s->script[0]) {
@@ -363,9 +483,13 @@ int export_android(const ExportOptions& o) {
         code = 2;
     }
     const char* orientation = o.portrait ? "sensorPortrait" : "sensorLandscape";
+    ExtensionText extensions;
+    if (!gather_extensions(s, &extensions) && code == 0) code = 1;
     const Substitution subs[] = {
         {"@ZARO_NAME@", name}, {"@ZARO_PACKAGE@", package}, {"@ZARO_VERSION_CODE@", version_code},
         {"@ZARO_VERSION_NAME@", version_name}, {"@ZARO_ORIENTATION@", orientation},
+        {"@ZARO_GRADLE_DEPENDENCIES@", extensions.dependencies}, {"@ZARO_MANIFEST_EXTRA@", extensions.manifest},
+        {"@ZARO_APPLICATION_EXTRA@", extensions.application},
     };
 
     Export e;
@@ -374,11 +498,13 @@ int export_android(const ExportOptions& o) {
     e.subs = subs;
     e.sub_count = sizeof(subs) / sizeof(subs[0]);
     e.assets.items = new char[kMaxFiles][kPath];
+    e.java.items = new char[kMaxFiles][kPath];
     if (code == 0) {
         if (!platform::create_directories(out) || !platform::find_files(runtime, "", copy_runtime_file, &e)) {
             log_error(kErrIo, "%s: cannot create the project", out);
             e.ok = false;
         }
+        if (e.ok) copy_extension_sources(e, extensions);
         for (uint32_t i = 0; i < files.count && e.ok; ++i) {
             char rel[kPath + 8], to[kLongPath];
             snprintf(rel, sizeof(rel), "game/%s", files.items[i] + root);
@@ -412,9 +538,12 @@ int export_android(const ExportOptions& o) {
         if (!e.ok) code = 1;
     }
     if (code == 0) {
-        printf("exported %s to %s (package %s, %u game files)\n", s->path, out, package, files.count);
+        printf("exported %s to %s (package %s, %u game files, %u build extensions)\n", s->path, out, package,
+               files.count, extensions.count);
         printf("build the APK: gradle -p %s assembleDebug   (python tools/android.py apk does every step)\n", out);
     }
+    free_extensions(&extensions);
+    delete[] e.java.items;
     delete[] e.assets.items;
     delete[] files.items;
     scene::free_scene(s);

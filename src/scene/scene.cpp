@@ -1,6 +1,7 @@
 #include "scene/scene.h"
 
 #include "core/path.h"
+#include "scene/build_extension.h"
 #include "scene/theme.h"
 
 #include <tomlc17.h>
@@ -458,9 +459,18 @@ void load_scene_header(const toml_datum_t& header, Scene* s, const char* path, D
         } else if (strcmp(key, "languages") == 0) {
             s->language_count = copy_string_array(v, s->languages[0], kLanguageCapacity, kMaxLanguages,
                                                   "scene languages", path, diags);
+        } else if (strcmp(key, "build_extensions") == 0) {
+            char rels[kMaxBuildExtensions][kPathCapacity];
+            s->build_extensions_line = v.lineno;
+            s->build_extension_count = copy_string_array(v, rels[0], kPathCapacity, kMaxBuildExtensions,
+                                                         "scene build_extensions", path, diags);
+            for (uint32_t k = 0; k < s->build_extension_count; ++k) {
+                path_join_relative(path, rels[k], s->build_extensions[k], kPathCapacity);
+            }
         } else {
             diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
-                     "unexpected key '%s' in [scene] (expected name, script, ui, screens, strings or languages)", key);
+                     "unexpected key '%s' in [scene] (expected name, script, ui, screens, strings, languages or "
+                     "build_extensions)", key);
         }
     }
     if (s->strings[0] && !s->language_count) {
@@ -644,6 +654,21 @@ Scene* load(const char* path, Want expect, DiagList* diags) {
     } else if (ents.type != TOML_UNKNOWN) {
         diag_add(diags, kErrSceneStructure, path, ents.lineno, ents.colno, "%s must be an array of tables ([[%s]])",
                  items_key, items_key);
+    }
+
+    // Build extensions are checked with the scene, so `zaro check` reports them (D-026).
+    for (uint32_t i = 0; i < s->build_extension_count; ++i) {
+        const uint32_t before = diags->count;
+        BuildExtension* x = load_build_extension(s->build_extensions[i], diags);
+        if (!x && diags->count == before + 1 && diags->items[before].line == 0 &&
+            strcmp(diags->items[before].file, s->build_extensions[i]) == 0 &&
+            strncmp(diags->items[before].message, "cannot open", 11) == 0) {
+            // A missing file is reported where the scene names it.
+            diags->count = before;
+            diag_add(diags, kErrSceneStructure, path, s->build_extensions_line, 1, "cannot open build extension '%s'",
+                     s->build_extensions[i]);
+        }
+        free_build_extension(x);
     }
 
     free_theme(theme);
