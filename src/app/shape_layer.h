@@ -28,6 +28,9 @@ void destroy_shape_layer(ShapeLayer* layer);
 // trails at the tick's positions (the player's for following shapes).
 void step_shapes(ShapeLayer* layer, uint64_t tick, float player_x, float player_z);
 
+// A hit on the player: raises the flash of every Shape that follows the player to at least `amount`.
+void flash_player_shapes(ShapeLayer* layer, float amount);
+
 // The crowd renderer's look: whether the enemies are shapes (render::CrowdLook::shapes).
 bool crowd_has_shapes(const ShapeLayer* layer);
 // Fills the frame's crowd fields from the components as they are now: enemy shapes, arena colours,

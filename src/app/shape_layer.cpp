@@ -188,6 +188,14 @@ void step_shapes(ShapeLayer* l, uint64_t, float player_x, float player_z) {
     }
 }
 
+void flash_player_shapes(ShapeLayer* l, float amount) {
+    if (!l) return;
+    for (uint32_t i = 0; i < l->count; ++i) {
+        sim::Shape& s = *l->records[i].shape;
+        if (s.follow == sim::kShapeFollowPlayer && s.flash < amount) s.flash = amount > 1.0f ? 1.0f : amount;
+    }
+}
+
 bool crowd_has_shapes(const ShapeLayer* l) { return l && l->crowd; }
 
 void shape_crowd_scene(ShapeLayer* l, render::CrowdScene* scene) {

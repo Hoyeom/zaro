@@ -1,0 +1,23 @@
+# Effect values on the tick clock, without a GPU (zaro-fx): shake and flash fall by their decay,
+# a burst goes back to 0 once emitted, and each hit of the crowd adds CrowdFx.shake (here nothing
+# else lowers it: shake_decay is 0 on the second scene, hits.toml).
+[scene]
+name = "decay"
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 10
+
+[[entity]]
+name = "screen"
+[entity.ScreenFx]
+shake = 1.0
+shake_decay = 1.0
+flash = 1.0
+flash_decay = 2.0
+
+[[entity]]
+name = "blast"
+[entity.ParticleEmitter]
+burst = 300
