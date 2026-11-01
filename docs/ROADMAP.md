@@ -26,6 +26,8 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
   builds locally and in CI; the on-device check below is pending. Release bundles (D-025) build,
   validate and sign with a game's upload key locally and in CI (with a throwaway key). Plugins
   add Gradle dependencies, manifest entries and sources through build extensions (D-026).
+  `zaro build` (D-027) runs the validate and pre stages from a game build file; the Android
+  export and bundle move onto its native, export, post, package and sign stages next.
   Installing a bundle on a device is pending.
 - **Scope**:
   - Android build of the engine and the `zaro` runtime: SDL3 Android backend, wgpu on Vulkan, the

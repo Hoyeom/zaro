@@ -633,6 +633,57 @@ Status of all entries below: **accepted, 2026-11-01**.
   manifest merger instead. Only Android has a section today; iOS adds its own table when P1
   reaches it.
 
+## D-027 Build pipeline: one staged `zaro build` for every target, declared in text
+
+- **Decision**: Games are built by one pipeline, `zaro build <build.toml>`, whatever the target.
+  - **Stages**, always in this order: validate, pre, native, export, post, package, sign. Validate
+    and pre run for every build. Native, export, post, package and sign belong to a target:
+    Android first, with iOS and PC reusing the same stages.
+  - **The game build file** (format at the top of `src/scene/build_spec.h`) has three parts.
+    `[game]` gives the name, the start scene, the version and the version code.
+    `[environment.<name>]` tables give each environment's `release` flag, `debug_tools` and a
+    `config` table, and `zaro build --env` picks one. `[[step]]` tables add steps.
+  - **Steps** belong to the pre or post stage, and both the game and its plugins declare them; a
+    plugin uses `[[step]]` in its build extension (D-026). In each stage the plugins' steps run
+    first, in scene order, then the game's. A step either runs a program (`run`) or uses a step
+    built into zaro (`uses`, with `with` arguments). The built-ins are `check`, `test` and
+    `design-check`. Asset cooking from P3 joins them as one more entry in `kBuiltinSteps`
+    (`src/app/pipeline.cpp`), and generated code from P4a is a `run` step of the backend plugin.
+  - **No hidden scripts**: a `run` step starts its program directly, without a shell, in the
+    directory of the file that declares it. A shell, or an interpreter given inline code (`-c`,
+    `-e`), is refused, so what runs is what the file says. `zaro` as the program means the running
+    binary. Arguments may name `{out}`, `{env}`, `{version}` and `{version_code}`.
+  - **Stamping and configuration**: before the pre steps, the pipeline writes
+    `<out>/build_info.toml`. It holds the game, the version, the version code (the file's value or
+    `--version-code`), the commit (`git rev-parse` of the game's checkout), the environment,
+    `release`, `debug_tools` and the environment's config. Targets pack it with the game.
+  - **Release cannot debug**: an environment with `release = true` cannot set `debug_tools` or any
+    config key starting with `debug` (ZE1002, at that line). Release signing (D-025) will require
+    a release environment.
+  - **Errors**: every problem is a diagnostic with file and line. ZE1000 covers the build file, a
+    step and an unknown built-in; ZE1001 a failed step, with its exit code; ZE1002 the release rule.
+    `zaro build --plan` validates everything and prints the stages and steps without running them.
+- **Why**:
+  - The owner's games need work both before the native build (cooked assets, generated clients,
+    stamped versions, per-environment endpoints, gates) and after the export (plugin
+    dependencies and sources, symbols, size reports). One ordered pipeline holds both, so no
+    target grows its own scripts.
+  - Text declarations keep every step reviewable and checkable like scenes, and an agent adds a
+    step the same way it edits a scene.
+  - Built-in steps run in-process, so gates such as scene tests fail with the same diagnostics as
+    the commands they come from.
+- **Rejected**:
+  - Shell hooks (`pre.sh`, `post.sh`): hidden logic, different on every OS, and nothing checks
+    them before they run.
+  - Driving everything from Gradle or a Python script: the target's own tool would decide the
+    order, and iOS and PC would need another one.
+  - Per-step input and output tracking (a make-like graph): more than games need now. Steps are
+    few and fast, and the native build and Gradle keep their own incremental builds.
+- **Consequences**: every step that is not built in is a program the game or plugin repository
+  ships, so those repositories carry their generators as code. Next, the Android export and
+  `tools/android.py aab` move onto the native, export, post, package and sign stages. Today they
+  still run on their own (D-022, D-025).
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:

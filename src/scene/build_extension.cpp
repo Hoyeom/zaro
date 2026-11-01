@@ -2,6 +2,7 @@
 
 #include "core/path.h"
 #include "core/reflect.h"
+#include "scene/build_steps.h"
 
 #include <tomlc17.h>
 
@@ -136,11 +137,12 @@ void read_android(const toml_datum_t& t, BuildExtension* x, const char* path, Di
 
 BuildExtension* load_build_extension(const char* path, DiagList* d) {
     BuildExtension* x = (BuildExtension*)calloc(1, sizeof(BuildExtension));
+    x->steps = (BuildStep*)calloc(kMaxBuildSteps, sizeof(BuildStep));
     snprintf(x->path, sizeof(x->path), "%s", path);
     FILE* f = fopen(path, "rb");
     if (!f) {
         diag_add(d, kErrSceneSyntax, path, 0, 0, "cannot open build extension file");
-        free(x);
+        free_build_extension(x);
         return nullptr;
     }
     fseek(f, 0, SEEK_END);
@@ -171,9 +173,11 @@ BuildExtension* load_build_extension(const char* path, DiagList* d) {
                 }
             } else if (strcmp(key, "android") == 0 && v.type == TOML_TABLE) {
                 read_android(v, x, path, d);
+            } else if (strcmp(key, "step") == 0) {
+                read_build_steps(v, path, x->steps, &x->step_count, d);
             } else {
                 diag_add(d, kErrSceneStructure, path, v.lineno, v.colno,
-                         "unexpected top-level key '%s' (expected [build_extension] or [android])", key);
+                         "unexpected top-level key '%s' (expected [build_extension], [android] or [[step]])", key);
             }
         }
         if (!has_header) diag_add(d, kErrSceneStructure, path, 1, 1, "a build extension needs a [build_extension] table");
@@ -189,6 +193,7 @@ BuildExtension* load_build_extension(const char* path, DiagList* d) {
 
 void free_build_extension(BuildExtension* x) {
     if (!x) return;
+    free(x->steps);
     free(x->manifest_xml);
     free(x->application_xml);
     free(x);

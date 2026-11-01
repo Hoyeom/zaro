@@ -1,0 +1,8 @@
+[scene]
+name = "pipeline"
+build_extensions = ["../plugin/build_extension.toml"]
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 32

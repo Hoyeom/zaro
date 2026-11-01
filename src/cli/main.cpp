@@ -1,5 +1,6 @@
 // zaro command line entry point. The editor and every agent workflow sit on top of this.
 #include "app/crowd_app.h"
+#include "app/pipeline.h"
 #include "app/tools.h"
 #include "core/log.h"
 #include "zaro/zaro.h"
@@ -26,6 +27,8 @@ void print_usage() {
          "             [--out DIR (default build/android-project)] [--runtime DIR] [--package ID]\n"
          "             [--version-code N (default 1)] [--version-name S (default 1.0)] [--portrait]\n"
          "             (runtime: python tools/build.py android; APK or AAB: tools/android.py apk|aab)\n"
+         "  build      run a game's build pipeline (validate, pre, native, export, post, package, sign):\n"
+         "             zaro build <build.toml> [--env NAME] [--version-code N] [--out DIR] [--plan]\n"
          "  import-design  turn a Claude Design kit into a UI theme and prefab stubs:\n"
          "             zaro import-design <kit dir> <out dir> [--check]\n"
          "  help       print this message\n"
@@ -219,6 +222,33 @@ int cmd_export(int argc, char** argv) {
     return zaro::app::export_android(o);
 }
 
+int cmd_build(int argc, char** argv) {
+    zaro::app::BuildOptions o;
+    for (int i = 2; i < argc; ++i) {
+        const char* a = argv[i];
+        const char* next = i + 1 < argc ? argv[i + 1] : nullptr;
+        const char** value = nullptr;
+        if (strcmp(a, "--env") == 0) value = &o.environment;
+        else if (strcmp(a, "--version-code") == 0) value = &o.version_code;
+        else if (strcmp(a, "--out") == 0) value = &o.out_dir;
+        if (value) {
+            if (!next) return usage_error("missing value for", a);
+            *value = next;
+            ++i;
+        } else if (strcmp(a, "--plan") == 0) {
+            o.plan = true;
+        } else if (a[0] == '-') {
+            return usage_error("unknown option", a);
+        } else if (!o.build_file) {
+            o.build_file = a;
+        } else {
+            return usage_error("unexpected argument", a);
+        }
+    }
+    if (!o.build_file) return usage_error("build needs a build file, got", "");
+    return zaro::app::build_game(o);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -260,6 +290,7 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "screenshot") == 0) return cmd_screenshot(argc, argv);
     if (strcmp(argv[1], "export") == 0) return cmd_export(argc, argv);
+    if (strcmp(argv[1], "build") == 0) return cmd_build(argc, argv);
     if (strcmp(argv[1], "import-design") == 0) {
         const char* dirs[2] = {nullptr, nullptr};
         bool check = false;

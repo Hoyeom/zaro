@@ -416,4 +416,32 @@ bool create_directories(const char* path) { return SDL_CreateDirectory(path); }
 
 bool copy_file(const char* from, const char* to) { return SDL_CopyFile(from, to); }
 
+int run_process(const char* const* argv, const char* cwd, char* output, uint32_t output_size) {
+    const SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void*)argv);
+    if (cwd) SDL_SetStringProperty(props, SDL_PROP_PROCESS_CREATE_WORKING_DIRECTORY_STRING, cwd);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER,
+                          output ? SDL_PROCESS_STDIO_APP : SDL_PROCESS_STDIO_INHERITED);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_INHERITED);
+    SDL_Process* process = SDL_CreateProcessWithProperties(props);
+    SDL_DestroyProperties(props);
+    if (!process) return -1;
+    int exit_code = -1;
+    if (output) {
+        size_t size = 0;
+        char* data = (char*)SDL_ReadProcess(process, &size, &exit_code);
+        const size_t n = data ? (size < output_size ? size : output_size - 1) : 0;
+        if (output_size) {
+            if (n) memcpy(output, data, n);
+            output[n] = 0;
+        }
+        SDL_free(data);
+    } else {
+        SDL_WaitProcess(process, true, &exit_code);
+    }
+    SDL_DestroyProcess(process);
+    return exit_code;
+}
+
 }  // namespace zaro::platform

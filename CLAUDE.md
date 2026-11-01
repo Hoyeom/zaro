@@ -37,6 +37,7 @@ phases sessions pick work from are in [docs/ROADMAP.md](docs/ROADMAP.md).
 | APK in one step (native build, export, Gradle) | `python tools/android.py apk examples/crowd/scene.toml` |
 | Install and start on a device / benchmark it | `python tools/android.py run`, `python tools/android.py perf [--enemies N]` |
 | Google Play App Bundle (upload key from the environment) | `python tools/android.py aab <scene> --release --version-code N` |
+| Run a game's build pipeline / only validate and show it | `build/debug/zaro build examples/crowd/build.toml [--env NAME]`, `... --plan` |
 | Enable the git hooks (once per clone) | `git config core.hooksPath tools/githooks` |
 
 `tools/build.py` wraps the presets in `CMakePresets.json` (`debug`, `release`, `profile`).
@@ -91,6 +92,8 @@ Load a skill before working in the situation it names; it holds what would other
   headless runs and perf.json.
 - **`zaro-ui`**: text and the glyph atlas, screen files, widgets, string tables, and how a frame's
   UI is built and drawn.
+- **`zaro-build`**: the build pipeline (`zaro build`): stages, game build files, environments,
+  pre and post steps from games and plugins, built-in steps, and the release rule.
 - **`zaro-android`**: the Android toolchain, the `android` preset, APK export, running on a
   device, and Google Play release bundles with their signing boundary.
 - **`zaro-docs`**: how documentation is written in this public repository and where each fact goes.

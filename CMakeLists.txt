@@ -49,7 +49,8 @@ target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
 add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
-  src/scene/theme.cpp src/scene/sprite_sheet.cpp src/scene/build_extension.cpp)
+  src/scene/theme.cpp src/scene/sprite_sheet.cpp src/scene/build_extension.cpp
+  src/scene/build_spec.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
@@ -70,7 +71,7 @@ set_source_files_properties(src/ui/font.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSIO
 zaro_target_defaults(zaro_ui)
 
 add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp src/app/ui_layer.cpp
-  src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp)
+  src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp src/app/pipeline.cpp)
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform
   PRIVATE zaro_cjson)
 zaro_target_defaults(zaro_app)
@@ -254,6 +255,10 @@ if(ZARO_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)
     add_test(NAME lint COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint.py)
+    # zaro build without a target: stages, step order, stamping, file:line errors (D-027).
+    add_test(NAME build_pipeline
+             COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_build_pipeline.py $<TARGET_FILE:zaro>
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     # The Android export (version, build extensions, their errors) without an Android build.
     add_test(NAME android_export
              COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_android_export.py $<TARGET_FILE:zaro>

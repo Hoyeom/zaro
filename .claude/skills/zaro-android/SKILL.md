@@ -64,5 +64,6 @@ Commands are in the CLAUDE.md "Commands" table (`tools/android.py setup|doctor|a
   A source that would replace a runtime or another extension's file is ZE0800 at the extension's
   `sources` line.
 - Never edit the template for one game or plugin; add a build extension instead.
+- A build extension may also declare `[[step]]`s for `zaro build` (D-027, zaro-build).
 - `tests/test_android_export.py` (ctest `android_export`) exports `tests/data/build_extensions/`
   against a stand-in runtime, so the export is tested without an Android build.
