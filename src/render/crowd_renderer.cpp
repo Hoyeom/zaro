@@ -10,7 +10,7 @@ namespace zaro::render {
 
 namespace {
 
-// Mirrors `struct Frame` in shaders/frame.slang (208 bytes, std140).
+// Mirrors `struct Frame` in shaders/frame.slang (240 bytes, std140).
 struct FrameConstants {
     float view_proj[16];
     float planes[6][4];
@@ -19,10 +19,13 @@ struct FrameConstants {
     uint32_t enemy_count;
     uint32_t obstacle_count;
     uint32_t pad[2];
+    float sprite[4];  // metres per pixel, fps, frame count, cull radius; zero for cubes
+    float right[4];
 };
-static_assert(sizeof(FrameConstants) == 208, "must match shaders/frame.slang");
+static_assert(sizeof(FrameConstants) == 240, "must match shaders/frame.slang");
 
 constexpr uint32_t kCubeVertices = 36;
+constexpr uint32_t kQuadVertices = 6;
 
 }  // namespace
 
@@ -37,6 +40,14 @@ struct CrowdRenderer {
     rhi::Buffer* visible = nullptr;
     rhi::Buffer* args = nullptr;
     rhi::Buffer* obstacles = nullptr;
+
+    // Enemy sprites (CrowdSprites); a 1x1 texture and one frame when the enemies are cubes, so the
+    // draw bind group has the same layout either way.
+    bool sprites = false;
+    float sprite[4] = {};
+    rhi::Texture* sprite_atlas = nullptr;
+    rhi::Sampler* sprite_sampler = nullptr;
+    rhi::Buffer* sprite_frames = nullptr;
 
     rhi::BindLayout* cull_layout = nullptr;
     rhi::BindLayout* draw_layout = nullptr;
@@ -81,7 +92,12 @@ bool reload_shaders(CrowdRenderer* r) {
     r->ground = rhi::create_render_pipeline(r->device, d);
     d = {"obstacles", draw, "vs_obstacle", "fs_lit", r->draw_layout};
     r->obstacle = rhi::create_render_pipeline(r->device, d);
-    d = {"enemies", draw, "vs_enemy", "fs_lit", r->draw_layout};
+    if (r->sprites) {
+        d = {"enemy sprites", draw, "vs_enemy_sprite", "fs_enemy_sprite", r->draw_layout};
+        d.cull_back = false;
+    } else {
+        d = {"enemies", draw, "vs_enemy", "fs_lit", r->draw_layout};
+    }
     r->enemy = rhi::create_render_pipeline(r->device, d);
     d = {"player", draw, "vs_player", "fs_lit", r->draw_layout};
     r->player = rhi::create_render_pipeline(r->device, d);
@@ -91,7 +107,8 @@ bool reload_shaders(CrowdRenderer* r) {
 }
 
 CrowdRenderer* create_crowd_renderer(rhi::Device* device, const char* shader_dir, uint32_t max_enemies,
-                                     const uint32_t* obstacle_cells_xz, uint32_t obstacle_count) {
+                                     const uint32_t* obstacle_cells_xz, uint32_t obstacle_count,
+                                     const CrowdSprites* sprites) {
     CrowdRenderer* r = new CrowdRenderer();
     r->device = device;
     snprintf(r->shader_dir, sizeof(r->shader_dir), "%s", shader_dir);
@@ -107,6 +124,36 @@ CrowdRenderer* create_crowd_renderer(rhi::Device* device, const char* shader_dir
                                       "obstacle cells");
     if (obstacle_count) rhi::write_buffer(device, r->obstacles, 0, obstacle_cells_xz, obstacle_count * 8ull);
 
+    r->sprites = sprites && sprites->rgba && sprites->frame_count;
+    r->sprite_sampler = rhi::create_sampler(device, true);
+    if (r->sprites) {
+        r->sprite_atlas = rhi::create_texture(device, sprites->width, sprites->height, rhi::TextureFormat::kRGBA8Srgb,
+                                              "enemy sprite atlas");
+        rhi::write_texture(device, r->sprite_atlas, 0, 0, sprites->width, sprites->height, sprites->rgba,
+                           sprites->width * 4);
+        const uint64_t bytes = (uint64_t)sprites->frame_count * sizeof(SpriteFrameInfo);
+        r->sprite_frames = rhi::create_buffer(device, bytes, rhi::kBufStorage, "enemy sprite frames");
+        rhi::write_buffer(device, r->sprite_frames, 0, sprites->frames, bytes);
+        // The cull sphere covers the largest frame from its pivot.
+        float reach = 0.0f;
+        for (uint32_t i = 0; i < sprites->frame_count; ++i) {
+            const SpriteFrameInfo& f = sprites->frames[i];
+            const float w = f.size[0] > f.size[1] ? f.size[0] : f.size[1];
+            if (w > reach) reach = w;
+        }
+        r->sprite[0] = sprites->metres_per_pixel;
+        r->sprite[1] = sprites->fps;
+        r->sprite[2] = (float)sprites->frame_count;
+        r->sprite[3] = reach * sprites->metres_per_pixel;
+    } else {
+        const uint8_t white[4] = {255, 255, 255, 255};
+        r->sprite_atlas = rhi::create_texture(device, 1, 1, rhi::TextureFormat::kRGBA8Srgb, "no enemy sprites");
+        rhi::write_texture(device, r->sprite_atlas, 0, 0, 1, 1, white, 4);
+        const SpriteFrameInfo none = {};
+        r->sprite_frames = rhi::create_buffer(device, sizeof(none), rhi::kBufStorage, "no enemy sprite frames");
+        rhi::write_buffer(device, r->sprite_frames, 0, &none, sizeof(none));
+    }
+
     using rhi::BindingType;
     const rhi::BindingDesc cull_bindings[] = {
         {0, BindingType::kUniform, rhi::kStageCompute},
@@ -119,13 +166,19 @@ CrowdRenderer* create_crowd_renderer(rhi::Device* device, const char* shader_dir
         {1, BindingType::kStorageRead, rhi::kStageVertex},
         {2, BindingType::kStorageRead, rhi::kStageVertex},
         {3, BindingType::kStorageRead, rhi::kStageVertex},
+        {4, BindingType::kTexture, rhi::kStageFragment},
+        {5, BindingType::kSampler, rhi::kStageFragment},
+        {6, BindingType::kStorageRead, rhi::kStageVertex},
     };
     r->cull_layout = rhi::create_bind_layout(device, cull_bindings, 4);
-    r->draw_layout = rhi::create_bind_layout(device, draw_bindings, 4);
+    r->draw_layout = rhi::create_bind_layout(device, draw_bindings, 7);
     const rhi::BindEntry cull_entries[] = {{0, r->frame}, {1, r->instances}, {2, r->visible}, {3, r->args}};
-    const rhi::BindEntry draw_entries[] = {{0, r->frame}, {1, r->instances}, {2, r->visible}, {3, r->obstacles}};
+    rhi::BindEntry draw_entries[] = {{0, r->frame}, {1, r->instances}, {2, r->visible}, {3, r->obstacles},
+                                     {4, nullptr}, {5, nullptr}, {6, r->sprite_frames}};
+    draw_entries[4].texture = r->sprite_atlas;
+    draw_entries[5].sampler = r->sprite_sampler;
     r->cull_group = rhi::create_bind_group(device, r->cull_layout, cull_entries, 4);
-    r->draw_group = rhi::create_bind_group(device, r->draw_layout, draw_entries, 4);
+    r->draw_group = rhi::create_bind_group(device, r->draw_layout, draw_entries, 7);
 
     if (!reload_shaders(r)) {
         destroy_crowd_renderer(r);
@@ -146,6 +199,9 @@ void destroy_crowd_renderer(CrowdRenderer* r) {
     rhi::destroy_buffer(r->visible);
     rhi::destroy_buffer(r->args);
     rhi::destroy_buffer(r->obstacles);
+    rhi::destroy_buffer(r->sprite_frames);
+    rhi::destroy_texture(r->sprite_atlas);
+    rhi::destroy_sampler(r->sprite_sampler);
     delete r;
 }
 
@@ -161,13 +217,17 @@ Mat4 camera_view_proj(const CrowdScene& scene, uint32_t width, uint32_t height) 
     return mul(perspective(0.87f, aspect, 0.5f, 600.0f), look_at(camera_eye(scene), target, Vec3{0, 1, 0}));
 }
 
+Vec3 camera_right(const CrowdScene& scene) {
+    const Vec3 target{scene.player_x, 0.0f, scene.player_z};
+    return normalize(cross(target - camera_eye(scene), Vec3{0, 1, 0}));
+}
+
 }  // namespace
 
 void crowd_camera(const CrowdScene& scene, uint32_t width, uint32_t height, float view_proj[16], float right[3]) {
     const Mat4 vp = camera_view_proj(scene, width, height);
     memcpy(view_proj, vp.m, sizeof(vp.m));
-    const Vec3 target{scene.player_x, 0.0f, scene.player_z};
-    const Vec3 r = normalize(cross(target - camera_eye(scene), Vec3{0, 1, 0}));
+    const Vec3 r = camera_right(scene);
     right[0] = r.x;
     right[1] = r.y;
     right[2] = r.z;
@@ -196,7 +256,13 @@ void render_crowd(CrowdRenderer* r, const CrowdScene& scene) {
     fc.enemy_count = count;
     fc.obstacle_count = r->obstacle_count;
     fc.pad[0] = fc.pad[1] = 0;
-    const uint32_t args[4] = {kCubeVertices, 0, 0, 0};
+    memcpy(fc.sprite, r->sprite, sizeof(fc.sprite));
+    const Vec3 right = camera_right(scene);
+    fc.right[0] = right.x;
+    fc.right[1] = right.y;
+    fc.right[2] = right.z;
+    fc.right[3] = 0.0f;
+    const uint32_t args[4] = {r->sprites ? kQuadVertices : kCubeVertices, 0, 0, 0};
 
     rhi::write_buffer(r->device, r->frame, 0, &fc, sizeof(fc));
     rhi::write_buffer(r->device, r->args, 0, args, sizeof(args));

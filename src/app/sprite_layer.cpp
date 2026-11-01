@@ -25,9 +25,11 @@ constexpr uint32_t kMaxSheets = 64;
 constexpr uint32_t kSheetField = 0;      // index of Sprite::sheet in its FieldDesc array
 constexpr uint32_t kAnimationField = 1;  // Sprite::animation
 constexpr uint32_t kFrameField = 9;      // Sprite::frame
+constexpr uint32_t kCrowdSheetField = 0;      // CrowdSprite::sheet
+constexpr uint32_t kCrowdAnimationField = 1;  // CrowdSprite::animation
 
-int field_line(const scene::Entity* e, uint32_t field) {
-    const scene::ComponentData* c = scene::find_component_data(e, &sim::kSpriteDesc);
+int field_line(const scene::Entity* e, uint32_t field, const reflect::ComponentDesc* desc = &sim::kSpriteDesc) {
+    const scene::ComponentData* c = scene::find_component_data(e, desc);
     return c && c->field_lines && c->field_lines[field] ? c->field_lines[field] : e->line;
 }
 
@@ -50,6 +52,10 @@ struct SpriteLayer {
     SpriteRecord* records = nullptr;
     uint32_t record_count = 0;
     uint64_t tick = 0;
+    // The crowd's CrowdSprite: its sheet, animation (-1: every frame in order) and scale.
+    int crowd_sheet = -1;
+    int crowd_animation = -1;
+    float crowd_scale = 1.0f;
 
     rhi::Device* device = nullptr;
     render::SpriteRenderer* renderer = nullptr;
@@ -110,12 +116,38 @@ void set_frame(SpriteLayer* l, SpriteRecord& r) {
 SpriteLayer* create_sprite_layer(scene::Scene* s, DiagList* diags, bool* failed) {
     *failed = false;
     uint32_t count = 0;
+    const scene::Entity* crowd = nullptr;
+    const auto* look = (const sim::CrowdSprite*)scene::first_component(s, &sim::kCrowdSpriteDesc, &crowd);
     for (uint32_t i = 0; i < s->entity_count; ++i) count += scene::get_component(&s->entities[i], &sim::kSpriteDesc) ? 1 : 0;
-    if (!count) return nullptr;
+    if (!count && !look) return nullptr;
     SpriteLayer* l = new SpriteLayer();
     l->scene = s;
-    l->records = (SpriteRecord*)calloc(count, sizeof(SpriteRecord));
+    l->records = (SpriteRecord*)calloc(count ? count : 1, sizeof(SpriteRecord));
     const uint32_t before = diags->count;
+    if (look) {
+        char path[260];
+        path_join_relative(s->path, look->sheet, path, sizeof(path));
+        const int sheet = look->sheet[0] ? sheet_index(l, path, diags, s->path, field_line(crowd, kCrowdSheetField,
+                                                                                         &sim::kCrowdSpriteDesc))
+                                         : -1;
+        if (!look->sheet[0]) {
+            diag_add(diags, kErrSpriteSheet, s->path, crowd->line, 1, "entity '%s': CrowdSprite needs a sheet",
+                     crowd->name);
+        } else if (sheet >= 0) {
+            l->crowd_sheet = sheet;
+            l->crowd_scale = look->scale;
+            const scene::SpriteSheet* sh = l->sheets[sheet];
+            if (look->animation[0]) {
+                l->crowd_animation = scene::find_animation(sh, look->animation);
+                if (l->crowd_animation < 0) {
+                    const char* hint = scene::suggest_animation(sh, look->animation);
+                    diag_add(diags, kErrSpriteRef, s->path, field_line(crowd, kCrowdAnimationField, &sim::kCrowdSpriteDesc),
+                             1, "entity '%s': sheet '%s' has no animation '%s'%s%s%s", crowd->name, sh->path,
+                             look->animation, hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+                }
+            }
+        }
+    }
     for (uint32_t i = 0; i < s->entity_count; ++i) {
         const scene::Entity* e = &s->entities[i];
         const scene::ComponentData* c = scene::find_component_data(e, &sim::kSpriteDesc);
@@ -245,6 +277,7 @@ bool check_sprite_art(const SpriteLayer* l, DiagList* diags) {
 
 bool attach_sprite_gpu(SpriteLayer* l, rhi::Device* device, const char* shader_dir) {
     l->device = device;
+    if (!l->record_count) return true;  // only the crowd's look, which the crowd renderer draws
     l->renderer = render::create_sprite_renderer(device, shader_dir);
     if (!l->renderer) return false;
     for (uint32_t i = 0; i < l->sheet_count; ++i) {
@@ -278,7 +311,43 @@ bool attach_sprite_gpu(SpriteLayer* l, rhi::Device* device, const char* shader_d
     return true;
 }
 
-bool reload_sprite_layer_shaders(SpriteLayer* l) { return l && l->renderer && render::reload_sprite_shaders(l->renderer); }
+bool load_crowd_sprites(const SpriteLayer* l, render::CrowdSprites* out) {
+    *out = render::CrowdSprites{};
+    if (!l || l->crowd_sheet < 0) return true;
+    const scene::SpriteSheet* sheet = l->sheets[l->crowd_sheet];
+    uint8_t* rgba = nullptr;
+    uint32_t w = 0, h = 0;
+    if (!read_png_rgba8(sheet->image, &rgba, &w, &h)) {
+        log_error(kErrSpriteImage, "%s: cannot read image '%s'", sheet->path, sheet->image);
+        return false;
+    }
+    const scene::SheetAnimation* a = l->crowd_animation >= 0 ? &sheet->animations[l->crowd_animation] : nullptr;
+    const uint32_t n = a ? a->frame_count : sheet->frame_count;
+    auto* frames = (render::SpriteFrameInfo*)malloc(sizeof(render::SpriteFrameInfo) * n);
+    for (uint32_t i = 0; i < n; ++i) {
+        const scene::SheetFrame& sf = sheet->frames[a ? a->frames[i] : i];
+        frames[i] = {{(float)sf.x / (float)w, (float)sf.y / (float)h, (float)(sf.x + sf.w) / (float)w,
+                      (float)(sf.y + sf.h) / (float)h},
+                     {(float)sf.w, (float)sf.h},
+                     {sf.pivot[0], sf.pivot[1]}};
+    }
+    out->rgba = rgba;
+    out->width = w;
+    out->height = h;
+    out->frames = frames;
+    out->frame_count = n;
+    out->fps = a ? a->fps : 10.0f;
+    out->metres_per_pixel = l->crowd_scale / sheet->pixels_per_unit;
+    return true;
+}
+
+void free_crowd_sprites(render::CrowdSprites* c) {
+    if (c->rgba) free_png((uint8_t*)c->rgba);
+    free((void*)c->frames);
+    *c = render::CrowdSprites{};
+}
+
+bool reload_sprite_layer_shaders(SpriteLayer* l) { return !l || !l->renderer || render::reload_sprite_shaders(l->renderer); }
 
 bool has_world_sprites(const SpriteLayer* l) {
     for (uint32_t i = 0; l && i < l->record_count; ++i) {

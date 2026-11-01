@@ -20,12 +20,20 @@ const reflect::FieldDesc kSpriteFields[] = {
     ZARO_FIELD_RANGE(Sprite, frame, kU32, "Sheet frame shown; set every tick while an animation plays", 0, 1023),
 };
 
+const reflect::FieldDesc kCrowdSpriteFields[] = {
+    ZARO_FIELD(CrowdSprite, sheet, kString, "Sprite sheet file (.toml), relative to the scene"),
+    ZARO_FIELD(CrowdSprite, animation, kString, "Animation every enemy plays, each from its own phase"),
+    ZARO_FIELD_RANGE(CrowdSprite, scale, kF32, "Size multiplier on the frame's size", 0.01, 100.0),
+};
+
 }  // namespace
 
 ZARO_COMPONENT(Sprite, "A sprite from a sheet, in the 3D view or on the screen, optionally animated", kSpriteFields);
+ZARO_COMPONENT(CrowdSprite, "Draws the crowd's enemies as animated sprites instead of cubes", kCrowdSpriteFields);
 
 void register_sprite_components() {
     reflect::register_component(&kSpriteDesc);
+    reflect::register_component(&kCrowdSpriteDesc);
 }
 
 }  // namespace zaro::sim

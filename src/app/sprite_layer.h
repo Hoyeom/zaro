@@ -1,9 +1,10 @@
-// The scene's sprites: the sheets its Sprite components name, the animation of
+// The scene's sprites: the sheets its Sprite and CrowdSprite components name, the animation of
 // every Sprite (advanced on the tick clock), and their drawing in the 3D view and on the screen.
 // Wires the Sprite components (model) to render::SpriteRenderer (view) like the crowd and the UI.
 #pragma once
 
 #include "core/diag.h"
+#include "render/crowd_renderer.h"
 #include "rhi/rhi.h"
 
 #include <stdint.h>
@@ -41,6 +42,13 @@ bool check_sprite_art(const SpriteLayer* layer, DiagList* diags);
 // The sheets the layer loaded.
 uint32_t sprite_sheet_count(const SpriteLayer* layer);
 const scene::SpriteSheet* sprite_sheet_at(const SpriteLayer* layer, uint32_t index);
+
+// The crowd's look when the scene has a CrowdSprite: its sheet's atlas (decoded) and its
+// animation's frames in play order, for render::create_crowd_renderer. Call after
+// prepare_sprite_art. Without one, *out stays empty (frame_count 0). False if the image cannot be
+// read (logged as ZE0901). Release the result with free_crowd_sprites.
+bool load_crowd_sprites(const SpriteLayer* layer, render::CrowdSprites* out);
+void free_crowd_sprites(render::CrowdSprites* sprites);
 
 // Creates the GPU side: decodes each sheet's image and uploads it. False if a shader or an image
 // is missing.

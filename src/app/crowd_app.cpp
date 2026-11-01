@@ -209,6 +209,28 @@ void render_frame(Game& g, rhi::Device* device, render::CrowdRenderer* renderer,
     if (g.ui) render_ui_layer(g.ui);
 }
 
+// The GPU side of a run: the crowd renderer (with the crowd's sprites, their SVG art cooked first
+// when it changed), then the UI and the scene's sprites. nullptr after printing what failed.
+render::CrowdRenderer* attach_renderers(Game& g, rhi::Device* device, const char* dir) {
+    render::CrowdSprites look;
+    if (g.sprites && (!prepare_sprite_art(g.sprites, g.diags) || !load_crowd_sprites(g.sprites, &look))) {
+        print_diags(g);
+        return nullptr;
+    }
+    const uint32_t* cells = nullptr;
+    const uint32_t ncells = sim::obstacle_cells(g.crowd, &cells);
+    render::CrowdRenderer* renderer = render::create_crowd_renderer(device, dir, sim::enemy_count(g.crowd), cells,
+                                                                    ncells, look.frame_count ? &look : nullptr);
+    free_crowd_sprites(&look);
+    if (!renderer || (g.ui && !attach_gpu(g.ui, device, dir)) ||
+        (g.sprites && !attach_sprite_gpu(g.sprites, device, dir))) {
+        print_diags(g);
+        render::destroy_crowd_renderer(renderer);
+        return nullptr;
+    }
+    return renderer;
+}
+
 double ms_since(uint64_t start) { return platform::ticks_to_seconds(platform::now_ticks() - start) * 1000.0; }
 
 int run_headless(const RunOptions& o, Game& g, float* instances) {
@@ -222,15 +244,10 @@ int run_headless(const RunOptions& o, Game& g, float* instances) {
         dd.backend = o.backend;
         device = rhi::create_device(dd);
         if (!device) return 1;
-        const uint32_t* cells = nullptr;
-        const uint32_t ncells = sim::obstacle_cells(crowd, &cells);
         char dir[512];
         shader_dir(dir, sizeof(dir));
-        renderer = render::create_crowd_renderer(device, dir, sim::enemy_count(crowd), cells, ncells);
-        if (!renderer || (g.ui && !attach_gpu(g.ui, device, dir)) ||
-            (g.sprites && (!prepare_sprite_art(g.sprites, g.diags) || !attach_sprite_gpu(g.sprites, device, dir)))) {
-            print_diags(g);
-            render::destroy_crowd_renderer(renderer);
+        renderer = attach_renderers(g, device, dir);
+        if (!renderer) {
             rhi::destroy_device(device);
             return 1;
         }
@@ -326,15 +343,10 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
         platform::destroy_window(window);
         return 1;
     }
-    const uint32_t* cells = nullptr;
-    const uint32_t ncells = sim::obstacle_cells(crowd, &cells);
     char dir[512];
     shader_dir(dir, sizeof(dir));
-    render::CrowdRenderer* renderer = render::create_crowd_renderer(device, dir, sim::enemy_count(crowd), cells, ncells);
-    if (!renderer || (g.ui && !attach_gpu(g.ui, device, dir)) ||
-        (g.sprites && (!prepare_sprite_art(g.sprites, g.diags) || !attach_sprite_gpu(g.sprites, device, dir)))) {
-        print_diags(g);
-        render::destroy_crowd_renderer(renderer);
+    render::CrowdRenderer* renderer = attach_renderers(g, device, dir);
+    if (!renderer) {
         rhi::destroy_device(device);
         platform::destroy_window(window);
         return 1;

@@ -227,6 +227,8 @@ void add_document_files(PathList& files, const scene::Scene* doc, bool* ok) {
         }
         const auto* sprite = (const sim::Sprite*)scene::get_component(&en, &sim::kSpriteDesc);
         if (sprite && sprite->sheet[0]) add_sheet_files(files, doc->path, sprite->sheet, ok);
+        const auto* look = (const sim::CrowdSprite*)scene::get_component(&en, &sim::kCrowdSpriteDesc);
+        if (look && look->sheet[0]) add_sheet_files(files, doc->path, look->sheet, ok);
     }
 }
 

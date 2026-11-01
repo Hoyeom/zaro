@@ -1,0 +1,11 @@
+# The CrowdSprite names an animation its sheet does not have (ZE0902 at its line).
+[scene]
+name = "crowd_typo"
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 10
+[entity.CrowdSprite]
+sheet = "blob.toml"
+animation = "lnad"

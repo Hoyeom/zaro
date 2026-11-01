@@ -197,7 +197,8 @@ examples/cats/scene.toml: 1 sheet(s) cooked, 0 up to date
 
 Text and filters in SVG files are not drawn; `zaro check` reports them with their lines (ZE0903).
 The animation sets `Sprite.frame` on every tick, so a scene test can expect a frame without a
-GPU. `examples/cats` has a walking cat moved by its script, an idle one, and one on the screen.
+GPU. `examples/cats` has a walking cat moved by its script, an idle one, and one on the screen;
+`examples/crowd` puts the same cat on all 50,000 enemies with a `CrowdSprite`.
 
 ## 9. Put a UI on it
 
