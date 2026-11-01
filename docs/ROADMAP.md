@@ -194,6 +194,12 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
     events and run timers, not only read and write fields. Entity hierarchies (a parent moves its
     children). Tweens with easing curves for visual values (scale, colour, position offsets, UI),
     started from scripts and from scene files.
+    **Done** (D-031): spawning from `[scene] prefabs`, destroying and queries by id or name;
+    events and timers in the fixed tick; `Transform` with parents and deterministic world
+    transforms; tweens (25 eases) from `[[tween]]` tables, `zaro.tween` and `ui.tween`, on visual
+    components only; the crowd for scripts (`zaro.crowd_kill`, `crowd_hit` events). The scene-test
+    state hash covers every entity's gameplay fields. `examples/neon/neon.luau` is the arena's
+    gameplay, tested by `examples/neon/tests/waves.test.toml`.
   - **Audio and local save**: sound effects and music with volume groups and a settings hook; a
     local save that a game declares and that later moves to the backend's save authorities (P4c)
     without changing game code.

@@ -1,0 +1,43 @@
+# A blade that orbits the player (neon.luau spawns it on the rotor). It sweeps enemies away, and
+# its emitter (placed in the blade's space, like the shape) throws sparks where it does.
+[prefab]
+name = "blade"
+
+[Transform]
+position = [2.6, 0.0, 0.0]
+
+[Shape]
+kind = "rect"
+position = [0.0, 0.07, 0.0]
+size = [1.7, 0.2]
+color = "#7dfcff"
+intensity = 3.0
+glow = 0.4
+trail = 0.2
+trail_width = 0.18
+
+[ParticleEmitter]
+rate = 0.0
+color = "#7dfcff"
+intensity = 3.0
+speed = 6.0
+life = 0.35
+size = 0.08
+
+# It grows in when it appears, then pulses.
+[[tween]]
+component = "Shape"
+field = "size"
+from = [0.0, 0.2]
+to = [1.7, 0.2]
+time = 0.35
+ease = "out_back"
+
+[[tween]]
+component = "Shape"
+field = "intensity"
+from = 2.2
+to = 4.0
+time = 0.4
+ease = "in_out_sine"
+loop = "pingpong"

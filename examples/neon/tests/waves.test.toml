@@ -1,0 +1,21 @@
+# The neon gameplay (D-031) for 25 seconds: three waves made the horde faster (4.5 + 3 x 0.25 m/s)
+# and sent golden elites, which the blades on the turning rotor took down (each with a tweened
+# shockwave that a tween callback destroys), while crowd_hit events reset the combo. The golden
+# hash covers every spawned and destroyed entity.
+# Run with: zaro test examples/neon/tests   (refresh the golden hash with --update)
+[test]
+state_hash = "0a2e95445d130a5b"
+scene = "../scene.toml"
+ticks = 1500
+
+[[expect]]
+entity = "horde"
+component = "CrowdSpawner"
+field = "speed"
+equals = 5.25
+
+[[expect]]
+entity = "rotor"
+component = "Transform"
+field = "rotation"
+equals = 60.0
