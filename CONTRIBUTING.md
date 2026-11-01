@@ -1,7 +1,17 @@
 # Contributing to ZARO
 
-Thanks for helping. Read [CLAUDE.md](CLAUDE.md) first: it has the build commands and the
-rules the build and lint enforce. It applies to humans and AI agents alike.
+## Current status: issues welcome, code contributions not yet
+
+ZARO has a single maintainer and has not been announced. Until the launch (D-016), pull
+requests from outside the project are not accepted. Bug reports, questions and ideas in issues
+are welcome. Accepting no outside code for now keeps the licensing options open while the
+project's direction settles. Whether contributions will require a CLA is decided when they open.
+
+The rest of this file is the workflow that the maintainer and their agents follow. It will apply
+to everyone once contributions open.
+
+Read [CLAUDE.md](CLAUDE.md) first: it has the build commands and the rules the build and lint
+enforce. It applies to humans and AI agents alike.
 
 ## Developer Certificate of Origin (DCO)
 

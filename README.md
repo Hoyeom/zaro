@@ -14,9 +14,11 @@ ZARO is a small, royalty-free engine designed to be easy for AI agents (and peop
 - **Built for crowds**: GPU instancing, compute-shader particles, indirect draw, GPU culling, flow-field movement and spatial-hash collision for tens of thousands of entities.
 - **Fast iteration**: compile in seconds, hot-reload Luau scripts and Slang shaders.
 
-> Status: pre-alpha. M1 is done: a crowd demo where 50,000 enemies swarm the player runs at
-> several hundred fps, and a headless run writes `perf.json`. There is no scene format,
-> scripting or editor yet.
+> **Status: pre-alpha. Developed in the open, not announced yet.** Expect breaking changes on
+> any commit and no support. M1 is done: a crowd demo where 50,000 enemies swarm the player
+> runs at several hundred fps, and a headless run writes `perf.json`. There is no scene
+> format, scripting or editor yet. External code contributions are not accepted yet; issues
+> are welcome (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## Build
 
@@ -34,11 +36,13 @@ A GPU with compute shaders is required; `zaro run --sim-only` runs the simulatio
 ## Roadmap
 
 1. ~~**M1**: 50,000 enemies chase the player at 60 fps; a headless run writes `perf.json` (fps, draw calls, entity count, GPU time).~~ Done, see [docs/DECISIONS.md](docs/DECISIONS.md#m1-result-2026-11-01).
-2. **CI**: GitHub Actions builds on Windows, Linux and macOS, plus performance-regression benchmarks.
-3. **Agent workflow**: TOML scenes and prefabs, Luau game scripts, `zaro screenshot` and `zaro test`, component schema export.
-4. **Plugins**: the C ABI plugin interface, `zaro plugin add <name>`, validated first with Steamworks (`zaro-steam`).
-5. **Web**: a WebGPU build.
-6. **Mobile**: Vulkan and Metal, Gradle and Xcode project export, platform bridges (JNI, Objective-C++), and Firebase, in-app purchase and ad plugins.
+2. ~~**CI**: GitHub Actions builds and tests on Windows, Linux and macOS.~~ Done. Performance-regression gating is still open.
+3. **M2, agent workflow**: TOML scenes and prefabs, Luau game scripts, `zaro screenshot` and `zaro test`, component schema export, docs and examples.
+4. **M3, first game**: a small survivors-like built with ZARO, plus a tutorial that walks through making it.
+5. **Launch**: the engine is announced together with that game (D-016).
+6. **Plugins**: the C ABI plugin interface, `zaro plugin add <name>`, validated first with Steamworks (`zaro-steam`).
+7. **Web**: a WebGPU build.
+8. **Mobile**: Vulkan and Metal, Gradle and Xcode project export, platform bridges (JNI, Objective-C++), and Firebase, in-app purchase and ad plugins.
 
 Consoles are supported through private porting layers outside this repository (NDA).
 Design kept open for later: gamepad/touch input, CJK fonts and IME, localization, audio, game UI, save-format versioning, physics, a local MCP server.
