@@ -48,6 +48,13 @@ BANNED_HEADERS = {
 
 MAX_INCLUDES_PER_HEADER = 12
 
+# Agent guidance (Z008): every skill has front matter naming its directory and a description,
+# and the "Skills" list in CLAUDE.md names exactly the skills that exist.
+AGENT_GUIDE = "CLAUDE.md"
+SKILLS_DIR = ".claude/skills"
+SKILL_LIST_RE = re.compile(r"^- \*\*`([a-z0-9-]+)`\*\*")
+SKILL_FILE_RE = re.compile(r"^\.claude/skills/([^/]+)/SKILL\.md$")
+
 # Module layering (CLAUDE.md "Modules"). A module under src/ may include only the engine
 # modules listed for it. sim is the model and must stay free of platform and GPU code so it
 # remains deterministic and testable headless; render is the view and never sees sim types.
@@ -89,6 +96,7 @@ RULES = {
     "Z005": "header is missing #pragma once",
     "Z006": "public header is missing an extern \"C\" guard",
     "Z007": "module layering: include of an engine module or third-party header this module may not use",
+    "Z008": "skill front matter is malformed, or CLAUDE.md 'Skills' and .claude/skills/ disagree",
 }
 
 BANNED_KEYWORDS = re.compile(r"\b(throw|try|catch|dynamic_cast|typeid)\b")
@@ -182,8 +190,56 @@ def check_layering(rel_path: str, include: str) -> str | None:
     return None
 
 
+def listed_skills() -> dict[str, int]:
+    """Skill names in the CLAUDE.md "Skills" section, with their 1-based line numbers."""
+    try:
+        lines = (ROOT / AGENT_GUIDE).read_text(encoding="utf-8").split("\n")
+    except OSError:
+        return {}
+    names: dict[str, int] = {}
+    in_section = False
+    for idx, line in enumerate(lines):
+        if line.startswith("## "):
+            in_section = line.strip() == "## Skills"
+            continue
+        m = SKILL_LIST_RE.match(line) if in_section else None
+        if m:
+            names[m.group(1)] = idx + 1
+    return names
+
+
+def lint_agent_doc(path: Path, r: str) -> list[Diag]:
+    if r == AGENT_GUIDE:
+        return [Diag(r, line, 1, "Z008",
+                     f"skill '{name}' is listed but {SKILLS_DIR}/{name}/SKILL.md does not exist")
+                for name, line in listed_skills().items()
+                if not (ROOT / SKILLS_DIR / name / "SKILL.md").is_file()]
+    name = SKILL_FILE_RE.match(r).group(1)
+    try:
+        lines = path.read_text(encoding="utf-8").split("\n")
+    except (OSError, UnicodeDecodeError) as e:
+        return [Diag(r, 1, 1, "Z000", f"cannot read file: {e}")]
+    diags: list[Diag] = []
+    end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
+    if lines[0].strip() != "---" or end is None:
+        diags.append(Diag(r, 1, 1, "Z008", "start with front matter: '---', name, description, '---'"))
+    else:
+        fields = dict(l.split(":", 1) for l in lines[1:end] if ":" in l)
+        if fields.get("name", "").strip() != name:
+            diags.append(Diag(r, 2, 1, "Z008", f"front matter needs 'name: {name}' (the directory name)"))
+        if not fields.get("description", "").strip():
+            diags.append(Diag(r, 2, 1, "Z008",
+                              "front matter needs a 'description' saying when to load the skill"))
+    if name not in listed_skills():
+        diags.append(Diag(r, 1, 1, "Z008",
+                          f"add '- **`{name}`**: ...' to the 'Skills' section of {AGENT_GUIDE}"))
+    return diags
+
+
 def lint_file(path: Path) -> list[Diag]:
     r = rel(path)
+    if r == AGENT_GUIDE or SKILL_FILE_RE.match(r):
+        return lint_agent_doc(path, r)
     parts = set(Path(r).parts)
     if parts & SKIP_PARTS or path.suffix not in SOURCE_EXTS:
         return []
@@ -219,7 +275,7 @@ def lint_file(path: Path) -> list[Diag]:
             if base in BANNED_HEADERS and m.group(1) == "<":
                 add(idx, m.start(2), "Z002",
                     f"<{name}> is banned (slow to compile or needs exceptions); "
-                    "see CLAUDE.md 'C++ subset' for the replacement")
+                    "see 'C++ subset' in .claude/skills/zaro-code/SKILL.md for the replacement")
 
     for idx, code in enumerate(code_lines):
         if code.lstrip().startswith("#"):
@@ -252,6 +308,8 @@ def repo_files() -> list[Path]:
         for p in base.rglob("*"):
             if p.is_file() and p.suffix in SOURCE_EXTS:
                 files.append(p)
+    files.append(ROOT / AGENT_GUIDE)
+    files.extend((ROOT / SKILLS_DIR).glob("*/SKILL.md"))
     return sorted(files)
 
 
@@ -260,7 +318,8 @@ def staged_files() -> list[Path]:
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
         cwd=ROOT, capture_output=True, text=True, check=True,
     ).stdout
-    return [ROOT / l for l in out.splitlines() if Path(l).suffix in SOURCE_EXTS]
+    return [ROOT / l for l in out.splitlines()
+            if Path(l).suffix in SOURCE_EXTS or l == AGENT_GUIDE or SKILL_FILE_RE.match(l)]
 
 
 def hook_files() -> list[Path]:
