@@ -1,0 +1,9 @@
+# A valid scene: the entity overrides one prefab field and keeps the other from the prefab.
+[scene]
+name = "override"
+
+[[entity]]
+name = "horde"
+prefab = "prefabs/horde.toml"
+[entity.CrowdSpawner]
+count = 123

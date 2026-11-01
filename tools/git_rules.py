@@ -20,7 +20,7 @@ import sys
 
 TYPES = ("feat", "fix", "perf", "refactor", "docs", "test", "build", "ci", "chore", "revert")
 # Engine modules (src/<module>) plus repository areas.
-SCOPES = ("core", "platform", "rhi", "sim", "render", "app", "cli", "abi", "shaders",
+SCOPES = ("core", "platform", "rhi", "sim", "scene", "render", "app", "cli", "abi", "shaders",
           "tools", "cmake", "deps", "docs", "ci", "repo")
 PROTECTED = ("main",)
 MAX_HEADER = 72

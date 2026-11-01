@@ -13,6 +13,14 @@ enum ErrorId {
     kErrShaderLoad = 202,     // ZE0202 shader file missing or unreadable
     kErrGpuReadback = 203,    // ZE0203 buffer map / readback failed
     kErrIo = 300,             // ZE0300 file write failed
+    kErrSceneSyntax = 400,    // ZE0400 file missing or not valid TOML
+    kErrSceneUnknownComponent = 401,  // ZE0401 table names no registered component
+    kErrSceneUnknownField = 402,      // ZE0402 key names no field of the component
+    kErrSceneType = 403,      // ZE0403 value has the wrong TOML type for the field
+    kErrSceneRange = 404,     // ZE0404 value outside the field's allowed range
+    kErrScenePrefab = 405,    // ZE0405 prefab file missing or itself invalid
+    kErrSceneStructure = 406, // ZE0406 required key missing or unknown top-level key
+    kErrSceneDuplicate = 407, // ZE0407 two entities share a name
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

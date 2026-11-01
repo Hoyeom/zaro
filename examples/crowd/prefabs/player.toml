@@ -1,0 +1,5 @@
+[prefab]
+name = "player"
+
+[PlayerController]
+speed = 8.0

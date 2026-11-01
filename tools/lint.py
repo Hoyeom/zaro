@@ -57,7 +57,8 @@ MODULE_DEPS = {
     "rhi": {"core", "platform", "rhi"},
     "sim": {"core", "sim"},
     "render": {"core", "rhi", "render"},
-    "app": {"core", "platform", "rhi", "sim", "render", "app"},
+    "scene": {"core", "scene"},
+    "app": {"core", "platform", "rhi", "sim", "render", "scene", "app"},
     "cli": {"core", "app", "cli"},
 }
 # Third-party headers confined to the one module that wraps them.
@@ -66,6 +67,7 @@ THIRD_PARTY_OWNERS = {
     "webgpu/": "src/rhi/",
     "TaskScheduler.h": "src/core/jobs.cpp",
     "tracy/": "src/core/profile.h",
+    "tomlc17.h": "src/scene/",
 }
 
 RULES = {
