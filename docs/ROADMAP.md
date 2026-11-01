@@ -53,6 +53,8 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
 - **Status**: started 2026-11-01. Steps, one PR each: 1 text and glyph atlas, 2 layout, widgets
   and input focus, 3 screen files and `zaro check`, 4 Luau view-model binding, 5 navigation
   policy, 6 design kit import.
+  - Step 1 (text and glyph atlas): stb_truetype, Noto Sans KR bundled, `ui` module, RHI textures
+    and blending, `render::UiRenderer`; tests `ui_text` and `ui_render_gpu`.
 - **Waits for**: nothing.
 - **Runs beside**: P1, P4a. P3 shares the texture atlas work, so P3 starts after P2's atlas lands.
 

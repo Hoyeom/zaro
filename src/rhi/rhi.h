@@ -15,6 +15,8 @@ struct BindLayout;
 struct BindGroup;
 struct ComputePipeline;
 struct RenderPipeline;
+struct Texture;
+struct Sampler;
 
 enum BufferUsage : uint32_t {
     kBufUniform = 1u << 0,
@@ -23,7 +25,10 @@ enum BufferUsage : uint32_t {
     kBufCopyDst = 1u << 3,
 };
 
-enum class BindingType : uint8_t { kUniform, kStorageRead, kStorageReadWrite };
+enum class BindingType : uint8_t { kUniform, kStorageRead, kStorageReadWrite, kTexture, kSampler };
+
+// kR8 is one linear channel (masks, glyph coverage); kRGBA8Srgb holds colour images.
+enum class TextureFormat : uint8_t { kR8, kRGBA8Srgb };
 
 enum Stage : uint32_t { kStageVertex = 1u << 0, kStageFragment = 1u << 1, kStageCompute = 1u << 2 };
 
@@ -33,9 +38,12 @@ struct BindingDesc {
     uint32_t stages;
 };
 
+// Exactly one of buffer, texture and sampler is set, matching the layout's BindingType.
 struct BindEntry {
     uint32_t binding;
     Buffer* buffer;
+    Texture* texture = nullptr;
+    Sampler* sampler = nullptr;
 };
 
 enum class Backend : uint8_t { kDefault, kVulkan, kD3D12, kMetal };
@@ -62,6 +70,8 @@ struct RenderPipelineDesc {
     const char* fragment_entry;
     BindLayout* layout;
     bool cull_back = true;
+    bool depth = true;        // false: no depth test or write (overlays such as UI)
+    bool alpha_blend = false; // premultiplied alpha: src + dst * (1 - src.a)
 };
 
 constexpr uint32_t kMaxTimedPasses = 8;
@@ -89,6 +99,16 @@ Buffer* create_buffer(Device* device, uint64_t size, uint32_t usage, const char*
 void destroy_buffer(Buffer* buffer);
 void write_buffer(Device* device, Buffer* buffer, uint64_t offset, const void* data, uint64_t size);
 
+// 2D textures, sampled in shaders. write_texture copies a w x h region at (x, y); `data` points at
+// the region's first texel and rows are `bytes_per_row` apart.
+Texture* create_texture(Device* device, uint32_t width, uint32_t height, TextureFormat format, const char* label);
+void destroy_texture(Texture* texture);
+void write_texture(Device* device, Texture* texture, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                   const void* data, uint32_t bytes_per_row);
+// Clamp-to-edge sampler; linear or nearest filtering.
+Sampler* create_sampler(Device* device, bool linear);
+void destroy_sampler(Sampler* sampler);
+
 // Loads a WGSL file produced by the Slang build step. nullptr if missing.
 Shader* load_shader(Device* device, const char* path);
 void destroy_shader(Shader* shader);
@@ -109,6 +129,7 @@ bool begin_frame(Device* device);
 void compute_begin(Device* device, const char* name);
 void compute_dispatch(Device* device, ComputePipeline* pipeline, BindGroup* group, uint32_t groups_x);
 void compute_end(Device* device);
+// clear_rgba nullptr keeps the colour target's contents (a pass drawn over an earlier one).
 void render_begin(Device* device, const char* name, const float clear_rgba[4]);
 void draw(Device* device, RenderPipeline* pipeline, BindGroup* group, uint32_t vertices, uint32_t instances);
 void draw_indirect(Device* device, RenderPipeline* pipeline, BindGroup* group, Buffer* args);

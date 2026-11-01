@@ -316,6 +316,9 @@ Status of all entries below: **accepted, 2026-11-01**.
   - Prebaked bitmap fonts: they cannot cover Korean at several sizes in a reasonable atlas.
 - **Revisit when**: a target needs scripts that require shaping (Arabic, Indic, Thai), or text
   below about 12 px on low-DPI screens looks too soft.
+- **Current state (P2 step 1)**: `src/ui/font.cpp` wraps stb_truetype 1.26; `src/ui/text.cpp`
+  holds the 2048 x 2048 atlas (shelf packing, a 16,384-slot glyph cache) and line layout. Glyph
+  positions snap to whole pixels. Kerning comes from the font's `kern` and GPOS pair tables.
 
 ## D-020 UI screens: TOML files of nodes with reflected widget components
 
