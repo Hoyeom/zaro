@@ -1,0 +1,3 @@
+[scene]
+name = "bad"
+build_extensions = ["bad_extension.toml", "missing_extension.toml"]

@@ -23,6 +23,7 @@ enum ErrorId {
     kErrSceneDuplicate = 407, // ZE0407 two entities share a name
     kErrSceneParent = 408,    // ZE0408 a screen node's parent is unknown or comes after it
     kErrSceneToken = 409,     // ZE0409 a "$name" value names no token of the theme, or there is no theme
+    kErrBuildExtension = 410, // ZE0410 a build extension's dependency, permission or XML fragment is malformed
     kErrScriptCompile = 500,  // ZE0500 script missing or has a syntax error
     kErrScriptRuntime = 501,  // ZE0501 script raised an error (includes misuse of the zaro API)
     kErrScriptTimeout = 502,  // ZE0502 one script call ran longer than its time budget

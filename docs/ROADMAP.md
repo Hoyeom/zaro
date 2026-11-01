@@ -24,8 +24,9 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
 
 - **Status**: Android in progress since 2026-11-01 (toolchain and packaging: D-022). The APK
   builds locally and in CI; the on-device check below is pending. Release bundles (D-025) build,
-  validate and sign with a game's upload key locally and in CI (with a throwaway key); installing
-  one on a device and the export hooks for plugins are pending.
+  validate and sign with a game's upload key locally and in CI (with a throwaway key). Plugins
+  add Gradle dependencies, manifest entries and sources through build extensions (D-026).
+  Installing a bundle on a device is pending.
 - **Scope**:
   - Android build of the engine and the `zaro` runtime: SDL3 Android backend, wgpu on Vulkan, the
     Slang to WGSL step at build time, and assets packed into the APK.
@@ -108,7 +109,7 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
     time.
 - **Done when**: the crowd demo can draw its enemies as animated sprites instead of cubes at the M1
   frame rate, and an SVG character from the art pipeline appears in a scene.
-- **Decisions**: D-026 (LunaSVG with its PlutoVG, in the `zaro` tool's cook step only), which
+- **Decisions**: D-027 (LunaSVG with its PlutoVG, in the `zaro` tool's cook step only), which
   supersedes D-024 (PlutoSVG, which does not draw `clipPath` or `<style>`).
 - **Status**: done 2026-11-02. Steps, one PR each: 1 D-024, 2 batched sprites from PNG atlases
   (screen space and billboards), 3 the SVG cook and a scene with an SVG character, 4 the crowd's
@@ -119,7 +120,7 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
     "sprites" pass with one draw per sheet batch, `zaro check` for sheets (ZE0900-ZE0902), PNG
     decoding moved to `core`; tests `sprite_sheets`, `sprite_render_gpu`, `scene_tests_sprites`,
     `screenshot_sprites`.
-  - Step 3 (SVG art, D-026): the `cook` module (LunaSVG, desktop only), SVG sheets cooked into
+  - Step 3 (SVG art, D-027): the `cook` module (LunaSVG, desktop only), SVG sheets cooked into
     `.zaro-cache/` by content hash, `zaro cook`, ZE0903 for text and filters with lines,
     `THIRD_PARTY_NOTICES.md` with lint Z010, the export packing cooked atlases (checked in a
     local APK); `examples/cats` with original cat art; tests `svg_cook`, `example_cats_cook`,

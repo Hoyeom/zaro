@@ -49,7 +49,7 @@ target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
 add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
-  src/scene/theme.cpp src/scene/sprite_sheet.cpp)
+  src/scene/theme.cpp src/scene/sprite_sheet.cpp src/scene/build_extension.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
@@ -61,7 +61,7 @@ add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_rende
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
-# Cook-time asset tools (SVG art into sprite atlases, D-026). Only the zaro tool links them; the
+# Cook-time asset tools (SVG art into sprite atlases, D-027). Only the zaro tool links them; the
 # Android runtime is built without, so no game binary contains the SVG renderer.
 if(NOT ANDROID)
   add_library(zaro_cook STATIC src/cook/svg.cpp)
@@ -294,5 +294,9 @@ if(ZARO_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)
     add_test(NAME lint COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint.py)
+    # The Android export (version, build extensions, their errors) without an Android build.
+    add_test(NAME android_export
+             COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_android_export.py $<TARGET_FILE:zaro>
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   endif()
 endif()

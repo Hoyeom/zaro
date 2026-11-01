@@ -118,7 +118,7 @@ jobs:
         run: python tools/build.py release
       - name: APK
         run: python tools/android.py apk examples/crowd/scene.toml
-      - name: The APK holds the cooked cat atlas, not its SVG files (D-026)
+      - name: The APK holds the cooked cat atlas, not its SVG files (D-027)
         run: |
           python3 - <<'PY'
           import glob, sys, zipfile

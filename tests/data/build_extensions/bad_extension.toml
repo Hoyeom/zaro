@@ -1,0 +1,8 @@
+[build_extension]
+name = "bad"
+
+[android]
+dependencies = ["com.example:library"]
+permissions = ["VIBRATE"]
+application = """<application android:label="x" />"""
+sorces = "java"

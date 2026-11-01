@@ -480,7 +480,7 @@ Status of all entries below: **accepted, 2026-11-01**.
 
 ## D-024 SVG art: PlutoSVG on PlutoVG, in the zaro tool's cook step only
 
-- **Status**: accepted, 2026-11-02. **Superseded by D-026** (same day): PlutoSVG does not draw
+- **Status**: accepted, 2026-11-02. **Superseded by D-027** (same day): PlutoSVG does not draw
   `clipPath` or `<style>` sheets, contrary to the "Why" below.
 - **Decision**: SVG character art is rasterized into sprite atlases by PlutoSVG (MIT) drawing with
   PlutoVG (MIT), pinned at plutosvg v0.0.8 and plutovg v1.3.3 (the commit plutosvg v0.0.8 pins).
@@ -597,7 +597,44 @@ Status of all entries below: **accepted, 2026-11-01**.
 - **Revisit when**: Google announces the next target API year, before 2027-02-01 (16 KB and the
   quality thresholds), and before P4c ships billing (Billing Library 9 by 2028-08-31).
 
-## D-026 SVG art: LunaSVG (with its PlutoVG), in the zaro tool's cook step only
+## D-026 Build extensions: what a plugin adds to an exported Android project, as text
+
+- **Decision**: A plugin that needs more than native code on Android describes its additions in a
+  build extension file. Examples are P4c's Play Billing bridge and later store or SDK plugins.
+  - **The file**: TOML with a `[build_extension]` table (a name) and an `[android]` table that
+    lists Gradle dependencies (`group:artifact:version`), permissions, an XML fragment for
+    `<manifest>`, an XML fragment for `<application>`, and a directory of Java or Kotlin sources.
+    The format is at the top of `src/scene/build_extension.h`.
+  - **Where it is named**: a scene lists its extensions with `build_extensions = [...]` in `[scene]`.
+  - **What checks it**: the scene loader loads every extension, so `zaro check` reports a bad
+    entry as `file:line:col` (ZE0410 for a malformed dependency, permission or fragment, ZE0406
+    for unknown keys, with a "did you mean" hint).
+  - **What the export does**: `zaro export android` writes the dependencies into
+    `app/build.gradle`, and the permissions and fragments into `AndroidManifest.xml` through
+    `@ZARO_...@` placeholders in the template. It copies the sources under `app/src/main/java`, and
+    refuses (ZE0800, at the extension's `sources` line) a source file that would replace one of the
+    runtime's or another extension's.
+- **Why**:
+  - Plugins live in private repositories (D-012, D-016) and change separately from the engine;
+    the template must not be edited per game.
+  - A text file keeps the additions reviewable and diffable, and puts them under the same checks
+    as scenes. An agent writes one the way it writes a scene.
+  - Gradle's own merging (dependencies, manifest merger, source sets) does the rest. ZARO only
+    places text where Gradle expects it.
+- **Rejected**:
+  - Arbitrary Gradle script snippets: anything could run during the build, and nothing could be
+    checked before Gradle runs.
+  - AAR modules in the plugin repository: heavier to build and publish, and still needing a
+    manifest and dependency description. A plugin may still ship an AAR through a Maven
+    dependency.
+  - A separate export option per plugin (`--plugin`): the scene would no longer say what the game
+    needs, and `zaro check` would not see it.
+- **Consequences**: the XML fragments are checked only for placement (they must be elements and
+  must not open `<manifest>` or `<application>`); malformed XML inside them fails in Gradle's
+  manifest merger instead. Only Android has a section today; iOS adds its own table when P1
+  reaches it.
+
+## D-027 SVG art: LunaSVG (with its PlutoVG), in the zaro tool's cook step only
 
 - **Status**: accepted, 2026-11-02. Supersedes D-024.
 - **Decision**: SVG character art is drawn into sprite atlases by LunaSVG 3.5.0 (MIT), with the
