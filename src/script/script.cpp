@@ -120,6 +120,13 @@ int zaro_get(lua_State* L) {
         case FieldType::kU64: lua_pushnumber(L, (double)*(const uint64_t*)p); break;
         case FieldType::kF32: lua_pushnumber(L, *(const float*)p); break;
         case FieldType::kString: lua_pushstring(L, (const char*)p); break;
+        case FieldType::kColor:
+        case FieldType::kEnum: {
+            char text[reflect::kStringCapacity];
+            reflect::format_text_value(*f, p, text, sizeof(text));
+            lua_pushstring(L, text);
+            break;
+        }
         case FieldType::kVec2:
         case FieldType::kVec3:
         case FieldType::kVec4: {
@@ -183,6 +190,19 @@ int zaro_set(lua_State* L) {
                 luaL_error(L, "%s.%s is %d bytes (max %u)", desc->name, f->name, (int)len, reflect::kStringCapacity - 1);
             }
             memcpy(p, str, len + 1);
+            break;
+        }
+        case FieldType::kColor:
+        case FieldType::kEnum: {
+            if (t != LUA_TSTRING) luaL_error(L, "%s.%s expects %s, got %s", desc->name, f->name, tn, luaL_typename(L, 4));
+            // luaL_error does not return, so the message must be copied to the Lua stack first.
+            char err[300];
+            uint32_t value = 0;
+            if (!reflect::parse_text_value(*f, lua_tostring(L, 4), &value, err, sizeof(err))) {
+                lua_pushfstring(L, "%s.%s %s", desc->name, f->name, err);
+                lua_error(L);
+            }
+            *(uint32_t*)p = value;
             break;
         }
         case FieldType::kVec2:

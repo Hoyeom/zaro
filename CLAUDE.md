@@ -91,7 +91,9 @@ To add a component:
    with a doc string for the component and for every field.
 3. Register it from `app::register_all_components` (`src/app/tools.cpp`).
 
-Field types: `bool i32 u32 u64 f32 vec2 vec3 vec4 string` (strings up to 127 bytes).
+Field types: `bool i32 u32 u64 f32 vec2 vec3 vec4 string color enum` (strings up to 127 bytes).
+`color` is written `"#RRGGBB"` or `"#RRGGBBAA"` (sRGB) and `enum` as one of the names that
+`zaro schema` lists under `choices`; both are `uint32_t` members (`ZARO_FIELD_ENUM` for enums).
 `zaro check` reports every problem in one pass as `file:line:col: error[ZE04nn]` (ids in
 `src/core/log.h`), with a "did you mean" hint for misspelt components and fields.
 
@@ -249,7 +251,14 @@ all three together.
 - Call `ui::begin_frame` before drawing text each frame. A full atlas skips the glyphs that do not
   fit for that frame, then is cleared and refilled on the next one.
 - The bundled font is Noto Sans KR (Regular, Bold; OFL 1.1). The build copies it to `<bin>/fonts/`.
-  Font errors are ZE0700.
+  Font errors are ZE0700. PNG images go into a second, RGBA atlas (`ui::load_image`, ZE0701).
+- `ui::Context` holds the named fonts (`regular`, `bold`) and both atlases. A `ui::Screen` is a tree
+  of named nodes carrying widgets (`src/ui/widgets.h`: `Layout`, `Panel`, `Label`, `Image`, `Button`,
+  `ScrollList`, `Modal`), which are reflected structs like scene components. The top of
+  `src/ui/screen.h` describes layout, input and focus.
+- Each frame: `ui::begin_frame(context)`, `ui::update_screen` (applies the input against the
+  previous layout, then lays out), read the click and back events, `ui::draw_screen`. The app fills
+  `ui::UiInput` from `platform::Input` (pointer, wheel, edge-triggered navigation).
 
 ## Shaders
 

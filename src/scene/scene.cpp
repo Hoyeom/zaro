@@ -149,6 +149,16 @@ bool assign_field(const ComponentDesc* comp, const FieldDesc& f, const toml_datu
             }
             memcpy(dst, v.u.str.ptr, (size_t)v.u.str.len + 1);
             return true;
+        case FieldType::kColor:
+        case FieldType::kEnum: {
+            if (v.type != TOML_STRING) return type_error();
+            char err[300];
+            if (!reflect::parse_text_value(f, v.u.str.ptr, dst, err, sizeof(err))) {
+                diag_add(diags, kErrSceneRange, file, v.lineno, v.colno, "%s.%s %s", comp->name, f.name, err);
+                return false;
+            }
+            return true;
+        }
     }
     return type_error();
 }

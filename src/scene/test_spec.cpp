@@ -63,7 +63,7 @@ void load_expect(const toml_datum_t& t, Expect* e, const char* file, DiagList* d
                  hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
         return;
     }
-    const bool is_string = e->field->type == reflect::FieldType::kString;
+    const bool is_string = reflect::is_text_type(e->field->type);
     const bool is_vector = e->field->type == reflect::FieldType::kVec2 || e->field->type == reflect::FieldType::kVec3 ||
                            e->field->type == reflect::FieldType::kVec4;
     if (is_vector) {
@@ -74,8 +74,19 @@ void load_expect(const toml_datum_t& t, Expect* e, const char* file, DiagList* d
     const toml_datum_t eq = toml_get(t, "equals");
     if (eq.type != TOML_UNKNOWN) {
         e->has_equals = true;
+        char err[300];
+        uint32_t parsed = 0;
         if (is_string && eq.type == TOML_STRING && eq.u.str.len < (int)sizeof(e->equals_string)) {
             memcpy(e->equals_string, eq.u.str.ptr, (size_t)eq.u.str.len + 1);
+            // Colours and enums compare in canonical form ("#rrggbbaa", the choice's name).
+            if (e->field->type != reflect::FieldType::kString) {
+                if (reflect::parse_text_value(*e->field, e->equals_string, &parsed, err, sizeof(err))) {
+                    reflect::format_text_value(*e->field, &parsed, e->equals_string, sizeof(e->equals_string));
+                } else {
+                    diag_add(d, kErrTestSpec, file, eq.lineno, eq.colno, "'equals': %s.%s %s", e->component->name,
+                             field, err);
+                }
+            }
         } else if (!is_string && eq.type == TOML_BOOLEAN) {
             e->equals_number = eq.u.boolean ? 1.0 : 0.0;
         } else if (!is_string && (eq.type == TOML_INT64 || eq.type == TOML_FP64)) {

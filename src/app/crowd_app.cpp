@@ -284,6 +284,7 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
     platform::Input input;
     while (!input.quit) {
         platform::poll_input(&input);
+        if (input.nav_back) break;  // nothing else uses back yet: Escape quits
         const uint64_t now = platform::now_ticks();
         accumulator += platform::ticks_to_seconds(now - last);
         last = now;

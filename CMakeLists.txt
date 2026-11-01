@@ -55,10 +55,12 @@ add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_rende
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
-add_library(zaro_ui STATIC src/ui/draw.cpp src/ui/font.cpp src/ui/text.cpp)
-target_link_libraries(zaro_ui PUBLIC zaro_core PRIVATE zaro_stb_truetype)
-# font.cpp compiles stb_truetype's implementation; keep it out of the unity source.
-set_source_files_properties(src/ui/font.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+add_library(zaro_ui STATIC
+  src/ui/draw.cpp src/ui/font.cpp src/ui/text.cpp src/ui/pack.cpp src/ui/image.cpp src/ui/context.cpp
+  src/ui/widgets.cpp src/ui/screen.cpp)
+target_link_libraries(zaro_ui PUBLIC zaro_core PRIVATE zaro_stb_truetype zaro_stb_image)
+# font.cpp and image.cpp compile stb implementations; keep them out of the unity source.
+set_source_files_properties(src/ui/font.cpp src/ui/image.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 zaro_target_defaults(zaro_ui)
 
 add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp)
@@ -114,6 +116,12 @@ if(ZARO_BUILD_TESTS)
   zaro_target_defaults(test_ui_text)
   add_dependencies(test_ui_text zaro)  # the bundled fonts are copied when zaro builds
   add_test(NAME ui_text COMMAND test_ui_text ${CMAKE_BINARY_DIR}/fonts/)
+  # Screens: layout, clicks, scrolling, modals, focus navigation, colour and enum fields.
+  add_executable(test_ui_screen tests/test_ui_screen.cpp)
+  target_link_libraries(test_ui_screen PRIVATE zaro_ui)
+  zaro_target_defaults(test_ui_screen)
+  add_dependencies(test_ui_screen zaro)
+  add_test(NAME ui_screen COMMAND test_ui_screen ${CMAKE_BINARY_DIR}/fonts/)
   # Text drawn on the GPU: the frame is written as PNG and must contain glyph pixels.
   add_executable(test_ui_render tests/test_ui_render.cpp)
   target_link_libraries(test_ui_render PRIVATE zaro_ui zaro_render)
