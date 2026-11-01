@@ -249,6 +249,23 @@ Status of all entries below: **accepted, 2026-11-01**.
 - **Not yet**: there are no entity hierarchies or component references between entities, and
   scenes do not drive `zaro run` yet (M2-3).
 
+## M2 result (2026-11-01)
+
+M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:
+- `zaro schema` tells it what components exist.
+- `zaro check` reports every problem in a scene or script with `file:line` and a "did you mean"
+  hint.
+- `zaro run` plays the scene with its Luau script.
+- `zaro test` checks values and a golden state hash without a GPU.
+- `zaro screenshot` shows the result.
+
+The walkthrough is `docs/guide.md`, with `examples/hello` and `examples/crowd`. Every command
+has text and `--json` output where it reports problems. The example tests' golden hashes were
+verified locally on Windows (MSVC) and Linux (GCC). CI runs them on macOS (Apple Clang, ARM)
+as well, and a merge requires them to pass there.
+
+Still open from the M2 list: the Luau type checker (D-009) and entity hierarchies (D-017).
+
 ## M1 result (2026-11-01)
 
 The crowd demo (`zaro run`) has 50,000 enemies following a flow field around obstacles toward

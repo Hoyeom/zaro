@@ -47,7 +47,7 @@ examples/       example scenes and prefabs (TOML)
 tests/          test executables and tests/data/; c_abi_check.c compiles public headers as C
 tools/          build.py, lint.py, githooks/
 cmake/          ZaroCompilerFlags.cmake (zaro_target_defaults), ZaroDeps.cmake (pinned deps)
-docs/           DECISIONS.md
+docs/           DECISIONS.md, guide.md (walkthrough: scene, script, test, screenshot)
 ```
 
 ## Modules

@@ -1,5 +1,7 @@
 #include "scene/scene.h"
 
+#include "core/path.h"
+
 #include <tomlc17.h>
 
 #include <math.h>
@@ -55,17 +57,6 @@ void free_loaded(Loaded* l) {
     if (l->result.ok || l->result.__internal) toml_free(l->result);
     free(l->text);
     l->text = nullptr;
-}
-
-void resolve_relative(const char* base_file, const char* rel, char* out, size_t size) {
-    const char* slash = strrchr(base_file, '/');
-    const char* bslash = strrchr(base_file, '\\');
-    if (!slash || (bslash && bslash > slash)) slash = bslash;
-    if (!slash || rel[0] == '/' || (rel[0] && rel[1] == ':')) {
-        snprintf(out, size, "%s", rel);
-        return;
-    }
-    snprintf(out, size, "%.*s/%s", (int)(slash - base_file), base_file, rel);
 }
 
 const char* kind_name(toml_type_t t) {
@@ -235,7 +226,7 @@ struct Loader {
 
     const Prefab* prefab(const char* rel, const toml_datum_t& at) {
         char path[kPathCapacity];
-        resolve_relative(scene_path, rel, path, sizeof(path));
+        path_join_relative(scene_path, rel, path, sizeof(path));
         for (uint32_t i = 0; i < prefab_count; ++i) {
             if (strcmp(prefabs[i]->path, path) == 0) return prefabs[i];
         }
@@ -355,7 +346,7 @@ Scene* load_scene(const char* path, DiagList* diags) {
             } else if (strcmp(key, "script") == 0) {
                 char rel[kPathCapacity];
                 if (copy_string(v, rel, sizeof(rel), "scene script", path, diags)) {
-                    resolve_relative(path, rel, s->script, sizeof(s->script));
+                    path_join_relative(path, rel, s->script, sizeof(s->script));
                 }
             } else {
                 diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,

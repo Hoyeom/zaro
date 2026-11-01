@@ -22,7 +22,7 @@ include(ZaroDeps)
 
 add_library(zaro_core STATIC
   src/core/version.cpp src/core/log.cpp src/core/jobs.cpp src/core/png.cpp
-  src/core/reflect.cpp src/core/diag.cpp)
+  src/core/reflect.cpp src/core/diag.cpp src/core/path.cpp)
 target_include_directories(zaro_core PUBLIC include src)
 target_link_libraries(zaro_core PRIVATE enkiTS)
 if(ZARO_TRACY)
@@ -123,7 +123,7 @@ if(ZARO_BUILD_TESTS)
   set_tests_properties(script_error_fails_run PROPERTIES WILL_FAIL TRUE)
 
   # Scene tests: the example passes (golden hash included), the broken ones fail.
-  add_test(NAME scene_tests_example COMMAND zaro test examples/crowd/tests
+  add_test(NAME scene_tests_example COMMAND zaro test examples
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME scene_tests_failing COMMAND zaro test tests/data/scene_tests
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

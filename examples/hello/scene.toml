@@ -1,0 +1,23 @@
+# The smallest scene with a script: a small horde, a player, and hello.luau.
+#   zaro check examples/hello/scene.toml
+#   zaro run examples/hello/scene.toml
+[scene]
+name = "hello"
+script = "hello.luau"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+seed = 42
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 300
+speed = 2.0
+
+[[entity]]
+name = "player"
+[entity.PlayerController]
+speed = 6.0
