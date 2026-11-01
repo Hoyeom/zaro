@@ -47,6 +47,7 @@ enum ErrorId {
     kErrBuildTarget = 1003,   // ZE1003 a target stage failed, or a release build lacks a release environment,
                               //        a version code or the upload key
     kErrSpawnPrefab = 1200,   // ZE1200 a [scene] prefabs entry has no [prefab] name, or two share one (D-031)
+    kErrEventLimit = 1201,    // ZE1201 more script events in one tick than script::kMaxEventsPerTick (handlers in a loop)
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

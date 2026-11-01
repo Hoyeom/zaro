@@ -21,6 +21,24 @@ using reflect::FieldDesc;
 using reflect::FieldType;
 using Clock = std::chrono::steady_clock;
 
+// A zaro.after / zaro.every timer: fires before on_tick of tick `due`.
+struct Timer {
+    uint32_t handle;
+    int ref;            // the callback in the registry
+    uint64_t due;
+    uint64_t interval;  // 0 for zaro.after
+    int64_t remaining;  // firings left; -1 forever
+    bool cancelled;
+};
+
+// A zaro.on subscription.
+struct Handler {
+    uint32_t handle;
+    int ref;
+    char event[kEventNameCapacity];
+    bool cancelled;
+};
+
 struct Script {
     lua_State* L = nullptr;  // main state: read-only standard library and `zaro`
     lua_State* T = nullptr;  // sandboxed thread whose globals belong to the script
@@ -35,6 +53,16 @@ struct Script {
     Clock::time_point deadline;
     bool deadline_armed = false;
     bool timed_out = false;
+    // Timers, subscriptions and the event queue (D-031). Handles share one counter, so
+    // zaro.cancel takes any of them.
+    uint32_t next_handle = 1;
+    Timer* timers = nullptr;
+    uint32_t timer_count = 0, timer_capacity = 0;
+    Handler* handlers = nullptr;
+    uint32_t handler_count = 0, handler_capacity = 0;
+    int queue_ref = 0;  // registry table: name, payload, name, payload, ... from queue_head on
+    int queue_head = 1, queue_tail = 1;
+    uint32_t events_this_tick = 0;  // delivered since the last on_tick (kMaxEventsPerTick)
 };
 
 namespace {
@@ -548,6 +576,110 @@ int zaro_count(lua_State* L) {
     return 1;
 }
 
+// --- Timers and events (D-031). Callbacks are kept as registry refs and run in the fixed tick.
+
+template <typename T>
+T* grow(T* items, uint32_t count, uint32_t* capacity) {
+    if (count < *capacity) return items;
+    *capacity = *capacity ? *capacity * 2 : 16;
+    return (T*)realloc(items, sizeof(T) * *capacity);
+}
+
+// Seconds of tick time as a whole number of ticks, at least one.
+uint64_t ticks_arg(lua_State* L, int arg, const char* what) {
+    const double seconds = luaL_checknumber(L, arg);
+    if (!(seconds >= 0.0) || seconds > 1e7) luaL_error(L, "%s: seconds must be 0 or more, got %g", what, seconds);
+    const uint64_t ticks = (uint64_t)floor(seconds * 60.0 + 0.5);
+    return ticks ? ticks : 1;
+}
+
+int add_timer(lua_State* L, uint64_t ticks, uint64_t interval, int64_t times, int fn_arg) {
+    Script* s = self(L);
+    s->timers = grow(s->timers, s->timer_count, &s->timer_capacity);
+    Timer& t = s->timers[s->timer_count++];
+    t.handle = s->next_handle++;
+    t.ref = lua_ref(L, fn_arg);
+    t.due = s->tick + ticks;
+    t.interval = interval;
+    t.remaining = times;
+    t.cancelled = false;
+    lua_pushnumber(L, (double)t.handle);
+    return 1;
+}
+
+int zaro_after(lua_State* L) {
+    const uint64_t ticks = ticks_arg(L, 1, "zaro.after");
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    return add_timer(L, ticks, 0, 1, 2);
+}
+
+int zaro_every(lua_State* L) {
+    const uint64_t ticks = ticks_arg(L, 1, "zaro.every");
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    int64_t times = -1;
+    if (!lua_isnoneornil(L, 3)) {
+        const double n = luaL_checknumber(L, 3);
+        if (n < 1 || floor(n) != n) luaL_error(L, "zaro.every: times must be a whole number of 1 or more, got %g", n);
+        times = (int64_t)n;
+    }
+    return add_timer(L, ticks, ticks, times, 2);
+}
+
+const char* event_arg(lua_State* L, int arg, const char* what) {
+    size_t len = 0;
+    const char* event = luaL_checklstring(L, arg, &len);
+    if (!len || len >= kEventNameCapacity) luaL_error(L, "%s: event names are 1 to %u bytes", what, kEventNameCapacity - 1);
+    return event;
+}
+
+int zaro_on(lua_State* L) {
+    Script* s = self(L);
+    const char* event = event_arg(L, 1, "zaro.on");
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    s->handlers = grow(s->handlers, s->handler_count, &s->handler_capacity);
+    Handler& h = s->handlers[s->handler_count++];
+    h.handle = s->next_handle++;
+    h.ref = lua_ref(L, 2);
+    snprintf(h.event, sizeof(h.event), "%s", event);
+    h.cancelled = false;
+    lua_pushnumber(L, (double)h.handle);
+    return 1;
+}
+
+// Appends (name, the payload on top of the stack) to the event queue and pops the payload.
+void enqueue(lua_State* L, Script* s, const char* name) {
+    lua_getref(L, s->queue_ref);
+    lua_pushstring(L, name);
+    lua_rawseti(L, -2, s->queue_tail);
+    lua_pushvalue(L, -2);
+    lua_rawseti(L, -2, s->queue_tail + 1);
+    lua_pop(L, 2);
+    s->queue_tail += 2;
+}
+
+int zaro_emit(lua_State* L) {
+    const char* event = event_arg(L, 1, "zaro.emit");
+    lua_settop(L, 2);  // the payload, or nil
+    enqueue(L, self(L), event);
+    return 0;
+}
+
+int zaro_cancel(lua_State* L) {
+    Script* s = self(L);
+    const double handle = luaL_checknumber(L, 1);
+    bool found = false;
+    for (uint32_t i = 0; i < s->timer_count && !found; ++i) {
+        Timer& t = s->timers[i];
+        if (!t.cancelled && (double)t.handle == handle) found = t.cancelled = true;
+    }
+    for (uint32_t i = 0; i < s->handler_count && !found; ++i) {
+        Handler& h = s->handlers[i];
+        if (!h.cancelled && (double)h.handle == handle) found = h.cancelled = true;
+    }
+    lua_pushboolean(L, found);
+    return 1;
+}
+
 int zaro_tick(lua_State* L) {
     lua_pushnumber(L, (double)self(L)->tick);
     return 1;
@@ -636,6 +768,108 @@ bool call_hook(Script* s, const char* name, int nargs, DiagList* diags, bool* re
     return true;
 }
 
+// Calls the registry function `ref` with the nargs values on top of the stack. Errors are ZE0501
+// with the line inside the callback.
+bool call_ref(Script* s, int ref, int nargs, DiagList* diags) {
+    lua_getref(s->T, ref);
+    if (nargs) lua_insert(s->T, -(nargs + 1));
+    arm(s);
+    const int status = lua_pcall(s->T, nargs, 0, 0);
+    s->deadline_armed = false;
+    if (status != 0) {
+        report(s, kErrScriptRuntime, lua_tostring(s->T, -1), diags);
+        lua_pop(s->T, 1);
+        return false;
+    }
+    return true;
+}
+
+// Fires the timers due by s->tick, earliest first and in creation order within a tick. Timers a
+// callback creates are at least one tick ahead, so they wait for a later tick.
+bool fire_timers(Script* s, DiagList* diags) {
+    bool ok = true;
+    while (ok) {
+        int next = -1;
+        for (uint32_t i = 0; i < s->timer_count; ++i) {
+            const Timer& t = s->timers[i];
+            if (t.cancelled || t.due > s->tick) continue;
+            if (next < 0 || t.due < s->timers[next].due ||
+                (t.due == s->timers[next].due && t.handle < s->timers[next].handle)) {
+                next = (int)i;
+            }
+        }
+        if (next < 0) break;
+        Timer& t = s->timers[next];
+        const int ref = t.ref;
+        if (t.remaining > 0) --t.remaining;
+        if (t.remaining == 0) t.cancelled = true;
+        else t.due += t.interval;
+        lua_pushnumber(s->T, (double)s->tick);
+        ok = call_ref(s, ref, 1, diags);  // may add timers, which can move s->timers
+    }
+    uint32_t kept = 0;
+    for (uint32_t i = 0; i < s->timer_count; ++i) {
+        if (s->timers[i].cancelled) lua_unref(s->T, s->timers[i].ref);
+        else s->timers[kept++] = s->timers[i];
+    }
+    s->timer_count = kept;
+    return ok;
+}
+
+// Empties the event queue (after too many events in one tick).
+void clear_queue(Script* s) {
+    lua_newtable(s->T);
+    lua_unref(s->T, s->queue_ref);
+    s->queue_ref = lua_ref(s->T, -1);
+    lua_pop(s->T, 1);
+    s->queue_head = s->queue_tail = 1;
+}
+
+// Delivers queued events to their handlers, in emit order and subscription order, including the
+// events handlers emit. A handler subscribed while an event is delivered gets only later events.
+bool drain_events(Script* s, DiagList* diags) {
+    bool ok = true;
+    while (ok && s->queue_head < s->queue_tail) {
+        lua_getref(s->T, s->queue_ref);
+        const int queue = lua_gettop(s->T);
+        lua_rawgeti(s->T, queue, s->queue_head);
+        char name[kEventNameCapacity];
+        snprintf(name, sizeof(name), "%s", lua_tostring(s->T, -1));
+        lua_pop(s->T, 1);
+        if (++s->events_this_tick > kMaxEventsPerTick) {
+            diag_add(diags, kErrEventLimit, s->path, 0, 0,
+                     "more than %u events in one tick (the last was '%s'); do handlers emit each other in a loop?",
+                     kMaxEventsPerTick, name);
+            lua_settop(s->T, queue - 1);
+            clear_queue(s);
+            ok = false;
+            break;
+        }
+        lua_rawgeti(s->T, queue, s->queue_head + 1);  // the payload stays on the stack while delivered
+        lua_pushnil(s->T);
+        lua_rawseti(s->T, queue, s->queue_head);
+        lua_pushnil(s->T);
+        lua_rawseti(s->T, queue, s->queue_head + 1);
+        s->queue_head += 2;
+        const uint32_t n = s->handler_count;
+        for (uint32_t i = 0; i < n && ok; ++i) {
+            if (s->handlers[i].cancelled || strcmp(s->handlers[i].event, name) != 0) continue;
+            lua_pushvalue(s->T, -1);
+            lua_pushstring(s->T, name);
+            ok = call_ref(s, s->handlers[i].ref, 2, diags);  // may subscribe, which can move s->handlers
+        }
+        lua_settop(s->T, queue - 1);
+    }
+    if (s->queue_head == s->queue_tail) s->queue_head = s->queue_tail = 1;
+    uint32_t kept = 0;
+    for (uint32_t i = 0; i < s->handler_count; ++i) {
+        if (s->handlers[i].cancelled) lua_unref(s->T, s->handlers[i].ref);
+        else s->handlers[kept++] = s->handlers[i];
+    }
+    s->handler_count = kept;
+    return ok;
+}
+
 }  // namespace
 
 Script* load_script(const ScriptDesc& desc, DiagList* diags) {
@@ -670,8 +904,9 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
         {"get", zaro_get},       {"set", zaro_set},     {"has", zaro_has},     {"tick", zaro_tick},
         {"log", zaro_log},       {"spawn", zaro_spawn}, {"destroy", zaro_destroy}, {"alive", zaro_alive},
         {"find", zaro_find},     {"name", zaro_name},   {"id", zaro_id},       {"query", zaro_query},
-        {"count", zaro_count},   {nullptr, nullptr}};
-    lua_createtable(L, 0, 13);
+        {"count", zaro_count},   {"after", zaro_after}, {"every", zaro_every}, {"on", zaro_on},
+        {"emit", zaro_emit},     {"cancel", zaro_cancel}, {nullptr, nullptr}};
+    lua_createtable(L, 0, 19);
     for (const luaL_Reg* r = kApi; r->name; ++r) {
         lua_pushcfunction(L, r->func, r->name);
         lua_setfield(L, -2, r->name);
@@ -697,6 +932,9 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     s->thread_ref = lua_ref(L, -1);
     lua_pop(L, 1);
     luaL_sandboxthread(s->T);  // script globals live in a table of their own
+    lua_newtable(s->T);
+    s->queue_ref = lua_ref(s->T, -1);
+    lua_pop(s->T, 1);
 
     if (!run_file(s, diags)) {
         destroy_script(s);
@@ -708,33 +946,49 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
 void destroy_script(Script* s) {
     if (!s) return;
     if (s->L) lua_close(s->L);
+    free(s->timers);
+    free(s->handlers);
     delete s;
 }
 
-bool call_start(Script* s, DiagList* diags) { return call_hook(s, "on_start", 0, diags); }
+// Every hook is followed by the events it (and the engine) queued.
+bool call_start(Script* s, DiagList* diags) { return call_hook(s, "on_start", 0, diags) && drain_events(s, diags); }
 
 bool call_tick(Script* s, uint64_t tick, DiagList* diags) {
     s->tick = tick;
+    s->events_this_tick = 0;
+    if (!fire_timers(s, diags) || !drain_events(s, diags)) return false;
     lua_pushnumber(s->T, (double)tick);
-    return call_hook(s, "on_tick", 1, diags);
+    return call_hook(s, "on_tick", 1, diags) && drain_events(s, diags);
 }
 
 bool call_ui(Script* s, const char* action, const char* screen, const char* node, DiagList* diags) {
     lua_pushstring(s->T, action);
     lua_pushstring(s->T, screen);
     lua_pushstring(s->T, node);
-    return call_hook(s, "on_ui", 3, diags);
+    return call_hook(s, "on_ui", 3, diags) && drain_events(s, diags);
 }
 
 bool call_back(Script* s, const char* screen, bool* claimed, DiagList* diags) {
     lua_pushstring(s->T, screen);
-    return call_hook(s, "on_back", 1, diags, claimed);
+    return call_hook(s, "on_back", 1, diags, claimed) && drain_events(s, diags);
 }
 
 bool call_screen(Script* s, const char* event, const char* screen, DiagList* diags) {
     lua_pushstring(s->T, event);
     lua_pushstring(s->T, screen);
-    return call_hook(s, "on_screen", 2, diags);
+    return call_hook(s, "on_screen", 2, diags) && drain_events(s, diags);
+}
+
+bool emit_event(Script* s, const char* name, const char* const* keys, const double* values, uint32_t count) {
+    if (!name[0] || strlen(name) >= kEventNameCapacity) return false;
+    lua_createtable(s->T, 0, (int)count);
+    for (uint32_t i = 0; i < count; ++i) {
+        lua_pushnumber(s->T, values[i]);
+        lua_setfield(s->T, -2, keys[i]);
+    }
+    enqueue(s->T, s, name);
+    return true;
 }
 
 bool reload(Script* s, DiagList* diags) { return run_file(s, diags); }

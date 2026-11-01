@@ -177,6 +177,36 @@ void test_world() {
            "spawn with a taken name");
 }
 
+// Timers, events and engine events (D-031): events.luau asserts the order on tick 91.
+void test_events() {
+    {
+        Run r("tests/data/scripts/events.luau");
+        expect(r.script && zaro::script::call_start(r.script, r.diags), "events.luau on_start");
+        if (!r.script) return;
+        bool ok = true;
+        for (uint64_t t = 1; t <= 91 && ok; ++t) {
+            if (t == 10) {
+                const char* keys[] = {"speed"};
+                const double values[] = {6.5};
+                expect(zaro::script::emit_event(r.script, "engine", keys, values, 1), "emit_event queues");
+            }
+            ok = zaro::script::call_tick(r.script, t, r.diags);
+        }
+        expect(ok, "timers and events fire in the documented order");
+        expect(horde(r.scene)->speed == 6.5f, "an engine event reached its handler");
+        if (!ok) zaro::diag_print_text(r.diags, stderr);
+    }
+    {
+        Run r("tests/data/scripts/storm.luau");
+        expect(r.script && zaro::script::call_start(r.script, r.diags), "storm.luau on_start");
+        if (!r.script) return;
+        expect(!zaro::script::call_tick(r.script, 1, r.diags) && r.has(zaro::kErrEventLimit, 0, "'ping'"),
+               "an event loop stops with ZE1201");
+        r.diags->count = 0;
+        expect(zaro::script::call_tick(r.script, 2, r.diags), "the next tick starts with an empty queue");
+    }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -187,6 +217,7 @@ int main(int argc, char** argv) {
     test_random();
     test_reload(argc > 1 ? argv[1] : ".");
     test_world();
+    test_events();
     if (g_failures) {
         fprintf(stderr, "test_script: %d failure(s)\n", g_failures);
         return 1;

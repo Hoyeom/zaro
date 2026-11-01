@@ -20,6 +20,16 @@
 //   zaro.id(entity), zaro.name(entity)         -> its id, its name
 //   zaro.query([component, ...])               -> {id, ...}: live entities with all of them, in id order
 //   zaro.count([component, ...])               -> how many zaro.query would return
+// Timers and events run in the fixed tick (D-031). Seconds are tick time, rounded to whole ticks
+// and at least one, so a timer made in on_start with 1.0 fires before on_tick(60).
+//   zaro.after(seconds, fn)                    -> handle; fn(tick) once, before that tick's on_tick
+//   zaro.every(seconds, fn[, times])           -> handle; fn(tick) each interval, `times` times or forever
+//   zaro.on(event, fn)                         -> handle; fn(payload, event) for each such event
+//   zaro.emit(event[, payload])                -- queued, and delivered after the hook that emitted it
+//   zaro.cancel(handle)                        -> true if it stopped a timer or a subscription
+// A tick runs the due timers (earliest first, then oldest), their events, on_tick, then its events.
+// Events go out in emit order, to handlers in subscription order, including events that handlers
+// emit; more than kMaxEventsPerTick in one tick is ZE1201. Hooks below deliver their events too.
 // and the scene's UI through `ui` (view model in scene/ui_state.h, navigation in ui/navigator.h):
 //   ui.set(key, value)       -- a view-model value (number or string); texts show it as {key}
 //   ui.get(key)              -> the value, or nil
@@ -46,6 +56,9 @@
 #include <stdint.h>
 
 namespace zaro::script {
+
+constexpr uint32_t kEventNameCapacity = 64;
+constexpr uint32_t kMaxEventsPerTick = 10000;
 
 struct Script;
 
@@ -88,6 +101,9 @@ bool call_ui(Script* script, const char* action, const char* screen, const char*
 // on_back: *claimed is true if the hook returned true.
 bool call_back(Script* script, const char* screen, bool* claimed, DiagList* diags);
 bool call_screen(Script* script, const char* event, const char* screen, DiagList* diags);
+// Queues an event from the engine with a payload table of numbers (keys[i] = values[i]). The
+// script's handlers get it after the next hook. False if the name is empty or too long.
+bool emit_event(Script* script, const char* name, const char* const* keys, const double* values, uint32_t count);
 
 // Recompiles the file and re-runs its top level in the same environment, so hooks are replaced
 // and globals the script does not reassign keep their values. On error the old code stays.

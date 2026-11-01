@@ -70,6 +70,13 @@ removing bumps `Scene::generation`, which may move `Scene::entities`: code that 
 it (like `app/sprite_layer`) rebuilds them when the generation changes. Spawnable prefabs' sprite
 sheets are loaded with the scene, and the Android export packs the prefabs.
 
+Timers and events (D-031) run in the fixed tick and are kept inside the script: `zaro.after`,
+`zaro.every` (seconds of tick time, rounded to whole ticks), `zaro.on`/`zaro.emit` and
+`zaro.cancel`. A tick runs the due timers, on_tick, then the queued events (handlers may emit more);
+other hooks deliver their events after them. The app can queue engine events with
+`script::emit_event`. More than `script::kMaxEventsPerTick` events in one tick is ZE1201. The order
+is tested by `tests/data/scripts/events.luau`; change it only with that test.
+
 A scene names its script with `script = "file.luau"` in `[scene]`. `zaro run <scene>` calls
 `on_start()` once and `on_tick(tick)` before every simulation tick (tick 1 is the first). Values the
 script changes are read back the same tick. Today these are `CrowdSpawner.speed` and
