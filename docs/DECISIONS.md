@@ -478,6 +478,41 @@ Status of all entries below: **accepted, 2026-11-01**.
 - **Not yet**: switching colour themes (light/dark) at run time; widgets for the kit's
   box-shadows and outlined text.
 
+## D-024 SVG art: PlutoSVG on PlutoVG, in the zaro tool's cook step only
+
+- **Status**: accepted, 2026-11-02.
+- **Decision**: SVG character art is rasterized into sprite atlases by PlutoSVG (MIT) drawing with
+  PlutoVG (MIT), pinned at plutosvg v0.0.8 and plutovg v1.3.3 (the commit plutosvg v0.0.8 pins).
+  Only the `zaro` tool's cook step links them. Games load the cooked atlases as PNG now and KTX2
+  later (D-008), so no game binary contains either library. The cook reports every element it
+  cannot draw (`mask`, `text`, `filter` and the like) as a ZE error with file and line instead of
+  dropping it, so art that would render wrong fails the cook.
+- **Why**:
+  - Illustrator, Figma and Inkscape exports commonly style shapes through `<style>` classes and
+    use `clipPath`, `use`/`symbol` and gradients. PlutoSVG draws all of these.
+  - Both are plain C, so they build with ZARO's flags (no exceptions, no RTTI), and they are
+    small: one 84 KB source file for SVG, and a vector library of about 300 KB without the stb
+    copies it bundles. Both had releases in 2026.
+  - Cooking at build time keeps parsing and rasterizing off the device and lets the cook pack,
+    trim and pad frames once.
+- **License duty**: PlutoVG's scan converter and stroker are FreeType code under the FreeType
+  License (`FTL.TXT` in its source). That license is permissive (BSD-style, no copyleft), but a
+  binary distribution must state in its documentation that it is based in part on the work of
+  the FreeType Team. A distribution of the `zaro` tool therefore carries that statement in its
+  third-party notices, which the PR adding the dependency creates. Games built with ZARO owe
+  nothing for it, since they do not contain the code.
+- **Rejected**:
+  - nanosvg (zlib, two headers): the smallest and the cleanest license, but it skips the contents
+    of `<style>` and has no `clipPath` or `use`, so common exports render wrong without any
+    warning. It is also no longer maintained.
+  - ThorVG (MIT, its rasterizer also FreeType-derived): about 900 KB of C++ for the SVG loader and
+    software renderer, plus Lottie and more that P3 does not need.
+  - resvg (Apache-2.0): the most complete SVG support, but it needs a Rust toolchain in the build.
+  - lunasvg (MIT): C++ on top of the same PlutoVG, with nothing P3 needs over PlutoSVG.
+  - librsvg and cairo: LGPL, excluded by D-012.
+- **Not supported**: masks, text and filters (drop shadows, blurs). Artists convert text to
+  outlines and bake effects into shapes before export. Revisit if the owner's art needs them.
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:
