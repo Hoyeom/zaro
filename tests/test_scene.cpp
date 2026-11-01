@@ -1,6 +1,7 @@
 // Scene loading: prefab overrides, defaults, and one diagnostic per problem with the right id
 // and line. Run from the repository root (ctest sets WORKING_DIRECTORY).
 #include "core/diag.h"
+#include "core/path.h"
 #include "core/reflect.h"
 #include "scene/scene.h"
 #include "sim/crowd_components.h"
@@ -75,9 +76,33 @@ void test_errors() {
     delete diags;
 }
 
+void test_paths() {
+    struct Case {
+        const char* base;
+        const char* rel;
+        const char* want;
+    };
+    const Case cases[] = {
+        {"game/tests/a.test.toml", "../scene.toml", "game/scene.toml"},
+        {"game/scene.toml", "prefabs/./p.toml", "game/prefabs/p.toml"},
+        {"t.toml", "../up.toml", "../up.toml"},
+        {"a/b.toml", "/abs/x.toml", "/abs/x.toml"},
+        {"C:/x\\scene.toml", "s.luau", "C:/x/s.luau"},
+        {"a/b/c.toml", "../../d.toml", "d.toml"},
+    };
+    for (const Case& c : cases) {
+        char out[256];
+        zaro::path_join_relative(c.base, c.rel, out, sizeof(out));
+        char what[512];
+        snprintf(what, sizeof(what), "path_join_relative(%s, %s) = %s, want %s", c.base, c.rel, out, c.want);
+        expect(strcmp(out, c.want) == 0, what);
+    }
+}
+
 }  // namespace
 
 int main() {
+    test_paths();
     zaro::sim::register_crowd_components();
     test_override();
     test_errors();

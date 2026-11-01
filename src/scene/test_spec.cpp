@@ -1,5 +1,7 @@
 #include "scene/test_spec.h"
 
+#include "core/path.h"
+
 #include <tomlc17.h>
 
 #include <stdio.h>
@@ -9,17 +11,6 @@
 namespace zaro::scene {
 
 namespace {
-
-void resolve(const char* base_file, const char* rel, char* out, size_t size) {
-    const char* slash = strrchr(base_file, '/');
-    const char* bslash = strrchr(base_file, '\\');
-    if (!slash || (bslash && bslash > slash)) slash = bslash;
-    if (!slash || rel[0] == '/' || (rel[0] && rel[1] == ':')) {
-        snprintf(out, size, "%s", rel);
-        return;
-    }
-    snprintf(out, size, "%.*s/%s", (int)(slash - base_file), base_file, rel);
-}
 
 bool get_string(const toml_datum_t& t, const char* key, char* out, size_t size, const char* file, DiagList* d,
                 bool required) {
@@ -146,7 +137,7 @@ bool load_test_spec(const char* path, TestSpec* spec, DiagList* d) {
         diag_add(d, kErrTestSpec, path, 1, 1, "a test file needs a [test] table");
     } else {
         char rel[260];
-        if (get_string(t, "scene", rel, sizeof(rel), path, d, true)) resolve(path, rel, spec->scene, sizeof(spec->scene));
+        if (get_string(t, "scene", rel, sizeof(rel), path, d, true)) path_join_relative(path, rel, spec->scene, sizeof(spec->scene));
         uint64_t ticks = 0;
         if (get_uint(t, "ticks", &ticks, path, d, true)) spec->ticks = (uint32_t)ticks;
         uint64_t enemies = 0;

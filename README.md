@@ -16,9 +16,10 @@ ZARO is a small, royalty-free engine designed to be easy for AI agents (and peop
 
 > **Status: pre-alpha. Developed in the open, not announced yet.** Expect breaking changes on
 > any commit and no support. M1 is done: a crowd demo where 50,000 enemies swarm the player
-> runs at several hundred fps, and a headless run writes `perf.json`. There is no scene
-> format, scripting or editor yet. External code contributions are not accepted yet; issues
-> are welcome (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+> runs at several hundred fps. M2 is done: TOML scenes, Luau scripts, `zaro check`, `zaro test`
+> and `zaro screenshot`; start with [docs/guide.md](docs/guide.md). There is no editor or game
+> UI yet. External code contributions are not accepted yet; issues are welcome (see
+> [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## Build
 
@@ -37,7 +38,7 @@ A GPU with compute shaders is required; `zaro run --sim-only` runs the simulatio
 
 1. ~~**M1**: 50,000 enemies chase the player at 60 fps; a headless run writes `perf.json` (fps, draw calls, entity count, GPU time).~~ Done, see [docs/DECISIONS.md](docs/DECISIONS.md#m1-result-2026-11-01).
 2. ~~**CI**: GitHub Actions builds and tests on Windows, Linux and macOS.~~ Done. Performance-regression gating is still open.
-3. **M2, agent workflow**: TOML scenes and prefabs, Luau game scripts, `zaro screenshot` and `zaro test`, component schema export, docs and examples.
+3. ~~**M2, agent workflow**: TOML scenes and prefabs, Luau game scripts, `zaro screenshot` and `zaro test`, component schema export, docs and examples.~~ Done, see [docs/guide.md](docs/guide.md). The Luau type checker is still to come.
 4. **M3, first game**: a small survivors-like built with ZARO, plus a tutorial that walks through making it.
 5. **Launch**: the engine is announced together with that game (D-016).
 6. **Plugins**: the C ABI plugin interface, `zaro plugin add <name>`, validated first with Steamworks (`zaro-steam`).
