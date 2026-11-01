@@ -24,6 +24,9 @@ enum ErrorId {
     kErrScriptCompile = 500,  // ZE0500 script missing or has a syntax error
     kErrScriptRuntime = 501,  // ZE0501 script raised an error (includes misuse of the zaro API)
     kErrScriptTimeout = 502,  // ZE0502 one script call ran longer than its time budget
+    kErrTestSpec = 600,       // ZE0600 test file missing or invalid
+    kErrTestExpect = 601,     // ZE0601 an [[expect]] did not hold after the run
+    kErrTestStateHash = 602,  // ZE0602 the run's state hash differs from the golden one
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

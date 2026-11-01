@@ -43,7 +43,7 @@ add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp)
 target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
-add_library(zaro_scene STATIC src/scene/scene.cpp)
+add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
@@ -55,7 +55,7 @@ add_library(zaro_render STATIC src/render/crowd_renderer.cpp)
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
-add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp)
+add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp)
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_platform)
 zaro_target_defaults(zaro_app)
 
@@ -121,6 +121,18 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro run tests/data/scripts/failing_scene.toml --sim-only --warmup 0 --frames 10
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(script_error_fails_run PROPERTIES WILL_FAIL TRUE)
+
+  # Scene tests: the example passes (golden hash included), the broken ones fail.
+  add_test(NAME scene_tests_example COMMAND zaro test examples/crowd/tests
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME scene_tests_failing COMMAND zaro test tests/data/scene_tests
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(scene_tests_failing PROPERTIES WILL_FAIL TRUE)
+  add_test(NAME screenshot_gpu
+           COMMAND zaro screenshot examples/crowd/scene.toml ${CMAKE_BINARY_DIR}/screenshot_test.png
+                   --frames 10 --size 640x360
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_gpu PROPERTIES LABELS gpu)
 
   # No GPU needed: runs on CI runners.
   add_test(NAME crowd_sim_only COMMAND zaro run --sim-only --enemies 5000 --warmup 0 --frames 120)

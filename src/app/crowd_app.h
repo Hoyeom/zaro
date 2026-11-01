@@ -5,6 +5,13 @@
 
 #include <stdint.h>
 
+namespace zaro {
+struct DiagList;
+namespace scene {
+struct Scene;
+}
+}  // namespace zaro
+
 namespace zaro::app {
 
 struct RunOptions {
@@ -29,5 +36,17 @@ struct RunOptions {
 
 // Returns the process exit code.
 int run_crowd(const RunOptions& options);
+
+struct SimulateResult {
+    uint64_t state_hash = 0;
+    uint64_t ticks = 0;
+};
+
+// Runs a scene for `ticks` ticks without a window or GPU, with the scripted player input and the
+// scene's script (used by `zaro test`). Errors go to diags. *scene_out receives the scene as the
+// run left it (values a script changed included), or nullptr; free it with scene::free_scene.
+// Returns false if the scene, the script or a tick failed.
+bool simulate_scene(const RunOptions& options, uint32_t ticks, DiagList* diags, scene::Scene** scene_out,
+                    SimulateResult* out);
 
 }  // namespace zaro::app

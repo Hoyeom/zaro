@@ -1,0 +1,9 @@
+# Must fail to load: missing ticks, misspelt component.
+[test]
+scene = "../../../examples/crowd/scene.toml"
+
+[[expect]]
+entity = "horde"
+component = "CrowdSpwner"
+field = "speed"
+equals = 1.0

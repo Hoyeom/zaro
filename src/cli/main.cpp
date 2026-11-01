@@ -17,7 +17,10 @@ void print_usage() {
          "  version    print engine and plugin ABI version\n"
          "  run        run a scene: zaro run [scene.toml] [options] (no scene: built-in crowd demo)\n"
          "  schema     print every component (fields, types, defaults, ranges) as JSON\n"
-         "  check      validate a scene without running it: zaro check <scene.toml> [--json]\n"
+         "  check      validate a scene and its script: zaro check <scene.toml> [--json]\n"
+         "  test       run scene tests: zaro test [paths...] [--update] [--json] (default path: tests)\n"
+         "  screenshot render a scene headless to PNG: zaro screenshot <scene.toml> [out.png]\n"
+         "             [--frames N (default 60)] [--size WxH]\n"
          "  help       print this message\n"
          "\n"
          "run options:\n"
@@ -35,7 +38,7 @@ void print_usage() {
          "  --perf PATH          write a perf report (JSON) to PATH\n"
          "  --screenshot PATH    headless: save the last frame as PNG\n"
          "\n"
-         "planned (not implemented yet): screenshot, test, plugin");
+         "planned (not implemented yet): plugin");
 }
 
 bool parse_u32(const char* s, uint32_t* out) {
@@ -117,6 +120,45 @@ int cmd_run(int argc, char** argv) {
     return zaro::app::run_crowd(o);
 }
 
+int cmd_screenshot(int argc, char** argv) {
+    zaro::app::RunOptions o;
+    o.headless = true;
+    o.warmup = 0;
+    o.frames = 60;
+    const char* out = nullptr;
+    for (int i = 2; i < argc; ++i) {
+        const char* a = argv[i];
+        const char* next = i + 1 < argc ? argv[i + 1] : nullptr;
+        if (strcmp(a, "--frames") == 0) {
+            if (!next || !parse_u32(next, &o.frames) || o.frames == 0) {
+                return usage_error("--frames needs a positive number, got", next ? next : "");
+            }
+            ++i;
+        } else if (strcmp(a, "--size") == 0) {
+            unsigned w = 0, h = 0;
+            if (!next || sscanf(next, "%ux%u", &w, &h) != 2 || !w || !h) {
+                return usage_error("--size needs WxH, got", next ? next : "");
+            }
+            o.width = w;
+            o.height = h;
+            ++i;
+        } else if (a[0] == '-') {
+            return usage_error("unknown option", a);
+        } else if (!o.scene_path) {
+            o.scene_path = a;
+        } else if (!out) {
+            out = a;
+        } else {
+            return usage_error("unexpected argument", a);
+        }
+    }
+    if (!o.scene_path) return usage_error("screenshot needs a scene path, got", "");
+    o.screenshot_path = out ? out : "screenshot.png";
+    const int code = zaro::app::run_crowd(o);
+    if (code == 0) printf("wrote %s\n", o.screenshot_path);
+    return code;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -142,6 +184,19 @@ int main(int argc, char** argv) {
         if (!path) return usage_error("check needs a scene path, got", "");
         return zaro::app::check_scene(path, json);
     }
+    if (strcmp(argv[1], "test") == 0) {
+        const char* paths[64];
+        int count = 0;
+        bool update = false, json = false;
+        for (int i = 2; i < argc; ++i) {
+            if (strcmp(argv[i], "--update") == 0) update = true;
+            else if (strcmp(argv[i], "--json") == 0) json = true;
+            else if (argv[i][0] == '-') return usage_error("unknown option", argv[i]);
+            else if (count < 64) paths[count++] = argv[i];
+        }
+        return zaro::app::run_scene_tests(paths, count, update, json);
+    }
+    if (strcmp(argv[1], "screenshot") == 0) return cmd_screenshot(argc, argv);
     zaro::log_error(zaro::kErrCliUsage, "unknown command '%s' (try 'zaro help')", argv[1]);
     return 2;
 }

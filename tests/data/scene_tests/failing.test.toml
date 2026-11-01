@@ -1,0 +1,18 @@
+# Must fail: wrong expected speed, out-of-range check and a wrong golden hash. Used by ctest.
+[test]
+scene = "../../../examples/crowd/scene.toml"
+ticks = 700
+enemies = 500
+state_hash = "0000000000000001"
+
+[[expect]]
+entity = "horde"
+component = "CrowdSpawner"
+field = "speed"
+equals = 99.0
+
+[[expect]]
+entity = "horde"
+component = "CrowdSpawner"
+field = "count"
+max = 10

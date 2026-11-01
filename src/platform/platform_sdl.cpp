@@ -115,6 +115,51 @@ const char* base_path() {
     return p ? p : "./";
 }
 
+namespace {
+
+struct FindCtx {
+    const char* suffix;
+    FileFn fn;
+    void* user;
+};
+
+bool ends_with(const char* s, const char* suffix) {
+    const size_t n = strlen(s), m = strlen(suffix);
+    return n >= m && strcmp(s + n - m, suffix) == 0;
+}
+
+SDL_EnumerationResult SDLCALL find_cb(void* user, const char* dirname, const char* fname) {
+    const FindCtx* ctx = (const FindCtx*)user;
+    if (fname[0] == '.' || strcmp(fname, "build") == 0) return SDL_ENUM_CONTINUE;
+    char path[1024];
+    SDL_snprintf(path, sizeof(path), "%s%s", dirname, fname);
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(path, &info)) return SDL_ENUM_CONTINUE;
+    if (info.type == SDL_PATHTYPE_DIRECTORY) {
+        SDL_EnumerateDirectory(path, find_cb, user);
+    } else if (info.type == SDL_PATHTYPE_FILE && ends_with(fname, ctx->suffix)) {
+        // Report '/' separators on every OS so output and JSON look the same everywhere.
+        for (char* c = path; *c; ++c) {
+            if (*c == '\\') *c = '/';
+        }
+        ctx->fn(path, ctx->user);
+    }
+    return SDL_ENUM_CONTINUE;
+}
+
+}  // namespace
+
+bool find_files(const char* path, const char* suffix, FileFn fn, void* user) {
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(path, &info)) return false;
+    if (info.type == SDL_PATHTYPE_FILE) {
+        if (ends_with(path, suffix)) fn(path, user);
+        return true;
+    }
+    FindCtx ctx{suffix, fn, user};
+    return SDL_EnumerateDirectory(path, find_cb, &ctx);
+}
+
 uint64_t file_mtime(const char* path) {
     SDL_PathInfo info;
     if (!SDL_GetPathInfo(path, &info)) return 0;
