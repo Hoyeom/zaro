@@ -1,5 +1,5 @@
 // Per-frame constants shared by every crowd shader. Mirrors render::FrameConstants in
-// src/render/crowd_renderer.cpp; keep the two in the same order and size (208 bytes).
+// src/render/crowd_renderer.cpp; keep the two in the same order and size (240 bytes).
 module frame;
 
 public struct Frame {
@@ -10,4 +10,6 @@ public struct Frame {
     public uint enemy_count;
     public uint obstacle_count;
     public uint2 pad;
+    public float4 sprite;  // enemy sprites: metres per pixel, fps, frame count, cull radius (0: cubes)
+    public float4 right;   // the camera's right vector (xyz), for sprites facing it
 };

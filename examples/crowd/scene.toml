@@ -16,6 +16,11 @@ name = "horde"
 [entity.CrowdSpawner]
 count = 50000
 speed = 4.0
+# The enemies are the cat from examples/cats, walking. Without this table they are cubes.
+[entity.CrowdSprite]
+sheet = "../cats/cat.toml"
+animation = "walk"
+scale = 0.6
 
 [[entity]]
 name = "player"

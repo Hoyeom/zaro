@@ -16,6 +16,12 @@ release = true
 [environment.production.config]
 log_level = "warning"
 
+# The enemies are the SVG cat from examples/cats (D-028): cook it before anything is packaged.
+[[step]]
+stage = "pre"
+name = "cook"
+uses = "cook-svg"
+
 [[step]]
 stage = "pre"
 name = "scene-tests"

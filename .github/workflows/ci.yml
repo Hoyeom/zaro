@@ -118,6 +118,19 @@ jobs:
         run: python tools/build.py release
       - name: APK
         run: python tools/android.py apk examples/crowd/scene.toml
+      - name: The APK holds the cooked cat atlas, not its SVG files (D-028)
+        run: |
+          python3 - <<'PY'
+          import glob, sys, zipfile
+          names = zipfile.ZipFile(glob.glob("build/android-project/app/build/outputs/apk/debug/*.apk")[0]).namelist()
+          assets = [n for n in names if n.startswith("assets/game/")]
+          for n in assets:
+              print(n)
+          if not any(n.endswith(".zaro-cache/cat.png") for n in assets):
+              sys.exit("the cooked sprite atlas .zaro-cache/cat.png is missing from the APK")
+          if any(n.endswith(".svg") for n in assets):
+              sys.exit("SVG files were packed into the APK")
+          PY
       - name: App Bundle through zaro build, debug key (bundletool validate, 16 KB alignment)
         run: python tools/android.py aab examples/crowd/build.toml
       # The release signing path with a key made for this run only; real upload keys live in each

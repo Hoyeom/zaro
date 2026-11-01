@@ -24,7 +24,16 @@ struct Sprite {
     uint32_t frame = 0;   // sheet frame shown now; the animation sets it every tick
 };
 
+// Draws the crowd's enemies as camera-facing sprites of a sheet's animation instead of cubes.
+// Each enemy starts the animation at its own phase and faces the way it walks.
+struct CrowdSprite {
+    char sheet[reflect::kStringCapacity] = {};
+    char animation[reflect::kStringCapacity] = {};
+    float scale = 1.0f;
+};
+
 extern const reflect::ComponentDesc kSpriteDesc;
+extern const reflect::ComponentDesc kCrowdSpriteDesc;
 
 void register_sprite_components();
 

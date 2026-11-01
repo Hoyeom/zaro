@@ -113,20 +113,40 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
   frame rate, and an SVG character from the art pipeline appears in a scene.
 - **Decisions**: D-028 (LunaSVG with its PlutoVG, in the `zaro` tool's cook step only), which
   supersedes D-024 (PlutoSVG, which does not draw `clipPath` or `<style>`).
-- **Status**: started 2026-11-02. Steps, one PR each: 1 D-024, 2 batched sprites from PNG atlases
+- **Status**: done 2026-11-02. Steps, one PR each: 1 D-024, 2 batched sprites from PNG atlases
   (screen space and billboards), 3 the SVG cook and a scene with an SVG character, 4 the crowd's
   enemies as animated sprites.
   - Step 1 (D-024, the SVG rasterizer): merged (#26).
-  - Step 2 (sprites): sprite sheet files (PNG, grid or explicit frames, pivots, named animations
-    on the tick clock), the `Sprite` component (world billboards and screen sprites), the
-    "sprites" pass with one draw per sheet batch, `zaro check` for sheets (ZE0900-ZE0902), PNG
-    decoding moved to `core`; tests `sprite_sheets`, `sprite_render_gpu`, `scene_tests_sprites`,
+  - Step 2 (sprites): merged (#27). Sprite sheet files (PNG, grid or explicit frames, pivots,
+    named animations on the tick clock), the `Sprite` component (world billboards and screen
+    sprites), the "sprites" pass with one draw per sheet batch, `zaro check` for sheets
+    (ZE0900-ZE0902), PNG decoding moved to `core`; tests `sprite_sheets`, `sprite_render_gpu`, `scene_tests_sprites`,
     `screenshot_sprites`.
   - Step 3 (SVG art, D-028): the `cook` module (LunaSVG, desktop only), SVG sheets cooked into
     `.zaro-cache/` by content hash, `zaro cook`, ZE0903 for text and filters with lines,
     `THIRD_PARTY_NOTICES.md` with lint Z010, the export packing cooked atlases (checked in a
     local APK); `examples/cats` with original cat art; tests `svg_cook`, `example_cats_cook`,
-    `check_svg_art`, `example_cats_scene`, `screenshot_cats` and the cats scene tests.
+    `check_svg_art`, `example_cats_scene`, `screenshot_cats` and the cats scene tests. Merged (#30).
+  - Step 4 (the crowd as sprites): the `CrowdSprite` component draws the enemies as upright,
+    camera-facing sprites of one animation in the crowd's GPU-culled indirect draw (6 vertices
+    instead of 36), each from its own phase and mirrored when it walks against the camera;
+    `examples/crowd` uses the cats' walk; the CI APK job checks that the cooked atlas is packed
+    and the SVG files are not; test `check_crowd_sprite_animation`.
+- **Result**: done 2026-11-02. `examples/crowd` draws its 50,000 enemies as the animated SVG cat at
+  the cube frame rate. Release build, RTX 5070, Vulkan, 1920x1080, 24 threads,
+  `zaro run examples/crowd/scene.toml --headless --perf perf.json`, three runs each in one session:
+
+  | Enemies drawn as | fps | frame avg / p99 ms | sim ms | GPU ms (main) | draw calls |
+  |---|---|---|---|---|---|
+  | cubes | 980 / 1034 / 1048 | 0.95-1.02 / 1.32-1.47 | 0.77-0.82 | 0.06 | 4 |
+  | cat sprites | 974 / 986 / 1008 | 0.99-1.03 / 1.38-1.53 | 0.79-0.82 | 0.10 | 4 |
+
+  The frame is bound by the simulation on the CPU, so both run at the same rate (M1: 791 fps).
+  With 200,000 enemies both ran at 331 fps; the GPU spent 0.34 ms on sprites and 0.15 ms on cubes.
+  All runs of a scene ended with the same `state_hash`: drawing does not touch the simulation.
+  `examples/cats` shows the SVG cat in the 3D view and on the screen (`screenshot_cats`, scene
+  tests in `examples/cats/tests`). The cooked atlas was checked in a locally built APK; running on
+  a phone is still to do with P1's device check.
 - **Waits for**: P2's atlas and texture support (done).
 - **Runs beside**: P1, P4.
 

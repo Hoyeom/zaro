@@ -45,6 +45,9 @@ named `[[animation]]`s.
   (world sprites depth-tested and cut out at half alpha, then screen sprites blended in order),
   before the UI. `SpriteInstance` and `SpriteFrameInfo` mirror `shaders/sprite.slang`.
 - PNGs are decoded by `read_png_rgba8` (`core/png.h`); the sheet loader reads only the size.
+- `CrowdSprite` on the spawner entity draws the crowd's enemies as one animation of a sheet
+  (`examples/crowd`), animated on the GPU from the run's time, so it changes no component and no
+  state hash. Without it they are cubes, as in `zaro run` without a scene.
 - SVG sheets (D-028) list one SVG file per frame and a `size`. The `zaro` tool cooks them into
   `.zaro-cache/<sheet>.png` (gitignored) when a run needs pixels and the content hash changed;
   `zaro cook <scene|sheet> [--force]` does it ahead of time. Scene tests and `--sim-only` runs never

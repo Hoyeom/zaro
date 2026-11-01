@@ -196,6 +196,10 @@ if(ZARO_BUILD_TESTS)
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(check_sprite_animation PROPERTIES
     PASS_REGULAR_EXPRESSION "typo_scene.toml:9:1: error\\[ZE0902\\]: entity 'blob': sheet '[^']*blob.toml' has no animation 'idel' \\(did you mean 'idle'")
+  add_test(NAME check_crowd_sprite_animation COMMAND zaro check tests/data/sprites/crowd_typo.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_crowd_sprite_animation PROPERTIES
+    PASS_REGULAR_EXPRESSION "crowd_typo.toml:11:1: error\\[ZE0902\\]: entity 'horde': sheet '[^']*' has no animation 'lnad' \\(did you mean 'land'")
   add_test(NAME scene_tests_sprites COMMAND zaro test tests/data/sprites
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME screenshot_sprites

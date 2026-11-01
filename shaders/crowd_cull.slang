@@ -7,7 +7,7 @@ import frame;
 [[vk::binding(2, 0)]] RWStructuredBuffer<uint> visible;
 [[vk::binding(3, 0)]] RWStructuredBuffer<Atomic<uint>> args;
 
-static const float kBoundingRadius = 1.0;
+static const float kCubeRadius = 1.0;
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
@@ -16,8 +16,9 @@ void cull(uint3 id: SV_DispatchThreadID) {
     if (i >= frame.enemy_count) return;
     const float4 inst = instances[i];
     const float3 center = float3(inst.x, 0.5, inst.y);
+    const float radius = frame.sprite.w > 0.0 ? frame.sprite.w : kCubeRadius;
     for (int p = 0; p < 6; ++p) {
-        if (dot(frame.planes[p].xyz, center) + frame.planes[p].w < -kBoundingRadius) return;
+        if (dot(frame.planes[p].xyz, center) + frame.planes[p].w < -radius) return;
     }
     const uint slot = args[1].add(1);
     visible[slot] = i;

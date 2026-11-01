@@ -1,11 +1,22 @@
 // Crowd scene: ground, obstacles, enemies (indirect, GPU-culled) and the player.
-// Meshes are generated from SV_VertexID, so no vertex buffers are bound.
+// Meshes are generated from SV_VertexID, so no vertex buffers are bound. Enemies are cubes, or
+// animated sprites from one sheet (render::CrowdSprites, `SpriteFrame` = render::SpriteFrameInfo).
 import frame;
 
 [[vk::binding(0, 0)]] ConstantBuffer<Frame> frame;
 [[vk::binding(1, 0)]] StructuredBuffer<float4> instances;
 [[vk::binding(2, 0)]] StructuredBuffer<uint> visible;
 [[vk::binding(3, 0)]] StructuredBuffer<uint2> obstacles;
+
+struct SpriteFrame {
+    float4 uv;     // u0, v0, u1, v1 in the atlas
+    float2 size;   // pixels
+    float2 pivot;  // 0..1 from the frame's top-left
+};
+
+[[vk::binding(4, 0)]] Texture2D<float4> sprite_atlas;  // sRGB, so samples are linear
+[[vk::binding(5, 0)]] SamplerState sprite_sampler;
+[[vk::binding(6, 0)]] StructuredBuffer<SpriteFrame> sprite_frames;  // the animation, in play order
 
 static const float3 kSky = float3(0.06, 0.07, 0.09);
 static const float3 kLightDir = float3(0.37, 0.86, 0.35);
@@ -62,6 +73,49 @@ VSOut vs_enemy(uint vid: SV_VertexID, uint iid: SV_InstanceID) {
     const float3 world = float3(inst.x, 0.0, inst.y) + right * local.x + float3(0, local.y, 0) + fwd * local.z;
     const float3 nw = right * n.x + float3(0, n.y, 0) + fwd * n.z;
     return make_vertex(world, nw, hue_tint(e));
+}
+
+struct SpriteOut {
+    float4 pos : SV_Position;
+    float2 uv : UV;
+    float3 world : WORLD;
+    nointerpolation float3 tint : TINT;
+};
+
+// An enemy as an upright sprite facing the camera. Each one starts the animation at its own phase
+// (from its index) and is mirrored when it walks against the camera's right (the art faces right).
+[shader("vertex")]
+SpriteOut vs_enemy_sprite(uint vid: SV_VertexID, uint iid: SV_InstanceID) {
+    static const float2 kCorners[6] = { float2(0, 0), float2(1, 0), float2(1, 1),
+                                        float2(0, 0), float2(1, 1), float2(0, 1) };
+    const uint e = visible[iid];
+    const float4 inst = instances[e];
+    const uint count = uint(frame.sprite.z);
+    uint h = e * 2654435761u;
+    h ^= h >> 13;
+    const uint step = uint(frame.player.z * frame.sprite.y) + h;
+    const SpriteFrame f = sprite_frames[step % count];
+    const float2 c = kCorners[vid];
+    const float2 offset = (c - f.pivot) * f.size * frame.sprite.x;
+    const bool mirror = dot(inst.zw, frame.right.xz) < 0.0;
+    const float u = mirror ? 1.0 - c.x : c.x;
+    const float3 world = float3(inst.x, 0.0, inst.y) + frame.right.xyz * offset.x - float3(0.0, offset.y, 0.0);
+    SpriteOut o;
+    o.pos = mul(frame.view_proj, float4(world, 1.0));
+    o.uv = lerp(f.uv.xy, f.uv.zw, float2(u, c.y));
+    o.world = world;
+    // A little variety: each enemy a slightly different shade.
+    o.tint = lerp(float3(0.78, 0.74, 0.72), float3(1.0, 1.0, 1.0), float((h >> 8) & 255u) / 255.0);
+    return o;
+}
+
+[shader("fragment")]
+float4 fs_enemy_sprite(SpriteOut i) : SV_Target {
+    const float4 t = sprite_atlas.Sample(sprite_sampler, i.uv);
+    if (t.a < 0.5) discard;
+    const float dist = length(i.world - frame.camera.xyz);
+    const float fog = saturate((dist - 60.0) / 140.0);
+    return float4(lerp(t.rgb * i.tint, kSky, fog), 1.0);
 }
 
 [shader("vertex")]
