@@ -1,6 +1,7 @@
 #include "ui/text.h"
 
 #include "ui/font.h"
+#include "ui/pack.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -13,8 +14,6 @@ namespace {
 
 constexpr uint32_t kCacheCapacity = 1u << 14;              // glyph cache slots, a power of two
 constexpr uint32_t kMaxCached = kCacheCapacity / 10 * 7;  // keep probing chains short
-constexpr uint32_t kMaxShelves = 1024;
-constexpr uint32_t kPad = 1;  // empty texels right of and below each glyph, so filtering never bleeds
 constexpr uint32_t kReplacement = 0xFFFD;
 
 }  // namespace
@@ -25,10 +24,6 @@ struct GlyphEntry {
     uint64_t key;  // 0 = empty slot
     uint16_t x, y, w, h;
     int16_t xoff, yoff;
-};
-
-struct Shelf {
-    uint32_t y, h, x;  // top, height and first free column of one row of glyphs
 };
 
 struct TextLine {
@@ -49,9 +44,7 @@ struct TextSystem {
 
     uint32_t size = 0;
     uint8_t* pixels = nullptr;
-    Shelf shelves[kMaxShelves];
-    uint32_t shelf_count = 0;
-    uint32_t next_y = 0;
+    ShelfPacker packer;
     GlyphEntry* cache = nullptr;
     uint32_t cached = 0;
     uint32_t dirty[4] = {0, 0, 0, 0};
@@ -96,35 +89,9 @@ void clear_atlas(TextSystem* t) {
     memset(t->pixels, 0, (size_t)t->size * t->size);
     memset(t->cache, 0, sizeof(GlyphEntry) * kCacheCapacity);
     t->cached = 0;
-    t->shelf_count = 0;
-    t->next_y = 0;
+    pack_reset(&t->packer, t->size);
     t->full = false;
     mark_dirty(t, 0, 0, t->size, t->size);
-}
-
-// Finds room for a w x h glyph on a shelf of the same height class, or opens a new shelf.
-bool allocate(TextSystem* t, uint32_t w, uint32_t h, uint32_t* x, uint32_t* y) {
-    const uint32_t ww = w + kPad;
-    const uint32_t hh = (h + kPad + 3u) & ~3u;
-    if (ww > t->size) return false;
-    for (uint32_t i = 0; i < t->shelf_count; ++i) {
-        Shelf& s = t->shelves[i];
-        if (s.h == hh && s.x + ww <= t->size) {
-            *x = s.x;
-            *y = s.y;
-            s.x += ww;
-            return true;
-        }
-    }
-    if (t->shelf_count == kMaxShelves || t->next_y + hh > t->size) return false;
-    Shelf& s = t->shelves[t->shelf_count++];
-    s.y = t->next_y;
-    s.h = hh;
-    s.x = ww;
-    t->next_y += hh;
-    *x = 0;
-    *y = s.y;
-    return true;
 }
 
 // The atlas entry for a glyph, rasterizing it on first use. nullptr if the atlas is full.
@@ -146,7 +113,7 @@ const GlyphEntry* find_glyph(TextSystem* t, uint32_t font, int glyph, int px, fl
     if (x1 > x0 && y1 > y0) {
         uint32_t ax, ay;
         const uint32_t w = (uint32_t)(x1 - x0), h = (uint32_t)(y1 - y0);
-        if (!allocate(t, w, h, &ax, &ay)) {
+        if (!pack(&t->packer, w, h, &ax, &ay)) {
             t->full = true;
             return nullptr;
         }
@@ -366,7 +333,7 @@ AtlasStats atlas_stats(const TextSystem* t) {
     AtlasStats s;
     s.glyphs = t->cached;
     s.resets = t->resets;
-    s.used = t->size ? (float)t->next_y / (float)t->size : 0.0f;
+    s.used = t->size ? (float)t->packer.next_y / (float)t->size : 0.0f;
     return s;
 }
 

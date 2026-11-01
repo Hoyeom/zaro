@@ -62,8 +62,82 @@ const char* type_name(FieldType type) {
         case FieldType::kVec3: return "vec3";
         case FieldType::kVec4: return "vec4";
         case FieldType::kString: return "string";
+        case FieldType::kColor: return "color";
+        case FieldType::kEnum: return "enum";
     }
     return "unknown";
+}
+
+bool is_text_type(FieldType type) {
+    return type == FieldType::kString || type == FieldType::kColor || type == FieldType::kEnum;
+}
+
+namespace {
+
+int hex_digit(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+uint32_t choice_count(const FieldDesc& f) {
+    uint32_t n = 0;
+    while (f.choices && f.choices[n]) ++n;
+    return n;
+}
+
+}  // namespace
+
+bool parse_text_value(const FieldDesc& f, const char* text, void* dst, char* err, uint32_t err_size) {
+    if (f.type == FieldType::kColor) {
+        const size_t len = strlen(text);
+        uint32_t bytes[4] = {0, 0, 0, 255};
+        bool ok = text[0] == '#' && (len == 7 || len == 9);
+        for (size_t i = 0; ok && i < (len - 1) / 2; ++i) {
+            const int hi = hex_digit(text[1 + i * 2]), lo = hex_digit(text[2 + i * 2]);
+            ok = hi >= 0 && lo >= 0;
+            bytes[i] = (uint32_t)(hi * 16 + lo);
+        }
+        if (!ok) {
+            snprintf(err, err_size, "expects a colour \"#RRGGBB\" or \"#RRGGBBAA\", got \"%s\"", text);
+            return false;
+        }
+        *(uint32_t*)dst = bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24;
+        return true;
+    }
+    if (f.type == FieldType::kEnum) {
+        const uint32_t n = choice_count(f);
+        for (uint32_t i = 0; i < n; ++i) {
+            if (strcmp(f.choices[i], text) == 0) {
+                *(uint32_t*)dst = i;
+                return true;
+            }
+        }
+        char list[256] = {};
+        uint32_t used = 0;
+        for (uint32_t i = 0; i < n && used < sizeof(list); ++i) {
+            used += (uint32_t)snprintf(list + used, sizeof(list) - used, "%s%s", i ? ", " : "", f.choices[i]);
+        }
+        const char* hint = best(text, f.choices, n);
+        snprintf(err, err_size, "expects one of %s, got \"%s\"%s%s%s", list, text, hint ? " (did you mean '" : "",
+                 hint ? hint : "", hint ? "'?)" : "");
+        return false;
+    }
+    snprintf(err, err_size, "is not a colour or enum field");
+    return false;
+}
+
+void format_text_value(const FieldDesc& f, const void* src, char* out, uint32_t out_size) {
+    if (f.type == FieldType::kColor) {
+        const uint32_t c = *(const uint32_t*)src;
+        snprintf(out, out_size, "#%02x%02x%02x%02x", c & 255u, (c >> 8) & 255u, (c >> 16) & 255u, c >> 24);
+    } else if (f.type == FieldType::kEnum) {
+        const uint32_t i = *(const uint32_t*)src;
+        snprintf(out, out_size, "%s", i < choice_count(f) ? f.choices[i] : "");
+    } else {
+        snprintf(out, out_size, "%s", f.type == FieldType::kString ? (const char*)src : "");
+    }
 }
 
 void register_component(const ComponentDesc* desc) {
@@ -121,7 +195,14 @@ void write_default(FILE* out, const FieldDesc& f, const void* defaults) {
             fputc(']', out);
             break;
         }
-        case FieldType::kString: json_write_string(out, (const char*)p); break;
+        case FieldType::kString:
+        case FieldType::kColor:
+        case FieldType::kEnum: {
+            char text[kStringCapacity];
+            format_text_value(f, p, text, sizeof(text));
+            json_write_string(out, text);
+            break;
+        }
     }
 }
 
@@ -146,6 +227,14 @@ void write_schema_json(void* file) {
             fprintf(out, ", \"type\": \"%s\", \"default\": ", type_name(f.type));
             write_default(out, f, d->defaults);
             if (f.min <= f.max) fprintf(out, ", \"min\": %.17g, \"max\": %.17g", f.min, f.max);
+            if (f.type == FieldType::kEnum) {
+                fputs(", \"choices\": [", out);
+                for (uint32_t k = 0; f.choices && f.choices[k]; ++k) {
+                    if (k) fputs(", ", out);
+                    json_write_string(out, f.choices[k]);
+                }
+                fputc(']', out);
+            }
             fputs(", \"doc\": ", out);
             json_write_string(out, f.doc);
             fputs("}", out);

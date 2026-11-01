@@ -28,6 +28,7 @@ enum ErrorId {
     kErrTestExpect = 601,     // ZE0601 an [[expect]] did not hold after the run
     kErrTestStateHash = 602,  // ZE0602 the run's state hash differs from the golden one
     kErrFontLoad = 700,       // ZE0700 font file missing or not a TrueType/OpenType font
+    kErrImageLoad = 701,      // ZE0701 image missing, not a PNG, or no room in the image atlas
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

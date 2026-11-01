@@ -34,7 +34,8 @@ void collect(const char* path, void* user) {
 int compare_paths(const void* a, const void* b) { return strcmp(*(char* const*)a, *(char* const*)b); }
 
 // Reads a field of the scene after the run as a number (booleans as 0/1) or a string.
-bool read_field(const scene::Scene* s, const scene::Expect& e, double* number, const char** string) {
+bool read_field(const scene::Scene* s, const scene::Expect& e, double* number, const char** string,
+                char (&text)[reflect::kStringCapacity]) {
     const scene::Entity* ent = scene::find_entity(s, e.entity);
     if (!ent) return false;
     const unsigned char* data = (const unsigned char*)scene::get_component(ent, e.component);
@@ -47,6 +48,11 @@ bool read_field(const scene::Scene* s, const scene::Expect& e, double* number, c
         case reflect::FieldType::kU64: *number = (double)*(const uint64_t*)p; return true;
         case reflect::FieldType::kF32: *number = *(const float*)p; return true;
         case reflect::FieldType::kString: *string = (const char*)p; return true;
+        case reflect::FieldType::kColor:
+        case reflect::FieldType::kEnum:
+            reflect::format_text_value(*e.field, p, text, sizeof(text));
+            *string = text;
+            return true;
         default: return false;
     }
 }
@@ -59,7 +65,8 @@ void check_expects(const scene::TestSpec& spec, const scene::Scene* s, DiagList*
         if (!e.component || !e.field) continue;
         double x = 0.0;
         const char* str = nullptr;
-        if (!read_field(s, e, &x, &str)) {
+        char text[reflect::kStringCapacity];
+        if (!read_field(s, e, &x, &str, text)) {
             diag_add(d, kErrTestExpect, spec.path, e.line, 1, "entity '%s' with a %s component not found after the run",
                      e.entity, e.component->name);
             continue;

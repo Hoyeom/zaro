@@ -54,7 +54,10 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
   and input focus, 3 screen files and `zaro check`, 4 Luau view-model binding, 5 navigation
   policy, 6 design kit import.
   - Step 1 (text and glyph atlas): stb_truetype, Noto Sans KR bundled, `ui` module, RHI textures
-    and blending, `render::UiRenderer`; tests `ui_text` and `ui_render_gpu`.
+    and blending, `render::UiRenderer`; tests `ui_text` and `ui_render_gpu`. Merged (#13).
+  - Step 2 (layout, widgets, input focus): `ui::Screen` with Layout, Panel, Label, Image (PNG via
+    stb_image), Button, ScrollList and Modal; pointer, wheel, touch and gamepad/keyboard
+    navigation in `platform::Input`; `color` and `enum` reflection types; test `ui_screen`.
 - **Waits for**: nothing.
 - **Runs beside**: P1, P4a. P3 shares the texture atlas work, so P3 starts after P2's atlas lands.
 
