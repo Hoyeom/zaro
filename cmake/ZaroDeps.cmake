@@ -1,11 +1,14 @@
 # Third-party dependencies, pinned by version and SHA-256 (D-004, D-012 licenses).
 #
-# Downloads are cached in .cache/deps so every preset shares them. Prebuilt binaries are used
-# where the upstream project ships them (wgpu-native, Slang); the rest builds from source.
+# Downloads and sources are cached in .cache/deps so every preset shares them. Prebuilt binaries
+# are used where the upstream project ships them (wgpu-native, Slang); the rest builds from source.
+# Dependencies built from source get their binary directory inside the preset's build tree
+# (_ZARO_DEP_BIN), so presets with different compilers or flags never share objects.
 
 include(FetchContent)
 set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/.cache/deps" CACHE PATH "" FORCE)
 set(FETCHCONTENT_QUIET OFF)
+set(_ZARO_DEP_BIN ${CMAKE_BINARY_DIR}/_deps)
 
 if(WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64")
   set(_zaro_host windows-x86_64)
@@ -71,7 +74,7 @@ set(SDL_GPU OFF CACHE BOOL "" FORCE)
 set(SDL_RENDER OFF CACHE BOOL "" FORCE)
 set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
 set(SDL_AUDIO OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(SDL3 SYSTEM
+FetchContent_Declare(SDL3 SYSTEM BINARY_DIR ${_ZARO_DEP_BIN}/sdl3-build
   URL https://github.com/libsdl-org/SDL/releases/download/release-3.4.18/SDL3-3.4.18.tar.gz
   URL_HASH SHA256=9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3)
 FetchContent_MakeAvailable(SDL3)
@@ -79,7 +82,7 @@ FetchContent_MakeAvailable(SDL3)
 # --- enkiTS v1.12 (zlib) -------------------------------------------------------------------------
 set(ENKITS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ENKITS_BUILD_C_INTERFACE OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(enkiTS SYSTEM
+FetchContent_Declare(enkiTS SYSTEM BINARY_DIR ${_ZARO_DEP_BIN}/enkits-build
   URL https://github.com/dougbinks/enkiTS/archive/refs/tags/v1.12.tar.gz
   URL_HASH SHA256=8373b6199d56816bd3ba58432eae74e2ebd5afcfdffb723073cc34730b189fd5)
 FetchContent_MakeAvailable(enkiTS)
@@ -103,7 +106,7 @@ target_compile_options(zaro_tomlc17 PRIVATE $<$<C_COMPILER_ID:MSVC>:/utf-8>)
 set(LUAU_BUILD_CLI OFF CACHE BOOL "" FORCE)
 set(LUAU_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 # EXCLUDE_FROM_ALL: only the targets ZARO links (VM, Compiler and their deps) are built.
-FetchContent_Declare(luau SYSTEM EXCLUDE_FROM_ALL
+FetchContent_Declare(luau SYSTEM EXCLUDE_FROM_ALL BINARY_DIR ${_ZARO_DEP_BIN}/luau-build
   URL https://github.com/luau-lang/luau/archive/refs/tags/0.743.tar.gz
   URL_HASH SHA256=be23707d541710a978f2c559c069e22ba9c7c449e07d60472fb4e074914bc91d)
 FetchContent_MakeAvailable(luau)
@@ -121,7 +124,7 @@ endforeach()
 if(ZARO_TRACY)
   set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
   set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
-  FetchContent_Declare(tracy SYSTEM
+  FetchContent_Declare(tracy SYSTEM BINARY_DIR ${_ZARO_DEP_BIN}/tracy-build
     URL https://github.com/wolfpld/tracy/archive/refs/tags/v0.14.1.tar.gz
     URL_HASH SHA256=bf4af567e9c7524d07f3caa745fad02fb33bd5694f11910750382d1efbb251c1)
   FetchContent_MakeAvailable(tracy)

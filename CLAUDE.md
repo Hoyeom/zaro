@@ -35,7 +35,8 @@ the CMake/Ninja bundled with Visual Studio to `PATH`. Nothing needs to be on `PA
 Its last output line is `build_seconds=<n>`.
 
 The first configure downloads pinned dependencies into `.cache/deps/` (see
-`cmake/ZaroDeps.cmake`). All presets share that directory.
+`cmake/ZaroDeps.cmake`). All presets share the downloads and sources there; dependencies built
+from source compile into each preset's own `build/<preset>/_deps/`.
 
 ## Layout
 
@@ -249,7 +250,7 @@ Hot reload: a windowed `zaro run` polls the `.wgsl` files twice a second. Rebuil
   records `#deps 0` for an object (`ninja -C build/<preset> -t deps`). `tools/build.py`
   deletes such ZARO objects after each build and rebuilds them alone, which records the
   dependencies. Running `cmake --build` directly skips that repair. Third-party objects under
-  `.cache/` are not repaired; they change only with a dependency bump, which reconfigures.
+  `_deps/` are not repaired; they change only with a dependency bump, which reconfigures.
   English MSVC output does not need the repair.
 
 ## Branches, commits and pull requests (D-015)
