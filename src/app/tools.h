@@ -28,6 +28,8 @@ struct ExportOptions {
     const char* out_dir = nullptr;      // default build/android-project
     const char* runtime_dir = nullptr;  // default build/android/android-runtime next to this binary
     const char* package = nullptr;      // default dev.zaro.<scene name>
+    const char* version_code = nullptr; // Android versionCode, 1..2100000000 (default 1)
+    const char* version_name = nullptr; // versionName shown to players (default "1.0")
     bool portrait = false;              // default landscape
 };
 

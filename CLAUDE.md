@@ -36,6 +36,7 @@ phases sessions pick work from are in [docs/ROADMAP.md](docs/ROADMAP.md).
 | Gradle project for an APK | `build/debug/zaro export android examples/crowd/scene.toml [--out DIR]` |
 | APK in one step (native build, export, Gradle) | `python tools/android.py apk examples/crowd/scene.toml` |
 | Install and start on a device / benchmark it | `python tools/android.py run`, `python tools/android.py perf [--enemies N]` |
+| Google Play App Bundle (upload key from the environment) | `python tools/android.py aab <scene> --release --version-code N` |
 | Enable the git hooks (once per clone) | `git config core.hooksPath tools/githooks` |
 
 `tools/build.py` wraps the presets in `CMakePresets.json` (`debug`, `release`, `profile`).
@@ -90,8 +91,8 @@ Load a skill before working in the situation it names; it holds what would other
   headless runs and perf.json.
 - **`zaro-ui`**: text and the glyph atlas, screen files, widgets, string tables, and how a frame's
   UI is built and drawn.
-- **`zaro-android`**: the Android toolchain, the `android` preset, APK export and running on a
-  device.
+- **`zaro-android`**: the Android toolchain, the `android` preset, APK export, running on a
+  device, and Google Play release bundles with their signing boundary.
 - **`zaro-docs`**: how documentation is written in this public repository and where each fact goes.
 - **`zaro-git`**: branches, commits, pull requests, auto-merge and CI. **Load it before writing a
   commit message.**
@@ -130,6 +131,8 @@ check and a row here; a rule written only in prose is not followed.
 | Headers stay light: at most 12 includes, `#pragma once` | lint Z004, Z005 |
 | Module layering and third-party header ownership | lint Z007 |
 | Every skill is well-formed and listed under "Skills" above | lint Z008 |
+| No keystores, signing passwords or keystore paths in the repository (D-025) | lint Z009 |
+| Packed Android libraries: no build-machine paths, 16 KB LOAD alignment | `cmake/ZaroCheckElf.cmake` in the `android` build |
 | Simulation is deterministic across thread counts | `crowd_determinism` test |
 | Golden state hashes hold on Windows, Linux and macOS | scene tests in CI |
 | Branch names, commit messages, sign-off, no commits or pushes to `main` | `tools/git_rules.py` from the git hooks and CI; `permissions.deny` in `.claude/settings.json` |

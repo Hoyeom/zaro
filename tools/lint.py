@@ -55,6 +55,14 @@ SKILLS_DIR = ".claude/skills"
 SKILL_LIST_RE = re.compile(r"^- \*\*`([a-z0-9-]+)`\*\*")
 SKILL_FILE_RE = re.compile(r"^\.claude/skills/([^/]+)/SKILL\.md$")
 
+# Signing material (Z009, D-025): a game's upload key and its passwords never enter this public
+# repository. Keystores are refused outright; Gradle and properties files may read the key only
+# from the environment, never from a literal password or keystore path.
+KEY_EXTS = {".jks", ".keystore", ".p12", ".pfx"}
+SIGNING_CONFIG_EXTS = {".gradle", ".kts", ".properties"}
+SIGNING_LITERAL_RE = re.compile(
+    r"\b(storePassword|keyPassword)\b\s*[=:]?\s*['\"]|\bstoreFile\b\s*[=:]?\s*file\(\s*['\"]")
+
 # Module layering (CLAUDE.md "Modules"). A module under src/ may include only the engine
 # modules listed for it. sim is the model and must stay free of platform and GPU code so it
 # remains deterministic and testable headless; render is the view and never sees sim types.
@@ -97,6 +105,8 @@ RULES = {
     "Z006": "public header is missing an extern \"C\" guard",
     "Z007": "module layering: include of an engine module or third-party header this module may not use",
     "Z008": "skill front matter is malformed, or CLAUDE.md 'Skills' and .claude/skills/ disagree",
+    "Z009": "signing material in the repository: a keystore file, or a literal signing password or "
+            "keystore path in a Gradle or properties file (use the ZARO_UPLOAD_* environment)",
 }
 
 BANNED_KEYWORDS = re.compile(r"\b(throw|try|catch|dynamic_cast|typeid)\b")
@@ -236,11 +246,27 @@ def lint_agent_doc(path: Path, r: str) -> list[Diag]:
     return diags
 
 
+def lint_signing(path: Path, r: str) -> list[Diag]:
+    if path.suffix in KEY_EXTS:
+        return [Diag(r, 1, 1, "Z009", "keystores never go into this repository; a game keeps its "
+                     "upload key in its own CI secrets (docs/android-release.md)")]
+    try:
+        lines = path.read_text(encoding="utf-8").split("\n")
+    except (OSError, UnicodeDecodeError) as e:
+        return [Diag(r, 1, 1, "Z000", f"cannot read file: {e}")]
+    return [Diag(r, i + 1, m.start() + 1, "Z009",
+                 "read signing passwords and the keystore path from the environment "
+                 "(System.getenv('ZARO_UPLOAD_...')), never write them here")
+            for i, line in enumerate(lines) for m in [SIGNING_LITERAL_RE.search(line)] if m]
+
+
 def lint_file(path: Path) -> list[Diag]:
     r = rel(path)
     if r == AGENT_GUIDE or SKILL_FILE_RE.match(r):
         return lint_agent_doc(path, r)
     parts = set(Path(r).parts)
+    if path.suffix in KEY_EXTS | SIGNING_CONFIG_EXTS:
+        return [] if parts & SKIP_PARTS else lint_signing(path, r)
     if parts & SKIP_PARTS or path.suffix not in SOURCE_EXTS:
         return []
     try:
@@ -310,7 +336,12 @@ def repo_files() -> list[Path]:
                 files.append(p)
     files.append(ROOT / AGENT_GUIDE)
     files.extend((ROOT / SKILLS_DIR).glob("*/SKILL.md"))
-    return sorted(files)
+    # Signing material can be anywhere: every tracked or untracked, not ignored file.
+    listed = subprocess.run(["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT,
+                            capture_output=True, text=True).stdout
+    files.extend(ROOT / l for l in listed.splitlines()
+                 if Path(l).suffix in KEY_EXTS | SIGNING_CONFIG_EXTS)
+    return sorted(set(files))
 
 
 def staged_files() -> list[Path]:
@@ -319,7 +350,8 @@ def staged_files() -> list[Path]:
         cwd=ROOT, capture_output=True, text=True, check=True,
     ).stdout
     return [ROOT / l for l in out.splitlines()
-            if Path(l).suffix in SOURCE_EXTS or l == AGENT_GUIDE or SKILL_FILE_RE.match(l)]
+            if Path(l).suffix in SOURCE_EXTS | KEY_EXTS | SIGNING_CONFIG_EXTS or l == AGENT_GUIDE
+            or SKILL_FILE_RE.match(l)]
 
 
 def hook_files() -> list[Path]:
