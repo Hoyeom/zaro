@@ -12,8 +12,11 @@ struct RunOptions {
     bool sim_only = false;     // headless without a GPU: simulation and state hash only
     uint32_t frames = 600;     // measured frames (headless)
     uint32_t warmup = 60;      // frames run before measuring (headless)
+    const char* scene_path = nullptr;  // TOML scene; nullptr runs the built-in crowd defaults
     uint32_t enemies = 50000;
     uint64_t seed = 1;
+    bool enemies_set = false;  // --enemies / --seed given: override the scene's values
+    bool seed_set = false;
     uint32_t threads = 0;      // 0 = hardware threads
     uint32_t width = 1920;
     uint32_t height = 1080;

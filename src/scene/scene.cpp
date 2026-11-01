@@ -439,4 +439,13 @@ const void* first_component(const Scene* s, const ComponentDesc* desc, const Ent
     return nullptr;
 }
 
+void* first_component_mut(Scene* s, const ComponentDesc* desc) {
+    for (uint32_t i = 0; i < s->entity_count; ++i) {
+        for (uint32_t j = 0; j < s->entities[i].component_count; ++j) {
+            if (s->entities[i].components[j].desc == desc) return s->entities[i].components[j].data;
+        }
+    }
+    return nullptr;
+}
+
 }  // namespace zaro::scene

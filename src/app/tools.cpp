@@ -3,6 +3,7 @@
 #include "core/diag.h"
 #include "core/reflect.h"
 #include "scene/scene.h"
+#include "script/script.h"
 #include "sim/crowd_components.h"
 
 #include <stdio.h>
@@ -21,6 +22,18 @@ int check_scene(const char* path, bool json) {
     register_all_components();
     DiagList* diags = new DiagList();
     scene::Scene* s = scene::load_scene(path, diags);
+    // Compile the scene's script and run its top level (hooks are not called).
+    if (s && s->script[0]) {
+        script::ScriptDesc sd;
+        sd.path = s->script;
+        sd.scene = s;
+        script::Script* sc = script::load_script(sd, diags);
+        if (!sc) {
+            scene::free_scene(s);
+            s = nullptr;
+        }
+        script::destroy_script(sc);
+    }
     if (json) {
         diag_print_json(diags, stdout);
     } else if (s) {

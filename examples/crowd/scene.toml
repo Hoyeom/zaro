@@ -3,6 +3,7 @@
 
 [scene]
 name = "crowd"
+script = "crowd.luau"
 
 [[entity]]
 name = "arena"

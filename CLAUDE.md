@@ -17,10 +17,10 @@ Every architectural decision and its reasoning is in [docs/DECISIONS.md](docs/DE
 | Clean rebuild | `python tools/build.py debug --clean` |
 | Release / Tracy builds | `python tools/build.py release`, `python tools/build.py profile` |
 | Lint the whole tree | `python tools/lint.py` (rules: `--list-rules`) |
-| Run the demo in a window | `build/debug/zaro run` (WASD or arrows, Esc quits) |
-| Headless benchmark | `build/release/zaro run --headless --perf perf.json` |
+| Run a scene in a window | `build/debug/zaro run examples/crowd/scene.toml` (WASD or arrows, Esc quits) |
+| Headless benchmark | `build/release/zaro run examples/crowd/scene.toml --headless --perf perf.json` |
 | Headless screenshot | `build/debug/zaro run --headless --frames 60 --screenshot shot.png` |
-| Simulation only, no GPU | `build/debug/zaro run --sim-only --frames 300` |
+| Simulation only, no GPU | `build/debug/zaro run examples/crowd/scene.toml --sim-only --frames 300` |
 | List components (fields, types, defaults, ranges) as JSON | `build/debug/zaro schema` |
 | Validate a scene without running it | `build/debug/zaro check examples/crowd/scene.toml [--json]` |
 | All `run` options | `build/debug/zaro help` |
@@ -95,6 +95,15 @@ Game scripts are Luau files. The API and the sandbox are documented at the top o
 `src/script/script.h`: the `on_start()` and `on_tick(tick)` hooks, and `zaro.get`, `zaro.set`,
 `zaro.has`, `zaro.tick` and `zaro.log`. `zaro.set` goes through reflection, so a script can change
 any registered component field with the same type and range checks as a scene file.
+
+A scene names its script with `script = "file.luau"` in `[scene]`. `zaro run <scene>` calls
+`on_start()` once and `on_tick(tick)` before every simulation tick (tick 1 is the first). Values
+the script changes are read back the same tick. Today these are `CrowdSpawner.speed` and
+`PlayerController.speed`; count, arena and seed are fixed at start. `zaro check` also compiles
+the script and runs its top level.
+
+A failing script ends a headless run with exit code 1. In a window it is paused and reloads when
+the file is saved.
 
 - There is no `os`, `io`, `loadstring` or `require`. The standard library and `zaro` are
   read-only, and `math.random` is seeded from the scene. Scripts are deterministic.

@@ -30,6 +30,9 @@ struct Crowd;
 Crowd* create_crowd(const CrowdConfig& config);
 void destroy_crowd(Crowd* crowd);
 void step(Crowd* crowd, const CrowdInput& input);
+// Changes speeds from the next tick on (scripts tune these while the game runs). Enemy count,
+// arena size and seed are fixed when the crowd is created.
+void set_tuning(Crowd* crowd, float enemy_speed, float player_speed);
 
 uint64_t tick(const Crowd* crowd);
 uint32_t enemy_count(const Crowd* crowd);
