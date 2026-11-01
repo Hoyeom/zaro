@@ -1,0 +1,14 @@
+# Scene used by tests/test_script.cpp; the scripts in this directory act on it.
+[scene]
+name = "script-test"
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 10
+speed = 4.0
+
+[[entity]]
+name = "player"
+[entity.PlayerController]
+speed = 8.0

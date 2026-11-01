@@ -109,6 +109,10 @@ Status of all entries below: **accepted, 2026-11-01**.
 - **Rule**: scripts orchestrate. Per-entity work for tens of thousands of entities stays in
   C++ systems.
 
+- **Current state (M2-2)**: Luau 0.743 (VM and compiler only) runs scripts through the
+  `script` module (CLAUDE.md "Scripts"). The type checker (`luau-analyze`) is not integrated
+  yet. Script errors carry file and line from the VM and compiler.
+
 ## D-010 Profiling: Tracy as an opt-in build + built-in perf counters
 
 - **Decision**: Tracy (BSD-3) is compiled in only with `ZARO_TRACY=ON` (the `profile` preset).

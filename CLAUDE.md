@@ -60,12 +60,13 @@ CMakeLists.txt follow the same graph.
 | `rhi` | GPU interface `rhi.h`; `rhi_wgpu.cpp` is the only file that includes webgpu.h | core, platform |
 | `sim` | gameplay state (the model), deterministic, headless-testable | core |
 | `scene` | loads TOML scenes and prefabs into registered components; the only module that includes tomlc17 | core |
+| `script` | sandboxed Luau scripts acting on a scene through reflection; the only module that includes Luau | core, scene |
 | `render` | draws plain data (the view); never sees sim types | core, rhi |
 | `app` | owns the frame loop and wires sim to render | all of the above |
 | `cli` | the `zaro` command | core, app |
 
 Third-party headers belong to one module only: `SDL3/` → platform, `webgpu/` → rhi,
-`TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` → scene.
+`TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` → scene, `lua.h`/`lualib.h`/`luacode.h` → script.
 To add a feature, put the state and rules in `sim`, the drawing in `render`, and the
 connection in `app`. A new module needs an entry in `MODULE_DEPS` (tools/lint.py), in `SCOPES`
 (tools/git_rules.py) and in this table.
@@ -87,6 +88,21 @@ To add a component:
 Field types: `bool i32 u32 u64 f32 vec2 vec3 vec4 string` (strings up to 127 bytes).
 `zaro check` reports every problem in one pass as `file:line:col: error[ZE04nn]` (ids in
 `src/core/log.h`), with a "did you mean" hint for misspelt components and fields.
+
+## Scripts (D-009)
+
+Game scripts are Luau files. The API and the sandbox are documented at the top of
+`src/script/script.h`: the `on_start()` and `on_tick(tick)` hooks, and `zaro.get`, `zaro.set`,
+`zaro.has`, `zaro.tick` and `zaro.log`. `zaro.set` goes through reflection, so a script can change
+any registered component field with the same type and range checks as a scene file.
+
+- There is no `os`, `io`, `loadstring` or `require`. The standard library and `zaro` are
+  read-only, and `math.random` is seeded from the scene. Scripts are deterministic.
+- Errors carry file and line: ZE0500 for compile errors, ZE0501 for runtime errors including
+  API misuse (with "did you mean" hints), and ZE0502 for a call over its time budget.
+- The Luau VM is built with `LUA_USE_LONGJMP=1`, so script errors never cross ZARO code as C++
+  exceptions. A `zaro.*` binding raises with `luaL_error`, which does not return. Bindings must
+  therefore hold no objects with destructors.
 
 ## Design principles (do not erode these)
 

@@ -21,6 +21,9 @@ enum ErrorId {
     kErrScenePrefab = 405,    // ZE0405 prefab file missing or itself invalid
     kErrSceneStructure = 406, // ZE0406 required key missing or unknown top-level key
     kErrSceneDuplicate = 407, // ZE0407 two entities share a name
+    kErrScriptCompile = 500,  // ZE0500 script missing or has a syntax error
+    kErrScriptRuntime = 501,  // ZE0501 script raised an error (includes misuse of the zaro API)
+    kErrScriptTimeout = 502,  // ZE0502 one script call ran longer than its time budget
 };
 
 void log_error(ErrorId id, const char* fmt, ...);
