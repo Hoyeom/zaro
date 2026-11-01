@@ -1,5 +1,6 @@
 #include "app/tools.h"
 
+#include "app/sprite_layer.h"
 #include "app/ui_layer.h"
 #include "core/diag.h"
 #include "core/reflect.h"
@@ -7,6 +8,7 @@
 #include "scene/scene.h"
 #include "script/script.h"
 #include "sim/crowd_components.h"
+#include "sim/sprite_components.h"
 #include "ui/widgets.h"
 
 #include <stdio.h>
@@ -17,6 +19,7 @@ bool prepare_process() { return platform::prepare_process(); }
 
 void register_all_components() {
     sim::register_crowd_components();
+    sim::register_sprite_components();
     ui::register_ui_components();
 }
 
@@ -35,6 +38,15 @@ int check_scene(const char* path, bool json) {
     if (s && !(screen ? check_screen_images(s, diags) : check_scene_ui(s, diags))) {
         scene::free_scene(s);
         s = nullptr;
+    }
+    // Its sprite sheets, their frames and the animations the sprites name.
+    if (s && !screen) {
+        bool failed = false;
+        destroy_sprite_layer(create_sprite_layer(s, diags, &failed));
+        if (failed) {
+            scene::free_scene(s);
+            s = nullptr;
+        }
     }
     // Compile the scene's script and run its top level (hooks are not called).
     if (s && s->script[0]) {

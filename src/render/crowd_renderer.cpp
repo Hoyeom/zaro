@@ -149,16 +149,38 @@ void destroy_crowd_renderer(CrowdRenderer* r) {
     delete r;
 }
 
+namespace {
+
+Vec3 camera_eye(const CrowdScene& scene) {
+    return Vec3{scene.player_x, 0.0f, scene.player_z} + Vec3{0.0f, 30.0f, 24.0f} * scene.zoom;
+}
+
+Mat4 camera_view_proj(const CrowdScene& scene, uint32_t width, uint32_t height) {
+    const Vec3 target{scene.player_x, 0.0f, scene.player_z};
+    const float aspect = height ? (float)width / (float)height : 1.0f;
+    return mul(perspective(0.87f, aspect, 0.5f, 600.0f), look_at(camera_eye(scene), target, Vec3{0, 1, 0}));
+}
+
+}  // namespace
+
+void crowd_camera(const CrowdScene& scene, uint32_t width, uint32_t height, float view_proj[16], float right[3]) {
+    const Mat4 vp = camera_view_proj(scene, width, height);
+    memcpy(view_proj, vp.m, sizeof(vp.m));
+    const Vec3 target{scene.player_x, 0.0f, scene.player_z};
+    const Vec3 r = normalize(cross(target - camera_eye(scene), Vec3{0, 1, 0}));
+    right[0] = r.x;
+    right[1] = r.y;
+    right[2] = r.z;
+}
+
 void render_crowd(CrowdRenderer* r, const CrowdScene& scene) {
     ZARO_ZONE("render.crowd");
     uint32_t width, height;
     rhi::target_size(r->device, &width, &height);
     const uint32_t count = scene.enemy_count < r->max_enemies ? scene.enemy_count : r->max_enemies;
 
-    const Vec3 target{scene.player_x, 0.0f, scene.player_z};
-    const Vec3 eye = target + Vec3{0.0f, 30.0f, 24.0f} * scene.zoom;
-    const float aspect = height ? (float)width / (float)height : 1.0f;
-    const Mat4 vp = mul(perspective(0.87f, aspect, 0.5f, 600.0f), look_at(eye, target, Vec3{0, 1, 0}));
+    const Vec3 eye = camera_eye(scene);
+    const Mat4 vp = camera_view_proj(scene, width, height);
 
     FrameConstants fc;
     memcpy(fc.view_proj, vp.m, sizeof(fc.view_proj));
@@ -185,7 +207,7 @@ void render_crowd(CrowdRenderer* r, const CrowdScene& scene) {
     rhi::compute_end(r->device);
 
     const float clear[4] = {0.06f, 0.07f, 0.09f, 1.0f};
-    rhi::render_begin(r->device, "main", clear);
+    rhi::render_begin(r->device, "main", clear, scene.keep_depth ? rhi::kDepthStore : rhi::kDepthClear);
     rhi::draw(r->device, r->ground, r->draw_group, 6, 1);
     if (r->obstacle_count) rhi::draw(r->device, r->obstacle, r->draw_group, kCubeVertices, r->obstacle_count);
     rhi::draw_indirect(r->device, r->enemy, r->draw_group, r->args);

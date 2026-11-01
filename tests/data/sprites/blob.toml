@@ -1,0 +1,17 @@
+# Grid sheet: four 32x32 frames, row by row.
+[sheet]
+image = "blob.png"
+pixels_per_unit = 32
+pivot = [0.5, 1.0]
+cell = [32, 32]
+
+[[animation]]
+name = "idle"
+frames = [0, 1, 2, 3]
+fps = 8.0
+
+[[animation]]
+name = "land"
+frames = [3, 1, 0]
+fps = 10.0
+loop = false

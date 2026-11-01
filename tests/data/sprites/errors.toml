@@ -1,0 +1,12 @@
+# Every line below the header has one problem (tests/test_sprites.cpp checks the lines).
+[sheet]
+image = "blob.png"
+pivot = [0.5, 2.0]
+colour = "red"
+
+[[frame]]
+rect = [100, 0, 32, 32]
+
+[[animation]]
+name = "walk"
+frames = [0, 7]
