@@ -18,7 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/tools/lint.py\" --hook",
+            "command": "pythonw",
+            "args": ["${CLAUDE_PROJECT_DIR}/tools/lint.py", "--hook"],
             "timeout": 30,
             "statusMessage": "zaro-lint"
           }
