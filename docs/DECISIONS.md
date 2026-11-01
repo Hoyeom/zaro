@@ -732,6 +732,24 @@ Status of all entries below: **accepted, 2026-11-01**.
 - **Not supported**: text (convert it to outlines) and filters such as drop shadows and blurs (bake
   them into shapes). Revisit with the owner's art if needed.
 
+## D-029 First game: a light neon arena game, before the idle flagship
+
+- **Status**: accepted, 2026-11-02. Changes the order in D-018; the idle game (P5) stays planned.
+- **Decision**: the owner's first game on ZARO is a light arena game. Glowing geometric shapes
+  (rectangles, lines, rings) with tweens, bloom and particles sweep away large crowds of enemies.
+  It has no frame-by-frame 2D animation; motion comes from tweens and the simulation. The engine
+  features it needs are phase P6 (docs/ROADMAP.md); the game itself is G1, in a private repository.
+- **Why**:
+  - It plays to what ZARO already does best: tens of thousands of enemies in a deterministic
+    simulation with GPU culling (M1).
+  - Its art is code and shaders, so it needs no art production to look finished. A few effects
+    done well (bloom, additive glow, particles, easing, screen shake) give a polished result.
+  - It exercises the whole path to a store release (Android build, Play bundle, UI, audio, save)
+    with far less content than the idle game. That path is what the idle game needs too.
+- **Consequences**: P6 comes before P5. The survivors-like crowd game and entity hierarchies move
+  out of "Later" into P6 and G1. Online features join G1 when P4 provides them; G1 does not wait
+  for them.
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:
@@ -768,6 +786,6 @@ regression baseline; D-013 defines that.
 
 ## Deferred (design kept open, not built)
 
-Text input and IME, audio (miniaudio candidate), save-format versioning, physics (Jolt
-candidate), the MCP server (local only, access-restricted). (Fonts, localization, game UI and
+Text input and IME, physics (Jolt candidate), the MCP server (local only, access-restricted).
+(Audio and local save, with save-format versioning, are planned in P6: D-029.) (Fonts, localization, game UI and
 pointer/gamepad navigation were built in P2: D-019 to D-021 and D-023.)
