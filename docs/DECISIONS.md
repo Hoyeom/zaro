@@ -349,6 +349,9 @@ Status of all entries below: **accepted, 2026-11-01**.
   one TOML file per language whose nested tables flatten to dotted keys; `zaro check` on a scene
   checks every `@key` against every language. A screen's `reference` size scales it to the
   target (the largest scale at which it fits).
+- **Current state (P2 step 4)**: Luau binds to the UI through a view model (`ui.set`, `{name}`
+  placeholders in texts) and through the same reflection as scenes (`ui.set_field`), so screens
+  stay pure data and every change a script makes can be checked by a scene test.
 
 ## D-021 Android: pinned NDK toolchain, own CMake build, SDLActivity, Gradle only packages
 

@@ -9,7 +9,10 @@
 #include "platform/platform.h"
 #include "render/crowd_renderer.h"
 #include "scene/scene.h"
+#include "scene/test_spec.h"
+#include "scene/ui_state.h"
 #include "script/script.h"
+#include "ui/screen.h"
 #include "sim/crowd.h"
 #include "sim/crowd_components.h"
 #include "zaro/zaro.h"
@@ -38,6 +41,48 @@ void print_diags(Game& g) {
     g.diags->dropped = 0;
 }
 
+// Carries out what the script asked of the UI (switching the language).
+void apply_ui_commands(Game& g) {
+    scene::UiState* state = ui_state(g.ui);
+    if (!state) return;
+    for (uint32_t i = 0; i < scene::command_count(state); ++i) {
+        const scene::UiCommand* c = scene::command_at(state, i);
+        if (c->kind == scene::UiCommandKind::kLanguage) set_language(g.ui, c->arg, g.diags);
+    }
+    scene::clear_commands(state);
+}
+
+// Sends this frame's button clicks to the script's on_ui, then applies its UI commands.
+// Returns false if the script failed.
+bool handle_ui_events(Game& g) {
+    bool ok = true;
+    for (uint32_t i = 0; i < screen_count(g.ui); ++i) {
+        ui::Screen* s = screen_at(g.ui, i);
+        for (uint32_t k = 0; k < ui::event_count(s); ++k) {
+            const ui::Event* e = ui::event_at(s, k);
+            if (e->kind != ui::EventKind::kClick || !e->action[0] || !g.script || g.script_paused) continue;
+            ok = script::call_ui(g.script, e->action, ui::screen_name(s), ui::node_name(s, e->node), g.diags) && ok;
+        }
+    }
+    apply_ui_commands(g);
+    return ok;
+}
+
+// Clicks "screen/node" on the UI; false (with a ZE0603 diagnostic) if there is no such button to click.
+bool click_path(Game& g, const char* path, const char* file, int line) {
+    char screen[64];
+    const char* slash = strchr(path, '/');
+    const size_t len = slash ? (size_t)(slash - path) : 0;
+    if (slash && len < sizeof(screen)) {
+        memcpy(screen, path, len);
+        screen[len] = 0;
+        if (g.ui && click(g.ui, screen, slash + 1)) return true;
+    }
+    diag_add(g.diags, kErrTestClick, file, line, line ? 1 : 0,
+             "cannot click '%s': no such screen/node, or the button is hidden, disabled or behind a modal", path);
+    return false;
+}
+
 // One fixed tick: the script's on_tick, then the values it may have changed, then the sim.
 // Returns false if the script failed.
 bool game_tick(Game& g, const sim::CrowdInput& input) {
@@ -49,6 +94,7 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
             (const sim::PlayerController*)scene::first_component(g.scene, &sim::kPlayerControllerDesc, nullptr);
         sim::set_tuning(g.crowd, spawner ? spawner->speed : sim::CrowdSpawner{}.speed,
                         player ? player->speed : sim::PlayerController{}.speed);
+        apply_ui_commands(g);
     }
     sim::step(g.crowd, input);
     return ok;
@@ -204,7 +250,19 @@ int run_headless(const RunOptions& o, Game& g, float* instances) {
         }
         const double sim_ms = ms_since(t0);
         double prep_ms = 0.0;
-        if (g.ui) update_ui(g.ui, nullptr, (float)o.width, (float)o.height, (float)sim::kTickSeconds);
+        if (g.ui) {
+            update_ui(g.ui, nullptr, (float)o.width, (float)o.height, (float)sim::kTickSeconds);
+            if (frame < o.click_count && !click_path(g, o.clicks[frame], "--click", 0)) {
+                print_diags(g);
+                exit_code = 1;
+                break;
+            }
+            if (!handle_ui_events(g)) {
+                print_diags(g);
+                exit_code = 1;
+                break;
+            }
+        }
         if (device) {
             const uint64_t t1 = platform::now_ticks();
             sim::write_enemy_instances(crowd, 1.0f, instances);
@@ -308,7 +366,14 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
         accumulator += frame_seconds;
         last = now;
         platform::window_pixel_size(window, &pw, &ph);
-        if (g.ui) update_ui(g.ui, &input, (float)pw, (float)ph, (float)frame_seconds);
+        if (g.ui) {
+            update_ui(g.ui, &input, (float)pw, (float)ph, (float)frame_seconds);
+            if (!handle_ui_events(g)) {
+                print_diags(g);
+                g.script_paused = true;
+                log_info("script paused until %s is saved again", script::script_path(g.script));
+            }
+        }
         if (input.nav_back && !ui_used_back(g.ui)) break;  // back with nothing to close quits
         // Fixed tick; never run more than 5 ticks in one frame (spiral-of-death guard).
         uint32_t steps = 0;
@@ -430,6 +495,9 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         sd.path = g.scene->script;
         sd.scene = g.scene;
         sd.seed = cfg->seed;
+        sd.ui = ui_state(g.ui);
+        sd.screens = g.ui ? screen_documents(g.ui) : nullptr;
+        sd.screen_count = screen_count(g.ui);
         g.script = script::load_script(sd, g.diags);
         if (!g.script || !script::call_start(g.script, g.diags)) {
             script::destroy_script(g.script);
@@ -477,24 +545,43 @@ int run_crowd(const RunOptions& o) {
     return code;
 }
 
-bool simulate_scene(const RunOptions& o, uint32_t ticks, DiagList* diags, scene::Scene** scene_out,
-                    SimulateResult* out) {
+bool simulate_scene(const RunOptions& o, uint32_t ticks, const scene::TestSpec* spec, DiagList* diags,
+                    scene::Scene** scene_out, UiLayer** ui_out, SimulateResult* out) {
     Game g;
     g.diags = diags;
     sim::CrowdConfig cfg;
     *scene_out = nullptr;
+    *ui_out = nullptr;
     if (!setup_game(o, g, &cfg)) return false;
     jobs::init(o.threads);
     g.crowd = sim::create_crowd(cfg);
     bool ok = true;
-    for (uint32_t t = 0; t < ticks && ok; ++t) ok = game_tick(g, sim::scripted_input(sim::tick(g.crowd)));
+    for (uint32_t t = 0; t < ticks && ok; ++t) {
+        if (g.ui) {
+            update_ui(g.ui, nullptr, (float)o.width, (float)o.height, (float)sim::kTickSeconds);
+            for (uint32_t c = 0; spec && c < spec->click_count; ++c) {
+                const scene::Click& k = spec->clicks[c];
+                if (k.tick != t + 1) continue;
+                char path[132];
+                snprintf(path, sizeof(path), "%s/%s", k.screen, k.node);
+                ok = click_path(g, path, spec->path, k.line) && ok;
+            }
+            ok = handle_ui_events(g) && ok;
+        } else if (spec && spec->click_count) {
+            diag_add(diags, kErrTestClick, spec->path, spec->clicks[0].line, 1, "the scene has no ui to click");
+            ok = false;
+        }
+        if (ok) ok = game_tick(g, sim::scripted_input(sim::tick(g.crowd)));
+    }
+    // Lay out once more so texts and rectangles reflect the last tick.
+    if (g.ui) update_ui(g.ui, nullptr, (float)o.width, (float)o.height, (float)sim::kTickSeconds);
     out->state_hash = sim::state_hash(g.crowd);
     out->ticks = sim::tick(g.crowd);
     sim::destroy_crowd(g.crowd);
     script::destroy_script(g.script);
-    destroy_ui_layer(g.ui);
     jobs::shutdown();
     *scene_out = g.scene;
+    *ui_out = g.ui;
     return ok;
 }
 

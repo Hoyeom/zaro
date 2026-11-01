@@ -6,6 +6,7 @@
 #include "render/ui_renderer.h"
 #include "scene/scene.h"
 #include "scene/strings.h"
+#include "scene/ui_state.h"
 #include "ui/context.h"
 #include "ui/draw.h"
 #include "ui/screen.h"
@@ -25,6 +26,8 @@ struct UiLayer {
     uint32_t count = 0;
     scene::StringTable* strings = nullptr;
     ui::DrawList list;
+    scene::Scene* scene = nullptr;
+    scene::UiState* state = nullptr;
     rhi::Device* device = nullptr;
     render::UiRenderer* renderer = nullptr;
     float width = 0.0f, height = 0.0f;
@@ -66,7 +69,10 @@ UiLayer* create_ui_layer(scene::Scene* scene, const char* language, DiagList* di
     if (!scene || !scene->ui_count) return nullptr;
     const uint32_t errors_before = diags->count;
     UiLayer* l = new UiLayer();
+    l->scene = scene;
+    l->state = scene::create_ui_state();
     l->context = ui::create_context();
+    ui::set_ui_state(l->context, l->state);
     load_fonts(l->context, diags);
     bool known = !language;
     for (uint32_t i = 0; i < scene->language_count && !known; ++i) known = strcmp(scene->languages[i], language) == 0;
@@ -74,9 +80,7 @@ UiLayer* create_ui_layer(scene::Scene* scene, const char* language, DiagList* di
         diag_add(diags, kErrStringTable, scene->path, scene->strings_line, 1, "language '%s' is not in languages (%s)",
                  language, scene->language_count ? "see [scene]" : "the scene has none");
     } else if (scene->language_count) {
-        const char* lang = language ? language : scene->languages[0];
-        l->strings = scene::load_string_table(scene->strings, lang, diags);
-        ui::set_strings(l->context, l->strings);
+        set_language(l, language ? language : scene->languages[0], diags);
     }
     for (uint32_t i = 0; i < scene->ui_count; ++i) {
         scene::Scene* doc = scene::load_screen(scene->ui[i], diags);
@@ -102,6 +106,7 @@ void destroy_ui_layer(UiLayer* l) {
     ui::free_draw_list(&l->list);
     scene::free_string_table(l->strings);
     ui::destroy_context(l->context);
+    scene::destroy_ui_state(l->state);
     delete l;
 }
 
@@ -122,7 +127,12 @@ void update_ui(UiLayer* l, const platform::Input* input, float width, float heig
     for (uint32_t i = l->count; i-- > 0;) {
         ui::Screen* s = l->screens[i];
         ui::update_screen(s, in, width, height, ui::screen_scale(s, width, height), dt);
-        // A screen that holds the pointer or the focus hides that input from the screens below.
+        // An open modal takes all input; a screen that holds the pointer or the focus hides that
+        // input from the screens below.
+        if (ui::has_open_modal(s)) {
+            in = ui::UiInput{};
+            continue;
+        }
         if (ui::pointer_captured(s)) {
             in.pointer_down = in.pointer_pressed = in.pointer_released = false;
             in.pointer_x = in.pointer_y = -1.0f;
@@ -157,6 +167,34 @@ void render_ui_layer(UiLayer* l) {
 
 uint32_t screen_count(const UiLayer* l) { return l ? l->count : 0; }
 ui::Screen* screen_at(UiLayer* l, uint32_t i) { return l && i < l->count ? l->screens[i] : nullptr; }
+
+scene::Scene* const* screen_documents(UiLayer* l) { return l->docs; }
+scene::UiState* ui_state(UiLayer* l) { return l ? l->state : nullptr; }
+
+bool set_language(UiLayer* l, const char* language, DiagList* diags) {
+    scene::StringTable* table = scene::load_string_table(l->scene->strings, language, diags);
+    if (!table) return false;
+    scene::free_string_table(l->strings);
+    l->strings = table;
+    ui::set_strings(l->context, table);
+    if (l->state) scene::set_value_string(l->state, "language", language);
+    return true;
+}
+
+bool click(UiLayer* l, const char* screen, const char* node) {
+    for (uint32_t i = l->count; i-- > 0;) {
+        ui::Screen* s = l->screens[i];
+        if (strcmp(ui::screen_name(s), screen) == 0) return ui::click_node(s, ui::find_node(s, node));
+        if (ui::has_open_modal(s)) return false;  // a modal above the target takes the click
+    }
+    return false;
+}
+
+const char* node_text(UiLayer* l, const char* screen, const char* node, char* out, size_t size) {
+    ui::Screen* s = find_screen(l, screen);
+    const int n = s ? ui::find_node(s, node) : ui::kNoNode;
+    return n == ui::kNoNode ? nullptr : ui::node_text(s, n, out, size);
+}
 
 ui::Screen* find_screen(UiLayer* l, const char* name) {
     for (uint32_t i = 0; l && i < l->count; ++i) {

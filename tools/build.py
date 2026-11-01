@@ -32,10 +32,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 # The second alternative is the Korean-localized prefix, escaped to keep the source ASCII.
 SHOW_INCLUDES = re.compile("^(Note: including file:|\uCC38\uACE0: \uD3EC\uD568 \uD30C\uC77C:)")
-# Windows: run the toolchain without a console. cl.exe encodes /showIncludes notes in the
-# console's current code page, and some build steps switch that code page while compiles
-# run in parallel; Ninja then misses the localized prefix and drops header dependencies.
-DETACHED_PROCESS = 0x00000008
+# Windows: run the toolchain in a console that has no window. Every tool it starts (cl.exe,
+# slangc, test executables) shares that hidden console instead of opening a window of its own,
+# which is what a process started with no console at all would make them do.
+# A localized cl.exe writes its /showIncludes prefix in the console's code page; when a build
+# step switches that code page during a parallel build, Ninja misses the prefix and records no
+# header dependencies for an object. repair_header_deps rebuilds those objects afterwards.
+CREATE_NO_WINDOW = 0x08000000
 
 VS_ROOTS = [
     r"C:\Program Files\Microsoft Visual Studio",
@@ -91,7 +94,7 @@ def repair_header_deps(env: dict[str, str], build_dir: Path) -> int:
     if not ninja or not (build_dir / ".ninja_deps").exists():
         return 0
     out = subprocess.run([ninja, "-C", str(build_dir), "-t", "deps"], capture_output=True,
-                         env=env, creationflags=DETACHED_PROCESS).stdout.decode("utf-8", "replace")
+                         env=env, creationflags=CREATE_NO_WINDOW).stdout.decode("utf-8", "replace")
     stale = [line.split(":")[0] for line in out.splitlines()
              if line.startswith("CMakeFiles/") and "#deps 0," in line]
     for obj in stale:
@@ -146,7 +149,7 @@ def main(argv: list[str]) -> int:
         print("+", " ".join(cmd), flush=True)
         # On Windows CreateProcess searches the parent's PATH, not env's; resolve explicitly.
         exe = shutil.which(cmd[0], path=env.get("PATH")) or cmd[0]
-        flags = DETACHED_PROCESS if sys.platform == "win32" else 0
+        flags = CREATE_NO_WINDOW if sys.platform == "win32" else 0
         proc = subprocess.Popen([exe, *cmd[1:]], cwd=ROOT, env=env, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, creationflags=flags)
         assert proc.stdout is not None

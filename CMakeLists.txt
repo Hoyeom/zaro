@@ -46,7 +46,7 @@ add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp)
 target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
-add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp)
+add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
@@ -161,6 +161,11 @@ if(ZARO_BUILD_TESTS)
                      --frames 3 --size 1280x720 --lang ${lang}
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     set_tests_properties(screenshot_hello_${lang} PROPERTIES LABELS gpu)
+    add_test(NAME screenshot_hello_settings_${lang}
+             COMMAND zaro screenshot examples/hello/scene.toml ${CMAKE_BINARY_DIR}/hello_settings_${lang}.png
+                     --frames 3 --size 1280x720 --lang ${lang} --click hud/settings_button
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(screenshot_hello_settings_${lang} PROPERTIES LABELS gpu)
   endforeach()
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)

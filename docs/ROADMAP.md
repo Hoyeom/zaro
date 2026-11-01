@@ -64,7 +64,13 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
   - Step 3 (screen files): `[screen]` files with `[[node]]`s and `parent`, UI vs scene components,
     string tables per language with `@key` texts, `zaro check` for screens, keys and images,
     `[scene] ui`, `--lang`; `examples/hello` has `ui/hud.toml`, `ui/settings.toml` (hidden until
-    step 4 opens it) and `strings/ko.toml`, `en.toml`.
+    step 4 opens it) and `strings/ko.toml`, `en.toml`. Merged (#19).
+  - Step 4 (Luau view-model binding): `ui.set`/`ui.get` values shown through `{name}`
+    placeholders, `ui.get_field`/`ui.set_field` on screen nodes, `ui.language`, the `on_ui` hook;
+    `[[click]]` and screen/text expectations in scene tests; `zaro screenshot --click`. A modal on
+    an upper screen blocks the screens below. `examples/hello` opens and closes its popup, switches
+    language and shows the player's speed; tests `settings`, `settings_close`, and screenshots of the
+    popup in both languages. With this the P2 "done when" check is met; steps 5 and 6 remain.
 - **Waits for**: nothing.
 - **Runs beside**: P1, P4a. P3 shares the texture atlas work, so P3 starts after P2's atlas lands.
 

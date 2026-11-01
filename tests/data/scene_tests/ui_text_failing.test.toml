@@ -1,0 +1,9 @@
+# Must fail: the HUD title is not "Goodbye" (ZE0601).
+[test]
+scene = "../../../examples/hello/scene.toml"
+ticks = 1
+
+[[expect]]
+screen = "hud"
+node = "title"
+text = "Goodbye"

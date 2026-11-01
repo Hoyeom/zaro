@@ -19,6 +19,7 @@ constexpr float kFlingDecay = 5.0f;      // velocity falls by e every 1/5 s
 constexpr float kFocusRingGap = 3.0f;
 constexpr float kFocusRingWidth = 2.0f;
 constexpr uint32_t kFocusRingColor = rgba(255, 255, 255);
+constexpr size_t kTextCapacity = 1024;  // a resolved text: string table value with placeholders filled
 
 const Layout kDefaultLayout{};
 
@@ -159,13 +160,15 @@ void measure(Screen* s, int n, float avail_w, float avail_h, uint32_t parent_dir
     if (const Label* lb = widget<Label>(s, n, kWLabel)) {
         TextStyle st = label_style(s, *lb);
         st.max_width = lb->wrap ? inner_w : 0.0f;
-        const TextSize ts = measure_text(text, resolve_text(s->context, lb->text), st);
+        char resolved[kTextCapacity];
+        const TextSize ts = measure_text(text, resolve_text(s->context, lb->text, resolved, sizeof(resolved)), st);
         cw = ts.width;
         ch = ts.height;
     }
     if (const Button* b = widget<Button>(s, n, kWButton)) {
-        const TextSize ts =
-            measure_text(text, resolve_text(s->context, b->text), text_style(s, b->font, b->size, b->text_color));
+        char resolved[kTextCapacity];
+        const TextSize ts = measure_text(text, resolve_text(s->context, b->text, resolved, sizeof(resolved)),
+                                         text_style(s, b->font, b->size, b->text_color));
         const float em = b->size * sc;
         if (ts.width + em * 1.5f > cw) cw = ts.width + em * 1.5f;
         if (ts.height + em * 0.6f > ch) ch = ts.height + em * 0.6f;
@@ -568,7 +571,8 @@ void draw_node(Screen* s, DrawList* list, int n) {
         else if (s->hover == n) color = b->hover_color;
         draw_rect(list, r.x0, r.y0, r.x1, r.y1, color, b->radius * sc);
         const TextStyle st = text_style(s, b->font, b->size, b->text_color);
-        const char* caption = resolve_text(s->context, b->text);
+        char resolved[kTextCapacity];
+        const char* caption = resolve_text(s->context, b->text, resolved, sizeof(resolved));
         const TextSize ts = measure_text(text, caption, st);
         draw_text(text, list, floorf((r.x0 + r.x1 - ts.width) * 0.5f + 0.5f), (r.y0 + r.y1 - ts.height) * 0.5f, caption,
                   st);
@@ -580,7 +584,8 @@ void draw_node(Screen* s, DrawList* list, int n) {
     }
     if (const Label* lb = widget<Label>(s, n, kWLabel)) {
         TextStyle st = label_style(s, *lb);
-        const char* value = resolve_text(s->context, lb->text);
+        char resolved[kTextCapacity];
+        const char* value = resolve_text(s->context, lb->text, resolved, sizeof(resolved));
         const float w = r.x1 - r.x0;
         float x = r.x0;
         if (lb->wrap) {
@@ -756,9 +761,26 @@ void draw_screen(Screen* s, DrawList* list) {
 Rect node_rect(const Screen* s, int n) { return s->nodes[n].rect; }
 bool node_shown(const Screen* s, int n) { return s->nodes[n].shown; }
 int focused_node(const Screen* s) { return s->focus; }
+bool has_open_modal(const Screen* s) { return s->top_modal != kNoNode; }
 bool focus_visible(const Screen* s) { return s->focus_visible; }
 int hovered_node(const Screen* s) { return s->hover; }
 int pressed_node(const Screen* s) { return s->pressed; }
+
+const char* node_text(const Screen* s, int n, char* out, size_t size) {
+    const Label* lb = widget<Label>(s, n, kWLabel);
+    const Button* b = widget<Button>(s, n, kWButton);
+    if (!lb && !b) {
+        if (size) out[0] = 0;
+        return out;
+    }
+    return resolve_text(s->context, lb ? lb->text : b->text, out, size);
+}
+
+bool click_node(Screen* s, int n) {
+    if (n == kNoNode || !clickable(s, n)) return false;
+    push_event(s, EventKind::kClick, n);
+    return true;
+}
 
 void set_focus(Screen* s, int n, bool visible) {
     s->focus = n;

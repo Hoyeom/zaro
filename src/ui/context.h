@@ -3,6 +3,7 @@
 
 #include "core/diag.h"
 #include "scene/strings.h"
+#include "scene/ui_state.h"
 #include "ui/text.h"
 
 #include <stdint.h>
@@ -36,11 +37,13 @@ struct ImageInfo {
 };
 ImageInfo image_info(const Context* context, int image);
 
-// The string table that '@key' texts resolve against (nullptr: none). Not owned.
+// The string table that '@key' texts resolve against, and the view-model values that {name}
+// placeholders show (nullptr: none). Not owned.
 void set_strings(Context* context, const scene::StringTable* table);
-// The text to show: the table's value for "@key", or the text itself when it has no '@' or the key
-// is missing (so a missing key shows as "@key").
-const char* resolve_text(const Context* context, const char* text);
+void set_ui_state(Context* context, const scene::UiState* state);
+// The text to show, written to out: the table's value for "@key" (or "@key" itself when the key is
+// missing), with every {placeholder} replaced. Returns out.
+const char* resolve_text(const Context* context, const char* text, char* out, size_t size);
 
 // Call once per frame before drawing.
 void begin_frame(Context* context);
