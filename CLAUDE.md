@@ -207,5 +207,10 @@ Enforced by `tools/git_rules.py` (rules G001–G006, `--list-rules`) through the
 `tools/githooks/` (`pre-commit`: branch, `commit-msg`: message, `pre-push`: no push to `main`),
 and by `permissions.deny` in `.claude/settings.json` (pushes to `main`, `--no-verify`). The
 GitHub repository allows squash merges only, uses the PR title as the commit title, and deletes
-merged branches. Server-side protection of `main` (`tools/github/ruleset-main.json`) needs a
-public repository or GitHub Pro; until then the hooks above are the only guard.
+merged branches. The `main` ruleset (`tools/github/ruleset-main.json`, applied on GitHub) blocks
+deletion, force pushes and direct pushes. It also requires the four CI checks (`lint and
+repository rules` and `build and test` on each OS) before a squash merge. To land a PR once CI
+passes, enable auto-merge (`gh pr merge <n> --squash --auto`); nobody has to wait for the checks.
+Editing the JSON file does not change GitHub. Re-apply it with `gh api -X PUT
+repos/Hoyeom/zaro/rulesets/<id> --input tools/github/ruleset-main.json`; the ruleset id is in
+`gh api repos/Hoyeom/zaro/rulesets`.

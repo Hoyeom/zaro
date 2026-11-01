@@ -192,9 +192,10 @@ Status of all entries below: **accepted, 2026-11-01**.
   be polished), merge commits (non-linear history complicates bisect and reverts).
 - **Enforcement**: `tools/git_rules.py` via git hooks, `permissions.deny` in
   `.claude/settings.json`, and GitHub repository settings (squash only, PR title as commit
-  title, branches deleted after merge). A ruleset protecting `main` is not available for
-  private repositories on the free plan. It is kept in `tools/github/ruleset-main.json` and
-  applied when the repository becomes public. CI will check PR titles (D-013).
+  title, branches deleted after merge, auto-merge allowed). The ruleset in
+  `tools/github/ruleset-main.json` has been active on GitHub since the repository went public.
+  It forbids deleting `main`, force pushes and direct pushes, allows only squash merges, and
+  requires the four CI checks, which include the PR-title and commit checks (D-013).
 
 ## D-016 Release and business model: open engine, private revenue, launch with a game
 
@@ -247,8 +248,3 @@ regression baseline; D-013 defines that.
 
 Gamepad/touch input, CJK fonts and IME, localization, audio (miniaudio candidate), game UI,
 save-format versioning, physics (Jolt candidate), the MCP server (local only, access-restricted).
-
-## When the repository goes public
-
-- Enable GitHub private vulnerability reporting (SECURITY.md relies on it).
-- Protect `main`: `gh api -X POST repos/<owner>/zaro/rulesets --input tools/github/ruleset-main.json`.
