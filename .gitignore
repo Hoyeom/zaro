@@ -1,0 +1,28 @@
+# Build output
+/build/
+/out/
+CMakeUserPresets.json
+compile_commands.json
+
+# Derived asset cache (D-008): rebuilt from sources
+.zaro-cache/
+
+# Headless run output
+perf.json
+*.perf.json
+/screenshots/
+
+# Tooling
+.cache/
+.vs/
+.idea/
+*.user
+__pycache__/
+*.pyc
+
+# Personal Claude Code overrides (the shared .claude/settings.json is committed)
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db

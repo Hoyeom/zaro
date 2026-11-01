@@ -1,0 +1,5 @@
+#!/bin/sh
+# Enabled by: git config core.hooksPath tools/githooks
+root="$(git rev-parse --show-toplevel)"
+python "$root/tools/git_rules.py" branch || exit 1
+exec python "$root/tools/lint.py" --staged
