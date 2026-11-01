@@ -227,6 +227,24 @@ Status of all entries below: **accepted, 2026-11-01**.
   trademark. Filing ZARO in Korea for classes 9 and 42 is advised once the project becomes
   known. This was not legal advice.
 
+## D-017 Scenes: TOML via tomlc17, reflected plain-struct components
+
+- **Decision**: Scenes and prefabs are TOML files parsed by tomlc17 (MIT, one C file).
+  Components are plain structs with default member initializers. Each one is described once by
+  `ZARO_FIELD` / `ZARO_COMPONENT` macros (name, type, offset, range, doc) and registered at
+  startup. The scene loader, `zaro check` and `zaro schema` work only from those descriptions.
+  Prefabs are referenced by relative path, do not nest, and are overridden field by field.
+- **Why**: tomlc17 compiles in about a second and keeps the line and column of every value, so
+  each error can point at `file:line:col`. Plain structs keep components cheap to copy and easy
+  to read in a debugger. Macros instead of templates follow D-001. Reporting every error in one
+  pass, with "did you mean" hints, lets an agent fix a scene in one edit.
+- **Rejected**:
+  - toml++, which is header-only, slow to compile and uses exceptions by default
+  - code generation from a schema file, which adds a build step
+  - JSON scenes, which allow no comments and are noisier to diff
+- **Not yet**: there are no entity hierarchies or component references between entities, and
+  scenes do not drive `zaro run` yet (M2-3).
+
 ## M1 result (2026-11-01)
 
 The crowd demo (`zaro run`) has 50,000 enemies following a flow field around obstacles toward

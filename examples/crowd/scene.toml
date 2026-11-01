@@ -1,0 +1,21 @@
+# The M1 crowd demo as a scene. Validate with:  zaro check examples/crowd/scene.toml
+# Every component and field is listed by:       zaro schema
+
+[scene]
+name = "crowd"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 256
+seed = 1
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 50000
+speed = 4.0
+
+[[entity]]
+name = "player"
+prefab = "prefabs/player.toml"

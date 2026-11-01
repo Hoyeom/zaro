@@ -21,6 +21,8 @@ Every architectural decision and its reasoning is in [docs/DECISIONS.md](docs/DE
 | Headless benchmark | `build/release/zaro run --headless --perf perf.json` |
 | Headless screenshot | `build/debug/zaro run --headless --frames 60 --screenshot shot.png` |
 | Simulation only, no GPU | `build/debug/zaro run --sim-only --frames 300` |
+| List components (fields, types, defaults, ranges) as JSON | `build/debug/zaro schema` |
+| Validate a scene without running it | `build/debug/zaro check examples/crowd/scene.toml [--json]` |
 | All `run` options | `build/debug/zaro help` |
 | Enable the pre-commit hook (once per clone) | `git config core.hooksPath tools/githooks` |
 
@@ -38,7 +40,8 @@ The first configure downloads pinned dependencies into `.cache/deps/` (see
 include/zaro/   public C API = plugin ABI (C only, lint rules Z001/Z006)
 src/<module>/   engine modules, see "Modules"
 shaders/        Slang sources; the build compiles them to <bin>/shaders/*.wgsl
-tests/          test executables; c_abi_check.c compiles public headers as C
+examples/       example scenes and prefabs (TOML)
+tests/          test executables and tests/data/; c_abi_check.c compiles public headers as C
 tools/          build.py, lint.py, githooks/
 cmake/          ZaroCompilerFlags.cmake (zaro_target_defaults), ZaroDeps.cmake (pinned deps)
 docs/           DECISIONS.md
@@ -52,18 +55,38 @@ CMakeLists.txt follow the same graph.
 
 | Module | Role | May include |
 |---|---|---|
-| `core` | math, rng, hashing, jobs, logging, PNG; no platform or GPU | core |
+| `core` | math, rng, hashing, jobs, logging, diagnostics, reflection, PNG; no platform or GPU | core |
 | `platform` | windows, input, time, files; the only module that includes SDL | core |
 | `rhi` | GPU interface `rhi.h`; `rhi_wgpu.cpp` is the only file that includes webgpu.h | core, platform |
 | `sim` | gameplay state (the model), deterministic, headless-testable | core |
+| `scene` | loads TOML scenes and prefabs into registered components; the only module that includes tomlc17 | core |
 | `render` | draws plain data (the view); never sees sim types | core, rhi |
 | `app` | owns the frame loop and wires sim to render | all of the above |
 | `cli` | the `zaro` command | core, app |
 
 Third-party headers belong to one module only: `SDL3/` → platform, `webgpu/` → rhi,
-`TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`.
+`TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` → scene.
 To add a feature, put the state and rules in `sim`, the drawing in `render`, and the
-connection in `app`. A new module needs an entry in `MODULE_DEPS` and in this table.
+connection in `app`. A new module needs an entry in `MODULE_DEPS` (tools/lint.py), in `SCOPES`
+(tools/git_rules.py) and in this table.
+
+## Scenes and components (D-017)
+
+The file format is documented at the top of `src/scene/scene.h`. A scene is a `[scene]` table
+plus `[[entity]]` tables. Each entity has a `name`, an optional `prefab` (path relative to the
+scene) and `[entity.<Component>]` tables. Values start from the component's defaults, then the
+prefab, then the entity, field by field.
+
+To add a component:
+1. Define a plain struct with default member initializers in the module that owns the behaviour
+   (see `src/sim/crowd_components.h`).
+2. Describe it with `ZARO_FIELD` or `ZARO_FIELD_RANGE` and `ZARO_COMPONENT` (`src/core/reflect.h`),
+   with a doc string for the component and for every field.
+3. Register it from `app::register_all_components` (`src/app/tools.cpp`).
+
+Field types: `bool i32 u32 u64 f32 vec2 vec3 vec4 string` (strings up to 127 bytes).
+`zaro check` reports every problem in one pass as `file:line:col: error[ZE04nn]` (ids in
+`src/core/log.h`), with a "did you mean" hint for misspelt components and fields.
 
 ## Design principles (do not erode these)
 
@@ -194,7 +217,7 @@ Hot reload: a windowed `zaro run` polls the `.wgsl` files twice a second. Rebuil
   `fix/rhi-resolve-align`. Types: `feat fix perf refactor docs test build ci chore revert`.
 - Commit messages: `type(scope): subject`, header at most 72 characters, no trailing period,
   plus a DCO sign-off (`git commit -s`). Scope is optional; when given it is a module
-  (`core platform rhi sim render app cli`) or an area (`abi shaders tools cmake deps docs ci repo`).
+  (`core platform rhi sim scene render app cli`) or an area (`abi shaders tools cmake deps docs ci repo`).
   Example: `fix(rhi): align query resolve offset to 256 bytes`.
 - One pull request per logical change. Changes are merged by **squash**; the PR title becomes the
   commit on `main`, so it follows the same `type(scope): subject` format. Reverting a PR is

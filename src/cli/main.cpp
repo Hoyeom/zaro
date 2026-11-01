@@ -1,5 +1,6 @@
 // zaro command line entry point. The editor and every agent workflow sit on top of this.
 #include "app/crowd_app.h"
+#include "app/tools.h"
 #include "core/log.h"
 #include "zaro/zaro.h"
 
@@ -15,6 +16,8 @@ void print_usage() {
          "commands:\n"
          "  version    print engine and plugin ABI version\n"
          "  run        run the crowd demo (the only demo so far)\n"
+         "  schema     print every component (fields, types, defaults, ranges) as JSON\n"
+         "  check      validate a scene without running it: zaro check <scene.toml> [--json]\n"
          "  help       print this message\n"
          "\n"
          "run options:\n"
@@ -123,6 +126,18 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (strcmp(argv[1], "run") == 0) return cmd_run(argc, argv);
+    if (strcmp(argv[1], "schema") == 0) return zaro::app::print_schema();
+    if (strcmp(argv[1], "check") == 0) {
+        const char* path = nullptr;
+        bool json = false;
+        for (int i = 2; i < argc; ++i) {
+            if (strcmp(argv[i], "--json") == 0) json = true;
+            else if (!path) path = argv[i];
+            else return usage_error("unexpected argument", argv[i]);
+        }
+        if (!path) return usage_error("check needs a scene path, got", "");
+        return zaro::app::check_scene(path, json);
+    }
     zaro::log_error(zaro::kErrCliUsage, "unknown command '%s' (try 'zaro help')", argv[1]);
     return 2;
 }

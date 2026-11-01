@@ -85,6 +85,19 @@ FetchContent_Declare(enkiTS SYSTEM
 FetchContent_MakeAvailable(enkiTS)
 target_include_directories(enkiTS SYSTEM INTERFACE ${enkits_SOURCE_DIR}/src)
 
+# --- tomlc17 R261003 (MIT), TOML 1.1 parser with line/column on every value ------------------------
+# The repository has no CMake build; compile its single C file as our own static library.
+FetchContent_Declare(tomlc17
+  URL https://github.com/cktan/tomlc17/archive/refs/tags/R261003.tar.gz
+  URL_HASH SHA256=48876f14bd7a123f95f16074dd0d5681f75c397c1bce61f1a52f42201f90eacc
+  SOURCE_SUBDIR _none)
+FetchContent_MakeAvailable(tomlc17)
+add_library(zaro_tomlc17 STATIC ${tomlc17_SOURCE_DIR}/src/tomlc17.c)
+target_include_directories(zaro_tomlc17 SYSTEM PUBLIC ${tomlc17_SOURCE_DIR}/src)
+set_target_properties(zaro_tomlc17 PROPERTIES C_STANDARD 17)
+# The source contains UTF-8 characters; MSVC otherwise reads it in the ANSI code page (C4819).
+target_compile_options(zaro_tomlc17 PRIVATE $<$<C_COMPILER_ID:MSVC>:/utf-8>)
+
 # --- Tracy v0.14.1 (BSD-3), only with ZARO_TRACY ---------------------------------------------------
 if(ZARO_TRACY)
   set(TRACY_ENABLE ON CACHE BOOL "" FORCE)

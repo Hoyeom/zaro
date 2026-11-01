@@ -21,7 +21,8 @@ include(ZaroDeps)
 # ("Modules"); tools/lint.py rule Z007 enforces the same graph on #include lines.
 
 add_library(zaro_core STATIC
-  src/core/version.cpp src/core/log.cpp src/core/jobs.cpp src/core/png.cpp)
+  src/core/version.cpp src/core/log.cpp src/core/jobs.cpp src/core/png.cpp
+  src/core/reflect.cpp src/core/diag.cpp)
 target_include_directories(zaro_core PUBLIC include src)
 target_link_libraries(zaro_core PRIVATE enkiTS)
 if(ZARO_TRACY)
@@ -38,16 +39,20 @@ add_library(zaro_rhi STATIC src/rhi/rhi_wgpu.cpp)
 target_link_libraries(zaro_rhi PUBLIC zaro_platform PRIVATE zaro_wgpu)
 zaro_target_defaults(zaro_rhi)
 
-add_library(zaro_sim STATIC src/sim/crowd.cpp)
+add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp)
 target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
+
+add_library(zaro_scene STATIC src/scene/scene.cpp)
+target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
+zaro_target_defaults(zaro_scene)
 
 add_library(zaro_render STATIC src/render/crowd_renderer.cpp)
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
-add_library(zaro_app STATIC src/app/crowd_app.cpp)
-target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_platform)
+add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp)
+target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_platform)
 zaro_target_defaults(zaro_app)
 
 # CLI. Everything an agent or the editor does goes through this binary.
@@ -78,6 +83,22 @@ if(ZARO_BUILD_TESTS)
   target_link_libraries(test_crowd_determinism PRIVATE zaro_sim)
   zaro_target_defaults(test_crowd_determinism)
   add_test(NAME crowd_determinism COMMAND test_crowd_determinism)
+
+  # Scenes: prefab overrides, defaults, diagnostics with ids and lines.
+  add_executable(test_scene tests/test_scene.cpp)
+  target_link_libraries(test_scene PRIVATE zaro_scene zaro_sim)
+  zaro_target_defaults(test_scene)
+  add_test(NAME scene_loading COMMAND test_scene WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+  # The example scene stays valid, and `zaro schema` stays valid JSON.
+  add_test(NAME example_crowd_scene COMMAND zaro check examples/crowd/scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_FOUND)
+    add_test(NAME schema_json
+             COMMAND Python3::Interpreter -c "import json,subprocess,sys; d=json.loads(subprocess.run([sys.argv[1],'schema'],capture_output=True,check=True).stdout); assert d['components'], 'no components'"
+                     $<TARGET_FILE:zaro>)
+  endif()
 
   # No GPU needed: runs on CI runners.
   add_test(NAME crowd_sim_only COMMAND zaro run --sim-only --enemies 5000 --warmup 0 --frames 120)

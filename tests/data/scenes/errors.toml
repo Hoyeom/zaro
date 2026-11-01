@@ -1,0 +1,24 @@
+# Deliberately broken scene: tests/test_scene.cpp checks each diagnostic by id and line.
+[scene]
+name = "errors"
+music = "loud.ogg"
+
+[[entity]]
+name = "a"
+[entity.CrowdSpwner]
+count = 10
+
+[[entity]]
+name = "b"
+[entity.CrowdSpawner]
+cuont = 10
+speed = "fast"
+radius = 99.0
+
+[[entity]]
+name = "a"
+prefab = "missing.toml"
+
+[[entity]]
+[entity.PlayerController]
+speed = 1.0
