@@ -1,4 +1,9 @@
-# ZARO
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img alt="ZARO" src="docs/assets/logo.svg" width="320">
+  </picture>
+</p>
 
 **Z**ero-royalty, **A**I-native, **R**apid, **O**pen game engine.
 

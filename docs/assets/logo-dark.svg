@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 225 64" width="225" height="64" role="img" aria-label="ZARO">
+  <title>ZARO</title>
+  <!-- For dark backgrounds. logo.svg is the same drawing with a dark wordmark. -->
+  <defs>
+    <linearGradient id="zaro-logo-dark-fill" gradientUnits="userSpaceOnUse" x1="8" y1="4" x2="56" y2="60">
+      <stop offset="0" stop-color="#9B6BFF"/>
+      <stop offset="1" stop-color="#2E8BFF"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#zaro-logo-dark-fill)">
+    <path d="M5.737 17.5H48.385L30.385 39.5H61.047A30 30 0 0 0 5.737 17.5Z"/>
+    <path d="M58.263 46.5H15.615L33.615 24.5H2.953A30 30 0 0 0 58.263 46.5Z"/>
+  </g>
+  <!-- Wordmark "zaro": x-height 40, stroke 9. -->
+  <g fill="#F2F4F8">
+    <path transform="translate(80 12)" d="M0 0H30V9L12 31H30V40H0V31L18 9H0Z"/>
+    <path transform="translate(115 12)" d="M20 0A20 20 0 1 1 20 40A20 20 0 1 1 20 0ZM20 9A11 11 0 1 0 20 31A11 11 0 1 0 20 9ZM31 0H40V40H31Z"/>
+    <path transform="translate(160 12)" d="M0 0H9V40H0ZM0 20A20 20 0 0 1 20 0H24V9H20A11 11 0 0 0 9 20Z"/>
+    <path transform="translate(185 12)" fill-rule="evenodd" d="M20 0A20 20 0 1 1 20 40A20 20 0 1 1 20 0ZM20 9A11 11 0 1 0 20 31A11 11 0 1 0 20 9Z"/>
+  </g>
+</svg>
