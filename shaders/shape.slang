@@ -11,7 +11,7 @@ struct View {
 
 struct Instance {
     float3 position;  // world metres (x, height, z), or screen pixels (z unused)
-    float rotation;   // radians; world: from +x toward -z, screen: clockwise
+    float rotation;   // radians; world: +x turns toward +z (as Transform), screen: clockwise
     float2 size;
     float thickness;
     float glow;           // halo width beyond the edge, in the shape's units
@@ -48,8 +48,8 @@ VSOut vs_shape(uint vid: SV_VertexID, uint iid: SV_InstanceID) {
         const float2 p = s.position.xy + r;
         o.pos = float4(p.x * 2.0 * view.screen.z - 1.0, 1.0 - p.y * 2.0 * view.screen.w, 0.0, 1.0);
     } else {
-        // Local +y is world -z, so a shape reads the same way up as on the screen.
-        o.pos = mul(view.view_proj, float4(s.position + float3(r.x, 0.0, -r.y), 1.0));
+        // Local +y is world +z, which the camera sees as down: a shape reads as it would on the screen.
+        o.pos = mul(view.view_proj, float4(s.position + float3(r.x, 0.0, r.y), 1.0));
     }
     o.local = local;
     o.index = iid;

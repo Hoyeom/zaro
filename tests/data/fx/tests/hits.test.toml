@@ -1,0 +1,12 @@
+# The crowd's hits drive CrowdFx: 61 enemies reach the player in 300 ticks, each adding 0.01 of shake.
+# Run with: zaro test tests/data/fx
+[test]
+scene = "../hits.toml"
+ticks = 300
+
+[[expect]]
+entity = "screen"
+component = "ScreenFx"
+field = "shake"
+min = 0.605
+max = 0.615

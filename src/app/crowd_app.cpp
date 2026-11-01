@@ -92,6 +92,7 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
     float px, pz;
     sim::player_position(g.crowd, 1.0f, &px, &pz);
     step_shapes(g.shapes, sim::tick(g.crowd), px, pz);
+    step_fx(g.fx, g.crowd, g.shapes);
     return step_sprites(g.sprites, sim::tick(g.crowd), g.diags) && ok;
 }
 
@@ -197,7 +198,8 @@ bool write_perf_json(const char* path, const RunOptions& o, const Stats& s, doub
 void shader_dir(char* out, size_t size) { snprintf(out, size, "%sshaders/", platform::base_path()); }
 
 uint64_t shader_mtime(const char* dir) {
-    static const char* const kShaders[] = {"crowd_cull", "crowd_draw", "sprite", "post", "shape"};
+    static const char* const kShaders[] = {"crowd_cull", "crowd_draw", "sprite", "post", "shape", "particles_sim",
+                                           "particles_draw"};
     uint64_t newest = 0;
     for (const char* name : kShaders) {
         char path[600];
@@ -217,24 +219,29 @@ render::CrowdScene make_scene(const Game& g, const float* instances, float alpha
     scene.arena_size = sim::arena_size(crowd);
     scene.time_seconds = (float)sim::tick(crowd) * sim::kTickSeconds;
     scene.zoom = zoom;
+    fx_camera_offset(g.fx, scene.time_seconds + alpha * sim::kTickSeconds, scene.camera_offset);
     scene.keep_depth = has_world_sprites(g.sprites);
     shape_crowd_scene(g.shapes, &scene);
     return scene;
 }
 
-// The frame's passes: the crowd, the scene's shapes and sprites in its view (into the HDR frame
-// when the scene has effects, then bloom and tonemap), then the UI over all of them.
-void render_frame(Game& g, rhi::Device* device, render::CrowdRenderer* renderer, render::CrowdScene scene) {
+// The frame's passes: the crowd, the scene's shapes, sprites and particles in its view (into the
+// HDR frame when the scene has one, then bloom and tonemap), then the UI over all of them.
+// `seconds` is the time since the last frame, which the particles move by.
+void render_frame(Game& g, rhi::Device* device, render::CrowdRenderer* renderer, render::CrowdScene scene,
+                  float seconds) {
     scene.target = fx_begin_frame(g.fx);
     render::render_crowd(renderer, scene);
-    if (g.shapes || g.sprites) {
+    if (g.shapes || g.sprites || g.fx) {
         uint32_t w, h;
         rhi::target_size(device, &w, &h);
-        float view_proj[16], right[3];
+        float view_proj[16], right[3], forward[3];
         render::crowd_camera(scene, w, h, view_proj, right);
+        render::crowd_camera_forward(scene, forward);
         render_shape_layer(g.shapes, view_proj, scene.target, scene.player_x, scene.player_z, scene.time_seconds,
                            has_world_sprites(g.sprites));
         render_sprite_layer(g.sprites, view_proj, right, scene.target);
+        render_fx_particles(g.fx, view_proj, forward, scene.target, seconds);
     }
     render_fx(g.fx);
     if (g.ui) render_ui_layer(g.ui);
@@ -326,7 +333,7 @@ int run_headless(const RunOptions& o, Game& g, float* instances) {
             const uint64_t t1 = platform::now_ticks();
             sim::write_enemy_instances(crowd, 1.0f, instances);
             if (rhi::begin_frame(device)) {
-                render_frame(g, device, renderer, make_scene(g, instances, 1.0f, o.zoom));
+                render_frame(g, device, renderer, make_scene(g, instances, 1.0f, o.zoom), sim::kTickSeconds);
                 prep_ms = ms_since(t1);
                 rhi::end_frame(device);
             }
@@ -456,7 +463,7 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
         rhi::resize(device, (uint32_t)pw, (uint32_t)ph);
         sim::write_enemy_instances(crowd, alpha, instances);
         if (rhi::begin_frame(device)) {
-            render_frame(g, device, renderer, make_scene(g, instances, alpha, o.zoom));
+            render_frame(g, device, renderer, make_scene(g, instances, alpha, o.zoom), (float)frame_seconds);
             rhi::end_frame(device);
         }
         ZARO_FRAME_MARK();

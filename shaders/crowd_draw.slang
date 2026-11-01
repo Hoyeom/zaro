@@ -150,9 +150,9 @@ ShapeOut vs_enemy_shape(uint vid: SV_VertexID, uint iid: SV_InstanceID) {
     const float2 local = kCorners[vid] * (shape_extent(kind, size, frame.shape.w) + frame.shape_glow.x + 0.06);
     float2 fwd = inst.zw;
     fwd = dot(fwd, fwd) > 1e-6 ? normalize(fwd) : float2(1.0, 0.0);
-    // Local +y is 90 degrees from +x toward -z, as for Shape components.
+    // Local +y is the heading turned 90 degrees toward +z, as for Shape components.
     const float3 world = float3(inst.x, 0.05, inst.y) + float3(fwd.x, 0.0, fwd.y) * local.x +
-                         float3(fwd.y, 0.0, -fwd.x) * local.y;
+                         float3(-fwd.y, 0.0, fwd.x) * local.y;
     uint h = e * 2654435761u;
     h ^= h >> 15;
     const float jitter = (float(h & 1023u) / 1023.0 - 0.5) * 2.0 * frame.shape_glow.w;
