@@ -10,7 +10,7 @@ namespace zaro::render {
 
 namespace {
 
-// Mirrors `struct Frame` in shaders/frame.slang (240 bytes, std140).
+// Mirrors `struct Frame` in shaders/frame.slang (352 bytes, std140).
 struct FrameConstants {
     float view_proj[16];
     float planes[6][4];
@@ -21,8 +21,15 @@ struct FrameConstants {
     uint32_t pad[2];
     float sprite[4];  // metres per pixel, fps, frame count, cull radius; zero for cubes
     float right[4];
+    float shape[4];        // enemy shapes: kind, sides, size, thickness
+    float shape_color[4];  // linear rgb times intensity, opacity
+    float shape_glow[4];   // glow, glow strength, additive (1/0), hue jitter
+    float ground[4];       // arena colours: ground rgb, 1 when set (0: the grey checkerboard)
+    float grid[4];         // grid rgb, spacing
+    float obstacle[4];     // obstacle rgb
+    float sky[4];          // background and fog rgb
 };
-static_assert(sizeof(FrameConstants) == 240, "must match shaders/frame.slang");
+static_assert(sizeof(FrameConstants) == 352, "must match shaders/frame.slang");
 
 constexpr uint32_t kCubeVertices = 36;
 constexpr uint32_t kQuadVertices = 6;
@@ -35,6 +42,7 @@ struct CrowdRenderer {
     uint32_t max_enemies = 0;
     uint32_t obstacle_count = 0;
     rhi::TextureFormat format = rhi::TextureFormat::kFrame;
+    bool shapes = false;  // enemies are CrowdShapes
 
     rhi::Buffer* frame = nullptr;
     rhi::Buffer* instances = nullptr;
@@ -97,7 +105,14 @@ bool reload_shaders(CrowdRenderer* r) {
     d.fragment_entry = "fs_lit";
     r->obstacle = rhi::create_render_pipeline(r->device, d);
     rhi::RenderPipelineDesc e = d;
-    if (r->sprites) {
+    if (r->shapes) {
+        e.label = "enemy shapes";
+        e.vertex_entry = "vs_enemy_shape";
+        e.fragment_entry = "fs_enemy_shape";
+        e.cull_back = false;
+        e.alpha_blend = true;
+        e.depth_write = false;
+    } else if (r->sprites) {
         e.label = "enemy sprites";
         e.vertex_entry = "vs_enemy_sprite";
         e.fragment_entry = "fs_enemy_sprite";
@@ -117,10 +132,12 @@ bool reload_shaders(CrowdRenderer* r) {
 
 CrowdRenderer* create_crowd_renderer(rhi::Device* device, const char* shader_dir, uint32_t max_enemies,
                                      const uint32_t* obstacle_cells_xz, uint32_t obstacle_count,
-                                     const CrowdSprites* sprites, rhi::TextureFormat format) {
+                                     const CrowdLook& look) {
+    const CrowdSprites* sprites = look.sprites;
     CrowdRenderer* r = new CrowdRenderer();
     r->device = device;
-    r->format = format;
+    r->format = look.format;
+    r->shapes = look.shapes;
     snprintf(r->shader_dir, sizeof(r->shader_dir), "%s", shader_dir);
     r->max_enemies = max_enemies;
     r->obstacle_count = obstacle_count;
@@ -134,7 +151,7 @@ CrowdRenderer* create_crowd_renderer(rhi::Device* device, const char* shader_dir
                                       "obstacle cells");
     if (obstacle_count) rhi::write_buffer(device, r->obstacles, 0, obstacle_cells_xz, obstacle_count * 8ull);
 
-    r->sprites = sprites && sprites->rgba && sprites->frame_count;
+    r->sprites = !r->shapes && sprites && sprites->rgba && sprites->frame_count;
     r->sprite_sampler = rhi::create_sampler(device, true);
     if (r->sprites) {
         r->sprite_atlas = rhi::create_texture(device, sprites->width, sprites->height, rhi::TextureFormat::kRGBA8Srgb,
@@ -272,7 +289,29 @@ void render_crowd(CrowdRenderer* r, const CrowdScene& scene) {
     fc.right[1] = right.y;
     fc.right[2] = right.z;
     fc.right[3] = 0.0f;
-    const uint32_t args[4] = {r->sprites ? kQuadVertices : kCubeVertices, 0, 0, 0};
+    memset(fc.shape, 0, sizeof(float) * 4 * 7);
+    if (r->shapes && scene.enemy_shapes) {
+        const CrowdShapes& s = *scene.enemy_shapes;
+        fc.shape[0] = (float)s.kind;
+        fc.shape[1] = (float)s.sides;
+        fc.shape[2] = s.size;
+        fc.shape[3] = s.thickness;
+        memcpy(fc.shape_color, s.color, sizeof(fc.shape_color));
+        fc.shape_glow[0] = s.glow;
+        fc.shape_glow[1] = s.glow_strength;
+        fc.shape_glow[2] = s.additive ? 1.0f : 0.0f;
+        fc.shape_glow[3] = s.hue_jitter;
+        fc.sprite[3] = s.size * 0.75f + s.glow;  // cull radius (a rect's corner reaches size * 0.71)
+    }
+    if (const ArenaColors* a = scene.arena) {
+        memcpy(fc.ground, a->ground, sizeof(a->ground));
+        fc.ground[3] = 1.0f;
+        memcpy(fc.grid, a->grid, sizeof(a->grid));
+        fc.grid[3] = a->grid_spacing;
+        memcpy(fc.obstacle, a->obstacle, sizeof(a->obstacle));
+        memcpy(fc.sky, a->sky, sizeof(a->sky));
+    }
+    const uint32_t args[4] = {r->sprites || r->shapes ? kQuadVertices : kCubeVertices, 0, 0, 0};
 
     rhi::write_buffer(r->device, r->frame, 0, &fc, sizeof(fc));
     rhi::write_buffer(r->device, r->args, 0, args, sizeof(args));
@@ -282,12 +321,13 @@ void render_crowd(CrowdRenderer* r, const CrowdScene& scene) {
     rhi::compute_dispatch(r->device, r->cull, r->cull_group, (count + 63) / 64);
     rhi::compute_end(r->device);
 
-    const float clear[4] = {0.06f, 0.07f, 0.09f, 1.0f};
+    float clear[4] = {0.06f, 0.07f, 0.09f, 1.0f};
+    if (scene.arena) memcpy(clear, scene.arena->sky, sizeof(scene.arena->sky));
     rhi::render_begin(r->device, "main", clear, scene.keep_depth ? rhi::kDepthStore : rhi::kDepthClear, scene.target);
     rhi::draw(r->device, r->ground, r->draw_group, 6, 1);
     if (r->obstacle_count) rhi::draw(r->device, r->obstacle, r->draw_group, kCubeVertices, r->obstacle_count);
     rhi::draw_indirect(r->device, r->enemy, r->draw_group, r->args);
-    rhi::draw(r->device, r->player, r->draw_group, kCubeVertices, 1);
+    if (scene.draw_player) rhi::draw(r->device, r->player, r->draw_group, kCubeVertices, 1);
     rhi::render_end(r->device);
 }
 

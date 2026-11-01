@@ -1,0 +1,9 @@
+[prefab]
+name = "orb"
+
+[Shape]
+kind = "circle"
+size = [1.0, 1.0]
+color = "#40e0ff"
+intensity = 4.0
+trail = 0.3

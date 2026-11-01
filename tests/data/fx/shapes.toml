@@ -1,0 +1,88 @@
+# Glowing shapes (zaro-fx): every kind on the ground, the enemies as triangles, a ring with a trail
+# following the player, a screen shape, the neon arena colours, and Bloom over all of it.
+[scene]
+name = "shapes"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+[entity.ArenaLook]
+grid_intensity = 1.5
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 600
+[entity.CrowdShape]
+kind = "polygon"
+sides = 3
+size = 0.9
+color = "#ff2b4d"
+intensity = 2.5
+hue_jitter = 0.1
+
+[[entity]]
+name = "player"
+[entity.PlayerController]
+[entity.Shape]
+kind = "ring"
+follow = "player"
+position = [0.0, 0.05, 0.0]
+size = [1.4, 1.4]
+color = "#33e6ff"
+intensity = 3.0
+glow = 0.25
+trail = 0.4
+
+[[entity]]
+name = "box"
+[entity.Shape]
+kind = "rect"
+position = [30.0, 0.05, 30.0]
+size = [3.0, 2.0]
+thickness = 0.15
+rotation = 20.0
+color = "#66ff66"
+intensity = 2.0
+glow = 0.3
+flash = 1.0
+flash_decay = 1.0
+
+[[entity]]
+name = "hexagon"
+[entity.Shape]
+kind = "polygon"
+sides = 6
+position = [34.0, 0.05, 30.0]
+size = [2.5, 2.5]
+spin = 45.0
+color = "#ffcc33"
+intensity = 1.5
+glow = 0.5
+
+[[entity]]
+name = "beam"
+[entity.Shape]
+kind = "line"
+position = [32.0, 0.05, 34.0]
+size = [6.0, 0.0]
+thickness = 0.2
+color = "#ff66ff"
+intensity = 3.0
+glow = 0.4
+
+[[entity]]
+name = "badge"
+[entity.Shape]
+kind = "circle"
+space = "screen"
+position = [80.0, 80.0, 0.0]
+size = [60.0, 60.0]
+color = "#ffffff80"
+blend = "alpha"
+glow = 12.0
+
+[[entity]]
+name = "post"
+[entity.Bloom]

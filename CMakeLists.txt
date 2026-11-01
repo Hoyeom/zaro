@@ -45,7 +45,7 @@ target_link_libraries(zaro_rhi PUBLIC zaro_platform PRIVATE zaro_wgpu)
 zaro_target_defaults(zaro_rhi)
 
 add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp src/sim/sprite_components.cpp
-            src/sim/fx_components.cpp)
+            src/sim/fx_components.cpp src/sim/shape_components.cpp)
 target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
@@ -60,7 +60,7 @@ target_link_libraries(zaro_script PUBLIC zaro_scene PRIVATE Luau.VM Luau.Compile
 zaro_target_defaults(zaro_script)
 
 add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_renderer.cpp src/render/sprite_renderer.cpp
-            src/render/post_renderer.cpp)
+            src/render/post_renderer.cpp src/render/shape_renderer.cpp)
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
@@ -82,7 +82,7 @@ zaro_target_defaults(zaro_ui)
 
 add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp src/app/ui_layer.cpp
   src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp src/app/pipeline.cpp
-  src/app/fx_layer.cpp)
+  src/app/fx_layer.cpp src/app/shape_layer.cpp)
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform
   PRIVATE zaro_cjson)
 if(TARGET zaro_cook)
@@ -108,7 +108,7 @@ endif()
 target_link_libraries(zaro PRIVATE zaro_app)
 zaro_target_defaults(zaro)
 zaro_add_shaders(zaro shaders/crowd_cull.slang shaders/crowd_draw.slang shaders/ui.slang shaders/sprite.slang
-                 shaders/post.slang)
+                 shaders/post.slang shaders/shape.slang)
 zaro_add_fonts(zaro)
 add_custom_command(TARGET zaro POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:zaro_wgpu> $<TARGET_FILE_DIR:zaro>
@@ -201,6 +201,13 @@ if(ZARO_BUILD_TESTS)
   add_test(NAME post_render_gpu COMMAND test_post_render ${CMAKE_BINARY_DIR}/ ${CMAKE_BINARY_DIR}/post_render_test.png
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(post_render_gpu PROPERTIES LABELS gpu)
+  # Shapes: every kind filled and outlined, a halo, and one on the ground of a 3D view.
+  add_executable(test_shape_render tests/test_shape_render.cpp)
+  target_link_libraries(test_shape_render PRIVATE zaro_render)
+  zaro_target_defaults(test_shape_render)
+  add_dependencies(test_shape_render zaro)  # the shaders are built with zaro
+  add_test(NAME shape_render_gpu COMMAND test_shape_render ${CMAKE_BINARY_DIR}/ ${CMAKE_BINARY_DIR}/shape_render_test.png)
+  set_tests_properties(shape_render_gpu PROPERTIES LABELS gpu)
   # A scene with sprites stays valid; a misspelt animation is reported at its line.
   add_test(NAME check_sprite_scene COMMAND zaro check tests/data/sprites/scene.toml
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -235,6 +242,23 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro screenshot tests/data/fx/bloom.toml ${CMAKE_BINARY_DIR}/bloom.png --frames 5 --size 640x360
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(screenshot_bloom PROPERTIES LABELS gpu)
+  # Shapes: a scene with every kind, flash on the tick clock, ZE1100 for invalid shape components.
+  add_test(NAME check_shapes_scene COMMAND zaro check tests/data/fx/shapes.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME scene_tests_fx COMMAND zaro test tests/data/fx
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME check_crowd_two_looks COMMAND zaro check tests/data/fx/crowd_twice.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_crowd_two_looks PROPERTIES
+    PASS_REGULAR_EXPRESSION "crowd_twice.toml:12:1: error\\[ZE1100\\]: entity 'look': the crowd has both CrowdShape and CrowdSprite \\(on 'horde'\\)")
+  add_test(NAME check_screen_shape_follow COMMAND zaro check tests/data/fx/screen_follow.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_screen_shape_follow PROPERTIES
+    PASS_REGULAR_EXPRESSION "screen_follow.toml:9:1: error\\[ZE1100\\]: entity 'marker': a screen shape cannot follow the player")
+  add_test(NAME screenshot_shapes
+           COMMAND zaro screenshot tests/data/fx/shapes.toml ${CMAKE_BINARY_DIR}/shapes.png --frames 30 --size 640x360
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_shapes PROPERTIES LABELS gpu)
 
   # SVG cook: classes, clip paths, masks, <use> and gradients drawn; text and filters reported.
   if(TARGET zaro_cook)

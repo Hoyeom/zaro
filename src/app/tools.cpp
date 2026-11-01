@@ -1,5 +1,6 @@
 #include "app/tools.h"
 
+#include "app/shape_layer.h"
 #include "app/sprite_layer.h"
 #include "app/ui_layer.h"
 #include "core/diag.h"
@@ -11,6 +12,7 @@
 #include "script/script.h"
 #include "sim/crowd_components.h"
 #include "sim/fx_components.h"
+#include "sim/shape_components.h"
 #include "sim/sprite_components.h"
 #include "ui/widgets.h"
 
@@ -26,6 +28,7 @@ void register_all_components() {
     scene::register_scene_components();
     sim::register_sprite_components();
     sim::register_fx_components();
+    sim::register_shape_components();
     ui::register_ui_components();
 }
 
@@ -51,6 +54,10 @@ int check_scene(const char* path, bool json) {
         SpriteLayer* sprites = create_sprite_layer(s, diags, &failed);
         failed = !check_sprite_art(sprites, diags) || failed;
         destroy_sprite_layer(sprites);
+        // Its shapes: a crowd look given twice, a screen shape following the player.
+        bool shapes_failed = false;
+        destroy_shape_layer(create_shape_layer(s, diags, &shapes_failed));
+        failed = shapes_failed || failed;
         if (failed) {
             scene::free_scene(s);
             s = nullptr;
