@@ -119,5 +119,6 @@ and keeps at most two frames in flight. `--perf PATH` writes:
 | `draw_calls`, `entities`, `enemies`, `ticks`, `hits` | per-frame draw calls and simulation counters |
 | `state_hash` | simulation state after the run; equal for equal seed, tick count and build |
 | `adapter`, `backend`, `threads`, `resolution`, `mode` | run environment |
+| `hdr` | the HDR frame's format (`rg11b10f`, `rgba16f`), or `null` without a `Bloom` component (`zaro-fx`) |
 
 The run also prints `state_hash=<hex> ticks=<n>` on stdout.

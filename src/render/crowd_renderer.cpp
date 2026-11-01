@@ -34,6 +34,7 @@ struct CrowdRenderer {
     char shader_dir[512] = {};
     uint32_t max_enemies = 0;
     uint32_t obstacle_count = 0;
+    rhi::TextureFormat format = rhi::TextureFormat::kFrame;
 
     rhi::Buffer* frame = nullptr;
     rhi::Buffer* instances = nullptr;
@@ -89,17 +90,25 @@ bool reload_shaders(CrowdRenderer* r) {
     destroy_pipelines(r);
     r->cull = rhi::create_compute_pipeline(r->device, {"crowd cull", cull, "cull", r->cull_layout});
     rhi::RenderPipelineDesc d{"ground", draw, "vs_ground", "fs_ground", r->draw_layout};
+    d.format = r->format;
     r->ground = rhi::create_render_pipeline(r->device, d);
-    d = {"obstacles", draw, "vs_obstacle", "fs_lit", r->draw_layout};
+    d.label = "obstacles";
+    d.vertex_entry = "vs_obstacle";
+    d.fragment_entry = "fs_lit";
     r->obstacle = rhi::create_render_pipeline(r->device, d);
+    rhi::RenderPipelineDesc e = d;
     if (r->sprites) {
-        d = {"enemy sprites", draw, "vs_enemy_sprite", "fs_enemy_sprite", r->draw_layout};
-        d.cull_back = false;
+        e.label = "enemy sprites";
+        e.vertex_entry = "vs_enemy_sprite";
+        e.fragment_entry = "fs_enemy_sprite";
+        e.cull_back = false;
     } else {
-        d = {"enemies", draw, "vs_enemy", "fs_lit", r->draw_layout};
+        e.label = "enemies";
+        e.vertex_entry = "vs_enemy";
     }
-    r->enemy = rhi::create_render_pipeline(r->device, d);
-    d = {"player", draw, "vs_player", "fs_lit", r->draw_layout};
+    r->enemy = rhi::create_render_pipeline(r->device, e);
+    d.label = "player";
+    d.vertex_entry = "vs_player";
     r->player = rhi::create_render_pipeline(r->device, d);
     rhi::destroy_shader(cull);
     rhi::destroy_shader(draw);
@@ -108,9 +117,10 @@ bool reload_shaders(CrowdRenderer* r) {
 
 CrowdRenderer* create_crowd_renderer(rhi::Device* device, const char* shader_dir, uint32_t max_enemies,
                                      const uint32_t* obstacle_cells_xz, uint32_t obstacle_count,
-                                     const CrowdSprites* sprites) {
+                                     const CrowdSprites* sprites, rhi::TextureFormat format) {
     CrowdRenderer* r = new CrowdRenderer();
     r->device = device;
+    r->format = format;
     snprintf(r->shader_dir, sizeof(r->shader_dir), "%s", shader_dir);
     r->max_enemies = max_enemies;
     r->obstacle_count = obstacle_count;
@@ -273,7 +283,7 @@ void render_crowd(CrowdRenderer* r, const CrowdScene& scene) {
     rhi::compute_end(r->device);
 
     const float clear[4] = {0.06f, 0.07f, 0.09f, 1.0f};
-    rhi::render_begin(r->device, "main", clear, scene.keep_depth ? rhi::kDepthStore : rhi::kDepthClear);
+    rhi::render_begin(r->device, "main", clear, scene.keep_depth ? rhi::kDepthStore : rhi::kDepthClear, scene.target);
     rhi::draw(r->device, r->ground, r->draw_group, 6, 1);
     if (r->obstacle_count) rhi::draw(r->device, r->obstacle, r->draw_group, kCubeVertices, r->obstacle_count);
     rhi::draw_indirect(r->device, r->enemy, r->draw_group, r->args);
