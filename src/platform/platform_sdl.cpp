@@ -6,10 +6,137 @@
 #if defined(__APPLE__)
 #include <SDL3/SDL_metal.h>
 #endif
+#if defined(__ANDROID__)
+#include <android/log.h>
+#include <pthread.h>
+#include <unistd.h>
+#endif
 
+#include <stdio.h>
 #include <string.h>
 
 namespace zaro::platform {
+
+namespace {
+
+#if defined(__ANDROID__)
+char g_data_dir[512] = "./";
+
+// Android drops stdout and stderr; forward them to logcat line by line.
+void* logcat_pump(void* user) {
+    const int fd = (int)(intptr_t)user;
+    char buf[1024];
+    size_t len = 0;
+    for (;;) {
+        const ssize_t n = read(fd, buf + len, sizeof(buf) - 1 - len);
+        if (n <= 0) break;
+        len += (size_t)n;
+        size_t start = 0;
+        for (size_t i = 0; i < len; ++i) {
+            if (buf[i] != '\n') continue;
+            buf[i] = 0;
+            __android_log_write(ANDROID_LOG_INFO, "zaro", buf + start);
+            start = i + 1;
+        }
+        if (start == 0 && len == sizeof(buf) - 1) {  // a line longer than the buffer
+            buf[len] = 0;
+            __android_log_write(ANDROID_LOG_INFO, "zaro", buf);
+            len = 0;
+        } else {
+            memmove(buf, buf + start, len - start);
+            len -= start;
+        }
+    }
+    return nullptr;
+}
+
+void redirect_stdio_to_logcat() {
+    int fds[2];
+    if (pipe(fds) != 0) return;
+    setvbuf(stdout, nullptr, _IOLBF, 0);
+    setvbuf(stderr, nullptr, _IONBF, 0);
+    dup2(fds[1], STDOUT_FILENO);
+    dup2(fds[1], STDERR_FILENO);
+    pthread_t thread;
+    if (pthread_create(&thread, nullptr, logcat_pump, (void*)(intptr_t)fds[0]) == 0) pthread_detach(thread);
+}
+
+// Copies every file named in assets/zaro_assets.txt (one path per line) from the APK into dir.
+// A relative SDL path on Android reads the internal files directory first and the APK second,
+// which is why dir is never the internal files directory itself.
+bool unpack_assets(const char* dir) {
+    size_t size = 0;
+    char* list = (char*)SDL_LoadFile("zaro_assets.txt", &size);
+    if (!list) {
+        log_error(kErrPlatformInit, "zaro_assets.txt: not in the APK (%s); export with 'zaro export android'",
+                  SDL_GetError());
+        return false;
+    }
+    bool ok = true;
+    for (char* line = list; line && *line;) {
+        char* end = strchr(line, '\n');
+        if (end) *end = 0;
+        const size_t n = strlen(line);
+        if (n && line[n - 1] == '\r') line[n - 1] = 0;
+        if (line[0]) {
+            char out[1024];
+            snprintf(out, sizeof(out), "%s%s", dir, line);
+            if (char* slash = strrchr(out, '/')) {
+                *slash = 0;
+                SDL_CreateDirectory(out);
+                *slash = '/';
+            }
+            size_t bytes = 0;
+            void* data = SDL_LoadFile(line, &bytes);
+            if (!data || !SDL_SaveFile(out, data, bytes)) {
+                log_error(kErrPlatformInit, "%s: cannot unpack from the APK: %s", line, SDL_GetError());
+                ok = false;
+            }
+            SDL_free(data);
+        }
+        line = end ? end + 1 : nullptr;
+    }
+    SDL_free(list);
+    return ok;
+}
+#endif
+
+// Touch as a virtual stick (see poll_input in platform.h), in window coordinates.
+struct TouchStick {
+    bool active = false;
+    SDL_FingerID finger = 0;
+    float width = 1.0f, height = 1.0f;  // window size when the finger landed
+    float radius = 1.0f;                // drag distance for full speed
+    float origin_x = 0.0f, origin_y = 0.0f;
+    float x = 0.0f, y = 0.0f;
+};
+TouchStick g_stick;
+
+}  // namespace
+
+#if defined(__ANDROID__)
+bool prepare_process() {
+    redirect_stdio_to_logcat();
+    // External files (/sdcard/Android/data/<package>/files) can be read with `adb pull`.
+    if (const char* external = SDL_GetAndroidExternalStoragePath()) {
+        snprintf(g_data_dir, sizeof(g_data_dir), "%s/", external);
+    } else if (const char* internal = SDL_GetAndroidInternalStoragePath()) {
+        snprintf(g_data_dir, sizeof(g_data_dir), "%s/zaro/", internal);
+    } else {
+        log_error(kErrPlatformInit, "no Android files directory: %s", SDL_GetError());
+        return false;
+    }
+    SDL_CreateDirectory(g_data_dir);
+    if (!unpack_assets(g_data_dir)) return false;
+    if (chdir(g_data_dir) != 0) {
+        log_error(kErrPlatformInit, "cannot enter %s", g_data_dir);
+        return false;
+    }
+    return true;
+}
+#else
+bool prepare_process() { return true; }
+#endif
 
 struct Window {
     SDL_Window* sdl = nullptr;
@@ -67,6 +194,9 @@ NativeWindow native_window(Window* window) {
     (void)props;
     n.kind = NativeWindow::kMetalLayer;
     n.handle = SDL_Metal_GetLayer(window->metal_view);
+#elif defined(__ANDROID__)
+    n.kind = NativeWindow::kAndroid;
+    n.handle = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
 #else
     const char* driver = SDL_GetCurrentVideoDriver();
     if (driver && strcmp(driver, "wayland") == 0) {
@@ -127,6 +257,7 @@ void on_gamepad_button(Input* input, uint8_t button) {
 }  // namespace
 
 void poll_input(Input* input) {
+    input->window_changed = false;
     input->pointer_pressed = input->pointer_released = false;
     input->wheel_y = 0.0f;
     input->nav_up = input->nav_down = input->nav_left = input->nav_right = false;
@@ -134,7 +265,8 @@ void poll_input(Input* input) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
-            case SDL_EVENT_QUIT: input->quit = true; break;
+            case SDL_EVENT_QUIT:
+            case SDL_EVENT_TERMINATING: input->quit = true; break;
             case SDL_EVENT_KEY_DOWN: on_key(input, e.key.key); break;
             case SDL_EVENT_GAMEPAD_ADDED: SDL_OpenGamepad(e.gdevice.which); break;
             case SDL_EVENT_GAMEPAD_BUTTON_DOWN: on_gamepad_button(input, e.gbutton.button); break;
@@ -158,6 +290,38 @@ void poll_input(Input* input) {
                 else input->pointer_released = true;
                 break;
             }
+            case SDL_EVENT_WILL_ENTER_BACKGROUND:
+                input->background = true;
+                g_stick.active = false;
+                break;
+            case SDL_EVENT_DID_ENTER_FOREGROUND:
+                input->background = false;
+                input->window_changed = true;
+                break;
+            case SDL_EVENT_FINGER_DOWN:
+                if (!g_stick.active) {
+                    int w = 0, h = 0;
+                    if (SDL_Window* win = SDL_GetWindowFromID(e.tfinger.windowID)) SDL_GetWindowSize(win, &w, &h);
+                    if (w <= 0 || h <= 0) w = h = 1;
+                    g_stick.active = true;
+                    g_stick.finger = e.tfinger.fingerID;
+                    g_stick.width = (float)w;
+                    g_stick.height = (float)h;
+                    g_stick.radius = 0.1f * (float)(w < h ? w : h);
+                    g_stick.origin_x = g_stick.x = e.tfinger.x * (float)w;
+                    g_stick.origin_y = g_stick.y = e.tfinger.y * (float)h;
+                }
+                break;
+            case SDL_EVENT_FINGER_MOTION:
+                if (g_stick.active && e.tfinger.fingerID == g_stick.finger) {
+                    g_stick.x = e.tfinger.x * g_stick.width;
+                    g_stick.y = e.tfinger.y * g_stick.height;
+                }
+                break;
+            case SDL_EVENT_FINGER_UP:
+            case SDL_EVENT_FINGER_CANCELED:
+                if (e.tfinger.fingerID == g_stick.finger) g_stick.active = false;
+                break;
             case SDL_EVENT_MOUSE_WHEEL: input->wheel_y += e.wheel.y; break;
             default: break;
         }
@@ -168,6 +332,16 @@ void poll_input(Input* input) {
     if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) x += 1.0f;
     if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP]) y += 1.0f;
     if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN]) y -= 1.0f;
+    if (x == 0.0f && y == 0.0f && g_stick.active) {
+        x = (g_stick.x - g_stick.origin_x) / g_stick.radius;
+        y = -(g_stick.y - g_stick.origin_y) / g_stick.radius;  // screen y grows downward
+        const float len2 = x * x + y * y;
+        if (len2 > 1.0f) {
+            const float inv = 1.0f / SDL_sqrtf(len2);
+            x *= inv;
+            y *= inv;
+        }
+    }
     input->move_x = x;
     input->move_y = y;
 }
@@ -179,8 +353,12 @@ double ticks_to_seconds(uint64_t ticks) {
 }
 
 const char* base_path() {
+#if defined(__ANDROID__)
+    return g_data_dir;
+#else
     const char* p = SDL_GetBasePath();
     return p ? p : "./";
+#endif
 }
 
 namespace {
@@ -233,5 +411,9 @@ uint64_t file_mtime(const char* path) {
     if (!SDL_GetPathInfo(path, &info)) return 0;
     return (uint64_t)info.modify_time;
 }
+
+bool create_directories(const char* path) { return SDL_CreateDirectory(path); }
+
+bool copy_file(const char* from, const char* to) { return SDL_CopyFile(from, to); }
 
 }  // namespace zaro::platform

@@ -22,6 +22,9 @@ void print_usage() {
          "  test       run scene tests: zaro test [paths...] [--update] [--json] (default path: tests)\n"
          "  screenshot render a scene headless to PNG: zaro screenshot <scene.toml> [out.png]\n"
          "             [--frames N (default 60)] [--size WxH] [--lang LANG] [--click SCREEN/NODE]...\n"
+         "  export     write a Gradle project for an Android APK: zaro export android <scene.toml>\n"
+         "             [--out DIR (default build/android-project)] [--runtime DIR] [--package ID]\n"
+         "             [--portrait]  (runtime: python tools/build.py android; APK: tools/android.py apk)\n"
          "  help       print this message\n"
          "\n"
          "run options:\n"
@@ -181,9 +184,41 @@ int cmd_screenshot(int argc, char** argv) {
     return code;
 }
 
+int cmd_export(int argc, char** argv) {
+    if (argc < 3 || strcmp(argv[2], "android") != 0) {
+        return usage_error("export needs a target ('android'), got", argc < 3 ? "" : argv[2]);
+    }
+    zaro::app::ExportOptions o;
+    for (int i = 3; i < argc; ++i) {
+        const char* a = argv[i];
+        const char* next = i + 1 < argc ? argv[i + 1] : nullptr;
+        const char** value = nullptr;
+        if (strcmp(a, "--out") == 0) value = &o.out_dir;
+        else if (strcmp(a, "--runtime") == 0) value = &o.runtime_dir;
+        else if (strcmp(a, "--package") == 0) value = &o.package;
+        if (value) {
+            if (!next) return usage_error("missing value for", a);
+            *value = next;
+            ++i;
+        } else if (strcmp(a, "--portrait") == 0) {
+            o.portrait = true;
+        } else if (a[0] == '-') {
+            return usage_error("unknown option", a);
+        } else if (!o.scene_path) {
+            o.scene_path = a;
+        } else {
+            return usage_error("unexpected argument", a);
+        }
+    }
+    if (!o.scene_path) return usage_error("export android needs a scene path, got", "");
+    return zaro::app::export_android(o);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+    // Android: unpacks the APK's assets and enters their directory before any file is read.
+    if (!zaro::app::prepare_process()) return 1;
     if (argc < 2 || strcmp(argv[1], "help") == 0 || strcmp(argv[1], "--help") == 0) {
         print_usage();
         return 0;
@@ -219,6 +254,7 @@ int main(int argc, char** argv) {
         return zaro::app::run_scene_tests(paths, count, update, json);
     }
     if (strcmp(argv[1], "screenshot") == 0) return cmd_screenshot(argc, argv);
+    if (strcmp(argv[1], "export") == 0) return cmd_export(argc, argv);
     zaro::log_error(zaro::kErrCliUsage, "unknown command '%s' (try 'zaro help')", argv[1]);
     return 2;
 }

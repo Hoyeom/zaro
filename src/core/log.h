@@ -33,6 +33,7 @@ enum ErrorId {
     kErrImageLoad = 701,      // ZE0701 image missing, not a PNG, or no room in the image atlas
     kErrStringKey = 702,      // ZE0702 an @key text names no entry of a string table
     kErrStringTable = 703,    // ZE0703 string table missing, invalid, or missing a key other languages have
+    kErrExport = 800,         // ZE0800 export failed: runtime package missing or a scene file outside the tree
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

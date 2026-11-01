@@ -29,6 +29,11 @@ Every architectural decision and its reasoning is in [docs/DECISIONS.md](docs/DE
 | Render a scene to PNG | `build/debug/zaro screenshot examples/crowd/scene.toml out.png [--frames N]` |
 | Render a scene's UI in another language | `build/debug/zaro screenshot examples/hello/scene.toml out.png --lang en` |
 | All `run` options | `build/debug/zaro help` |
+| Install the pinned Android toolchain (once) | `python tools/android.py setup` (`doctor` shows what is found) |
+| Android native build (`libmain.so` + runtime package) | `python tools/build.py android` |
+| Gradle project for an APK | `build/debug/zaro export android examples/crowd/scene.toml [--out DIR]` |
+| APK in one step (native build, export, Gradle) | `python tools/android.py apk examples/crowd/scene.toml` |
+| Install and start on a device / benchmark it | `python tools/android.py run`, `python tools/android.py perf [--enemies N]` |
 | Enable the pre-commit hook (once per clone) | `git config core.hooksPath tools/githooks` |
 
 `tools/build.py` wraps the presets in `CMakePresets.json` (`debug`, `release`, `profile`).
@@ -72,7 +77,7 @@ CMakeLists.txt follow the same graph.
 | `app` | owns the frame loop and wires sim and ui to render | all of the above |
 | `cli` | the `zaro` command | core, app |
 
-Third-party headers belong to one module only: `SDL3/` → platform, `webgpu/` → rhi,
+Third-party headers belong to one module only: `SDL3/`, `android/` and `jni.h` → platform, `webgpu/` → rhi,
 `TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` → scene, `lua.h`/`lualib.h`/`luacode.h` → script,
 `stb_truetype.h` → `ui/font.cpp`.
 To add a feature, put the state and rules in `sim`, the drawing in `render`, and the
@@ -150,6 +155,28 @@ and the optional golden `state_hash`.
   intended, and say so in the commit.
 - CI runs the tests on Windows, Linux and macOS (ARM). The same golden hash must hold on all
   three. A ZE0602 on only one OS means float results diverged on that platform (D-005).
+
+## Android (D-022)
+
+- `python tools/android.py setup` installs the pinned NDK, SDK packages, JDK and Gradle (versions
+  at the top of `tools/android.py`). It accepts the Android SDK license only with
+  `--accept-licenses`; otherwise it shows the license.
+- The `android` preset builds `libmain.so`: the `zaro` command line as a shared library that
+  `dev.zaro.ZaroActivity` (an `SDLActivity`) calls. It writes `build/android/android-runtime`, a
+  Gradle template with the libraries and shaders. The template lives in
+  `src/platform/android/project`; `@ZARO_...@` placeholders are filled in by the export.
+- `zaro export android <scene>` copies the scene's directory (without `tests/` and `*.test.toml`)
+  and every file the scene names outside it (script, prefabs, screens with their prefabs and
+  images, string tables) to `assets/game/`. On the device they are unpacked to `/sdcard/Android/data/<package>/files`, which
+  becomes the working directory. Output goes to logcat: `adb logcat -s zaro`.
+- Launch with other arguments: `adb shell am start -S -n <package>/dev.zaro.ZaroActivity --es args
+  "'run game/scene.toml --headless --perf perf.json'"`. `tools/android.py perf` does this and pulls
+  the report.
+- Touch is a virtual stick in `platform::poll_input`. In the background the app drops its GPU
+  surface (`rhi::set_window(device, nullptr)`) and recreates it when `Input::window_changed` is set.
+- Export errors are ZE0800 (no runtime package, or a scene file outside the packed tree). The
+  build fails if `libmain.so` depends on a build-machine path (`cmake/ZaroCheckNeeded.cmake`).
+- CI builds the APK (`android apk` job); running it needs a device and stays local.
 
 ## Design principles (do not erode these)
 

@@ -78,6 +78,7 @@ struct Device {
     WGPUDevice device = nullptr;
     WGPUQueue queue = nullptr;
     WGPUSurface surface = nullptr;
+    bool windowed = false;  // presents to a window; the surface may be gone for a while (mobile)
     WGPUTextureFormat color_format = WGPUTextureFormat_RGBA8UnormSrgb;
     WGPUPresentMode present_mode = WGPUPresentMode_Fifo;
     WGPUCompositeAlphaMode alpha_mode = WGPUCompositeAlphaMode_Auto;
@@ -184,7 +185,7 @@ void create_targets(Device* d) {
         sc.presentMode = d->present_mode;
         sc.alphaMode = d->alpha_mode;
         wgpuSurfaceConfigure(d->surface, &sc);
-    } else {
+    } else if (!d->windowed) {
         td.label = sv("offscreen color");
         td.format = d->color_format;
         td.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc;
@@ -199,6 +200,7 @@ WGPUSurface create_surface(WGPUInstance instance, const platform::NativeWindow& 
     WGPUSurfaceSourceMetalLayer metal = WGPU_SURFACE_SOURCE_METAL_LAYER_INIT;
     WGPUSurfaceSourceXlibWindow x11 = WGPU_SURFACE_SOURCE_XLIB_WINDOW_INIT;
     WGPUSurfaceSourceWaylandSurface wl = WGPU_SURFACE_SOURCE_WAYLAND_SURFACE_INIT;
+    WGPUSurfaceSourceAndroidNativeWindow android = WGPU_SURFACE_SOURCE_ANDROID_NATIVE_WINDOW_INIT;
     switch (w.kind) {
         case platform::NativeWindow::kWin32:
             win32.hinstance = w.display;
@@ -218,6 +220,11 @@ WGPUSurface create_surface(WGPUInstance instance, const platform::NativeWindow& 
             wl.display = w.display;
             wl.surface = w.handle;
             sd.nextInChain = &wl.chain;
+            break;
+        case platform::NativeWindow::kAndroid:
+            if (!w.handle) return nullptr;  // between surfaceDestroyed and surfaceCreated
+            android.window = w.handle;
+            sd.nextInChain = &android.chain;
             break;
         case platform::NativeWindow::kNone:
             return nullptr;
@@ -276,6 +283,7 @@ Device* create_device(const DeviceDesc& desc) {
     d->width = desc.width;
     d->height = desc.height;
     d->instance = wgpuCreateInstance(nullptr);
+    d->windowed = desc.window != nullptr;
     if (desc.window) d->surface = create_surface(d->instance, *desc.window);
 
     WGPURequestAdapterOptions ao = WGPU_REQUEST_ADAPTER_OPTIONS_INIT;
@@ -394,6 +402,18 @@ void resize(Device* d, uint32_t width, uint32_t height) {
     wait_idle(d);
     d->width = width;
     d->height = height;
+    create_targets(d);
+}
+
+void set_window(Device* d, const platform::NativeWindow* window) {
+    if (!d->windowed) return;
+    wait_idle(d);
+    if (d->surface) {
+        wgpuSurfaceUnconfigure(d->surface);
+        wgpuSurfaceRelease(d->surface);
+        d->surface = nullptr;
+    }
+    if (window) d->surface = create_surface(d->instance, *window);
     create_targets(d);
 }
 
@@ -635,6 +655,7 @@ bool begin_frame(Device* d) {
     FrameSlot& slot = d->slots[d->frame_index % kSlots];
     retire_slot(d, slot);
     slot.pass_count = 0;
+    if (d->windowed && !d->surface) return false;
     if (d->surface) {
         WGPUSurfaceTexture st = WGPU_SURFACE_TEXTURE_INIT;
         wgpuSurfaceGetCurrentTexture(d->surface, &st);
