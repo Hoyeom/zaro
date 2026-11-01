@@ -61,7 +61,7 @@ Entity* spawn_entity(Scene* s, int prefab, const char* name, char* err, uint32_t
         snprintf(err, err_size, "cannot spawn: the scene already has %u entities", kMaxLiveEntities);
         return nullptr;
     }
-    char given[kNameCapacity];
+    char given[kNameCapacity + 16];  // room for "<prefab>#<id>"; cut to kNameCapacity below
     if (name) {
         if (!name[0] || strlen(name) >= kNameCapacity) {
             snprintf(err, err_size, "entity names are 1 to %u bytes", kNameCapacity - 1);
@@ -82,7 +82,7 @@ Entity* spawn_entity(Scene* s, int prefab, const char* name, char* err, uint32_t
     }
     Entity* e = &s->entities[s->entity_count++];
     memset(e, 0, sizeof(*e));
-    memcpy(e->name, given, sizeof(given));
+    snprintf(e->name, sizeof(e->name), "%.*s", (int)(kNameCapacity - 1), given);
     e->parent_index = -1;
     e->id = s->next_id++;
     if (prefab >= 0) {
