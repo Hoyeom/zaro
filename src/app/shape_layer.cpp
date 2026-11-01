@@ -99,7 +99,7 @@ uint32_t add_trail(const ShapeRecord& r, float x, float y, float z, render::Shap
             in.position[0] = (px + p[0]) * 0.5f;
             in.position[1] = y;
             in.position[2] = (pz + p[1]) * 0.5f;
-            in.rotation = atan2f(-dz, dx);  // from +x toward -z
+            in.rotation = atan2f(dz, dx);  // +x turns toward +z
             in.size[0] = len;
             in.size[1] = 0.0f;
             in.thickness = width * fade;

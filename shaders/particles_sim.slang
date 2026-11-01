@@ -1,8 +1,7 @@
-// GPU particles, compute side (render/particle_renderer.cpp): a ring buffer of sparks. `emit` writes the frame's
-// new particles from the bursts the CPU described (random directions from a hash, so the CPU sends
-// 64 bytes per burst instead of per particle); `update` integrates every live one; the vertex and
-// fragment shaders draw each as an additive streak stretched along its motion. `Burst` mirrors
-// render::ParticleBurst (64 bytes).
+// GPU particles, compute side (render/particle_renderer.cpp): a ring buffer of sparks. `emit`
+// writes the frame's new particles from the bursts the CPU described (random directions from a
+// hash, so the CPU sends 64 bytes per burst instead of per particle); `update` integrates every
+// live one. shaders/particles_draw.slang draws them. `Burst` mirrors render::ParticleBurst (64 bytes).
 
 import particle;
 
@@ -14,7 +13,7 @@ struct Burst {
     float life;
     float size;
     float drag;
-    float direction;  // radians from +x toward -z
+    float direction;  // radians; +x turns toward +z
     float spread;
     uint seed;
 };
@@ -51,7 +50,7 @@ void emit(uint3 id: SV_DispatchThreadID) {
     const float speed = lerp(b.speed.x, b.speed.y, hash01(k + 1u));
     Particle p;
     p.position_age = float4(b.position, 0.0);
-    p.velocity_life = float4(cos(angle) * speed, 0.0, -sin(angle) * speed, b.life * lerp(0.6, 1.0, hash01(k + 2u)));
+    p.velocity_life = float4(cos(angle) * speed, 0.0, sin(angle) * speed, b.life * lerp(0.6, 1.0, hash01(k + 2u)));
     p.color = b.color;
     p.size_drag = float4(b.size * lerp(0.7, 1.3, hash01(k + 3u)), b.drag, 0.0, 0.0);
     particles[(sim.head + i) % sim.capacity] = p;

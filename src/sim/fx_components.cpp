@@ -62,7 +62,7 @@ const reflect::FieldDesc kParticleEmitterFields[] = {
     ZARO_FIELD_RANGE(ParticleEmitter, life, kF32, "Seconds a spark lives at most", 0.01, 10.0),
     ZARO_FIELD_RANGE(ParticleEmitter, size, kF32, "Spark width in metres", 0.001, 10.0),
     ZARO_FIELD_RANGE(ParticleEmitter, drag, kF32, "Speed lost per second (exponential)", 0.0, 100.0),
-    ZARO_FIELD(ParticleEmitter, direction, kF32, "Degrees from +x toward -z"),
+    ZARO_FIELD(ParticleEmitter, direction, kF32, "Degrees; 0 is +x and +90 is +z (down on the screen), as Transform"),
     ZARO_FIELD_RANGE(ParticleEmitter, spread, kF32, "Degrees around the direction; 360: every way", 0.0, 360.0),
 };
 

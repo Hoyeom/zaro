@@ -11,7 +11,7 @@
 
 namespace zaro::render {
 
-// 64 bytes. Mirrors `struct Burst` in shaders/particles.slang.
+// 64 bytes. Mirrors `struct Burst` in shaders/particles_sim.slang.
 struct ParticleBurst {
     float position[3];  // world metres
     uint32_t count;     // particles
@@ -20,11 +20,11 @@ struct ParticleBurst {
     float life;         // seconds (each particle lives 60..100% of it)
     float size;         // streak width in metres
     float drag;         // velocity lost per second (exponential)
-    float direction;    // radians from +x toward -z
+    float direction;    // radians; +x turns toward +z
     float spread;       // radians around the direction; 2 pi: every way
     uint32_t seed;
 };
-static_assert(sizeof(ParticleBurst) == 64, "must match shaders/particles.slang");
+static_assert(sizeof(ParticleBurst) == 64, "must match shaders/particles_sim.slang");
 
 constexpr uint32_t kMaxBurstsPerFrame = 256;
 

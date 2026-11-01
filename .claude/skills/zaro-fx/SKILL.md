@@ -13,7 +13,8 @@ every field.
 ## Glowing shapes
 
 - **`Shape`** (any entity): a rect, circle, ring, regular polygon or line. In the world it lies flat
-  on the ground at `position` (y is its height; local +y points to world -z); on the screen it is
+  on the ground at `position` (y is its height; local +y is world +z, and `rotation` turns +x toward
+  +z as `Transform` does, which the camera shows as clockwise, like screen shapes); on the screen it is
   in pixels. `follow = "player"` draws it at the player's interpolated position plus `position` and
   hides the player's cube. `intensity` above 1 glows under `Bloom`; `glow` adds a halo of that width
   beyond the edge; `blend = "add"` adds light, `"alpha"` covers. `spin` turns it on the tick clock.

@@ -67,7 +67,7 @@ struct ParticleEmitter {
     float life = 0.6f;
     float size = 0.1f;
     float drag = 2.0f;
-    float direction = 0.0f;  // degrees from +x toward -z
+    float direction = 0.0f;  // degrees; +x turns toward +z
     float spread = 360.0f;   // degrees around the direction
 };
 

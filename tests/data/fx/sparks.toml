@@ -47,7 +47,7 @@ rate = 400.0
 color = "#66ccff"
 intensity = 3.0
 speed = 8.0
-direction = 90.0
+direction = -90.0
 spread = 40.0
 
 [[entity]]

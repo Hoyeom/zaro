@@ -19,7 +19,9 @@ const reflect::FieldDesc kShapeFields[] = {
     ZARO_FIELD_ENUM(Shape, follow, "player: drawn at the player's position plus `position` (world only)", kShapeFollows),
     ZARO_FIELD(Shape, size, kVec2,
                "rect: width, height; circle, ring, polygon: diameter in x; line: length in x (metres or pixels)"),
-    ZARO_FIELD(Shape, rotation, kF32, "Degrees; a polygon's first corner and a line point along +x at 0"),
+    ZARO_FIELD(Shape, rotation, kF32,
+               "Degrees; at 0 a polygon's first corner and a line point along +x; world: +x turns toward +z "
+               "(as Transform), screen: clockwise"),
     ZARO_FIELD(Shape, spin, kF32, "Degrees per second added to rotation, on the tick clock"),
     ZARO_FIELD_RANGE(Shape, sides, kU32, "Corners of a polygon", 3, 64),
     ZARO_FIELD_RANGE(Shape, thickness, kF32,
