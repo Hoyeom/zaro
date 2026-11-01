@@ -1,0 +1,11 @@
+[game]
+name = "unknown"
+scene = "game/scene.toml"
+version = "1.0"
+
+[environment.dev]
+
+[[step]]
+stage = "pre"
+name = "cook"
+uses = "cook-svg"
