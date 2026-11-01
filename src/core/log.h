@@ -39,6 +39,7 @@ enum ErrorId {
     kErrSpriteSheet = 900,    // ZE0900 sprite sheet missing or invalid (keys, frames, animations)
     kErrSpriteImage = 901,    // ZE0901 sheet image missing or not a PNG, or a frame outside it
     kErrSpriteRef = 902,      // ZE0902 a sprite component names an animation its sheet does not have
+    kErrSvg = 903,            // ZE0903 SVG art missing, invalid, or using what the cook cannot draw (text, filters)
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

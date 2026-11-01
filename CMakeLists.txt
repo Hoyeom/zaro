@@ -61,6 +61,14 @@ add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_rende
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
+# Cook-time asset tools (SVG art into sprite atlases, D-025). Only the zaro tool links them; the
+# Android runtime is built without, so no game binary contains the SVG renderer.
+if(NOT ANDROID)
+  add_library(zaro_cook STATIC src/cook/svg.cpp)
+  target_link_libraries(zaro_cook PUBLIC zaro_scene PRIVATE zaro_lunasvg)
+  zaro_target_defaults(zaro_cook)
+endif()
+
 add_library(zaro_ui STATIC
   src/ui/draw.cpp src/ui/font.cpp src/ui/text.cpp src/ui/pack.cpp src/ui/context.cpp
   src/ui/widgets.cpp src/ui/screen.cpp src/ui/navigator.cpp)
@@ -183,6 +191,14 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro screenshot tests/data/sprites/scene.toml ${CMAKE_BINARY_DIR}/sprites.png --frames 5 --size 640x360
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(screenshot_sprites PROPERTIES LABELS gpu)
+
+  # SVG cook: classes, clip paths, masks, <use> and gradients drawn; text and filters reported.
+  if(TARGET zaro_cook)
+    add_executable(test_svg tests/test_svg.cpp)
+    target_link_libraries(test_svg PRIVATE zaro_cook)
+    zaro_target_defaults(test_svg)
+    add_test(NAME svg_cook COMMAND test_svg ${CMAKE_BINARY_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  endif()
 
   # The example scene stays valid, and `zaro schema` stays valid JSON.
   add_test(NAME example_crowd_scene COMMAND zaro check examples/crowd/scene.toml

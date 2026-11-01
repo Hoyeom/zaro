@@ -67,7 +67,8 @@ MODULE_DEPS = {
     "ui": {"core", "scene", "ui"},
     "scene": {"core", "scene"},
     "script": {"core", "scene", "script"},
-    "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "ui", "app"},
+    "cook": {"core", "scene", "cook"},
+    "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "ui", "cook", "app"},
     "cli": {"core", "app", "cli"},
 }
 # Third-party headers confined to the one module that wraps them.
@@ -85,6 +86,8 @@ THIRD_PARTY_OWNERS = {
     "stb_truetype.h": "src/ui/font.cpp",
     "stb_image.h": "src/core/png_decode.cpp",
     "cJSON.h": "src/app/design_import.cpp",
+    "lunasvg.h": "src/cook/svg.cpp",
+    "plutovg.h": "src/cook/svg.cpp",
 }
 
 RULES = {
