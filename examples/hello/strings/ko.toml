@@ -1,0 +1,14 @@
+# Korean, the default language of examples/hello.
+[hud]
+title = "안녕, ZARO"
+speed = "속도"
+settings = "설정"
+hint = "WASD 또는 방향키로 이동"
+
+[settings]
+title = "설정"
+sound = "소리"
+on = "켜기"
+off = "끄기"
+language = "언어"
+close = "닫기"

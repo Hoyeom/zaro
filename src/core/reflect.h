@@ -28,6 +28,9 @@ struct FieldDesc {
     const char* const* choices;  // kEnum: names, nullptr-terminated; nullptr otherwise
 };
 
+// Scene components go on scene entities, UI components (widgets) on screen nodes (D-020).
+enum class ComponentKind : uint8_t { kScene, kUi };
+
 struct ComponentDesc {
     const char* name;
     const char* doc;
@@ -35,6 +38,7 @@ struct ComponentDesc {
     const void* defaults;  // an instance holding the default values
     const FieldDesc* fields;
     uint32_t field_count;
+    ComponentKind kind;
 };
 
 const char* type_name(FieldType type);
@@ -57,6 +61,8 @@ const FieldDesc* find_field(const ComponentDesc* desc, const char* name);
 // Closest registered name within a small edit distance, or nullptr. Used for "did you mean".
 const char* suggest_component(const char* name);
 const char* suggest_field(const ComponentDesc* desc, const char* name);
+// The same for any list of names.
+const char* suggest_name(const char* name, const char* const* candidates, uint32_t count);
 
 // Every registered component with its fields, types, defaults, ranges and docs, as JSON.
 // This is what `zaro schema` prints; agents read it to write scenes.
@@ -72,9 +78,13 @@ void write_schema_json(void* file /* FILE* */);
     { #member, zaro::reflect::FieldType::kEnum, (uint32_t)offsetof(Struct, member), doc, 1.0, 0.0, choices }
 
 // Defines `const zaro::reflect::ComponentDesc k<Struct>Desc` from an array of ZARO_FIELDs.
-#define ZARO_COMPONENT(Struct, doc, fields_array)                                                    \
+#define ZARO_COMPONENT_OF_KIND(Struct, doc, fields_array, component_kind)                            \
     static const Struct k##Struct##Defaults{};                                                      \
-    const zaro::reflect::ComponentDesc k##Struct##Desc = {#Struct, doc, (uint32_t)sizeof(Struct),   \
-                                                          &k##Struct##Defaults, fields_array,       \
-                                                          (uint32_t)(sizeof(fields_array) /        \
-                                                                     sizeof(fields_array[0]))}
+    const zaro::reflect::ComponentDesc k##Struct##Desc = {                                          \
+        #Struct, doc, (uint32_t)sizeof(Struct), &k##Struct##Defaults, fields_array,                  \
+        (uint32_t)(sizeof(fields_array) / sizeof(fields_array[0])), component_kind}
+#define ZARO_COMPONENT(Struct, doc, fields_array) \
+    ZARO_COMPONENT_OF_KIND(Struct, doc, fields_array, zaro::reflect::ComponentKind::kScene)
+// A widget for screen files (D-020).
+#define ZARO_UI_COMPONENT(Struct, doc, fields_array) \
+    ZARO_COMPONENT_OF_KIND(Struct, doc, fields_array, zaro::reflect::ComponentKind::kUi)

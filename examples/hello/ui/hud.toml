@@ -1,0 +1,68 @@
+# The HUD over the arena: a top bar with the title, the player's speed and a settings button,
+# and a hint in the bottom-left corner. Texts starting with @ come from ../strings/<language>.toml.
+#   zaro check examples/hello/ui/hud.toml
+[screen]
+name = "hud"
+reference = [1280, 720]
+
+[[node]]
+name = "top_bar"
+[node.Layout]
+fill_width = true
+height = 72
+direction = "row"
+align = "center"
+gap = 16
+padding = [24, 0, 16, 0]
+[node.Panel]
+color = "#10141ccc"
+
+[[node]]
+name = "title"
+parent = "top_bar"
+[node.Label]
+text = "@hud.title"
+font = "bold"
+size = 28
+
+[[node]]
+name = "spacer"
+parent = "top_bar"
+[node.Layout]
+fill_width = true
+
+[[node]]
+name = "speed"
+parent = "top_bar"
+[node.Label]
+text = "@hud.speed"
+size = 22
+color = "#c8d2e6"
+
+[[node]]
+name = "settings_button"
+parent = "top_bar"
+[node.Layout]
+width = 120
+height = 48
+[node.Button]
+text = "@hud.settings"
+action = "open_settings"
+size = 22
+
+[[node]]
+name = "hint"
+[node.Layout]
+anchor = [0.0, 1.0]
+offset = [24, -20]
+padding = [14, 8, 14, 8]
+[node.Panel]
+color = "#10141ca0"
+radius = 10
+[[node]]
+name = "hint_text"
+parent = "hint"
+[node.Label]
+text = "@hud.hint"
+size = 20
+color = "#e6ebf5"

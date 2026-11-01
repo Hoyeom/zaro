@@ -49,6 +49,7 @@ struct Screen {
     uint32_t capacity = 0;
     int first_root = kNoNode, last_root = kNoNode;
     bool navigable = false;
+    float reference[2] = {1280.0f, 720.0f};
 
     float width = 0.0f, height = 0.0f, scale = 1.0f;
     int* order = nullptr;  // shown nodes in draw order
@@ -158,12 +159,13 @@ void measure(Screen* s, int n, float avail_w, float avail_h, uint32_t parent_dir
     if (const Label* lb = widget<Label>(s, n, kWLabel)) {
         TextStyle st = label_style(s, *lb);
         st.max_width = lb->wrap ? inner_w : 0.0f;
-        const TextSize ts = measure_text(text, lb->text, st);
+        const TextSize ts = measure_text(text, resolve_text(s->context, lb->text), st);
         cw = ts.width;
         ch = ts.height;
     }
     if (const Button* b = widget<Button>(s, n, kWButton)) {
-        const TextSize ts = measure_text(text, b->text, text_style(s, b->font, b->size, b->text_color));
+        const TextSize ts =
+            measure_text(text, resolve_text(s->context, b->text), text_style(s, b->font, b->size, b->text_color));
         const float em = b->size * sc;
         if (ts.width + em * 1.5f > cw) cw = ts.width + em * 1.5f;
         if (ts.height + em * 0.6f > ch) ch = ts.height + em * 0.6f;
@@ -566,8 +568,9 @@ void draw_node(Screen* s, DrawList* list, int n) {
         else if (s->hover == n) color = b->hover_color;
         draw_rect(list, r.x0, r.y0, r.x1, r.y1, color, b->radius * sc);
         const TextStyle st = text_style(s, b->font, b->size, b->text_color);
-        const TextSize ts = measure_text(text, b->text, st);
-        draw_text(text, list, floorf((r.x0 + r.x1 - ts.width) * 0.5f + 0.5f), (r.y0 + r.y1 - ts.height) * 0.5f, b->text,
+        const char* caption = resolve_text(s->context, b->text);
+        const TextSize ts = measure_text(text, caption, st);
+        draw_text(text, list, floorf((r.x0 + r.x1 - ts.width) * 0.5f + 0.5f), (r.y0 + r.y1 - ts.height) * 0.5f, caption,
                   st);
         if (s->focus == n && s->focus_visible) {
             const float g = kFocusRingGap * sc;
@@ -577,17 +580,18 @@ void draw_node(Screen* s, DrawList* list, int n) {
     }
     if (const Label* lb = widget<Label>(s, n, kWLabel)) {
         TextStyle st = label_style(s, *lb);
+        const char* value = resolve_text(s->context, lb->text);
         const float w = r.x1 - r.x0;
         float x = r.x0;
         if (lb->wrap) {
             st.max_width = w;
         } else if (lb->align != kTextLeft) {
-            const float tw = measure_text(text, lb->text, st).width;
+            const float tw = measure_text(text, value, st).width;
             x += (w - tw) * (lb->align == kTextCenter ? 0.5f : 1.0f);
             st.align = Align::kLeft;
         }
-        const float th = measure_text(text, lb->text, st).height;
-        draw_text(text, list, x, r.y0 + (r.y1 - r.y0 - th) * 0.5f, lb->text, st);
+        const float th = measure_text(text, value, st).height;
+        draw_text(text, list, x, r.y0 + (r.y1 - r.y0 - th) * 0.5f, value, st);
     }
     float saved[4];
     memcpy(saved, list->clip, sizeof(saved));
@@ -692,6 +696,37 @@ void* get_widget(const Screen* s, int n, const reflect::ComponentDesc* desc) {
 
 void set_base_dir(Screen* s, const char* dir) { snprintf(s->base_dir, sizeof(s->base_dir), "%s", dir); }
 void set_navigable(Screen* s, bool navigable) { s->navigable = navigable; }
+
+void set_reference(Screen* s, float width, float height) {
+    s->reference[0] = width > 0.0f ? width : 1280.0f;
+    s->reference[1] = height > 0.0f ? height : 720.0f;
+}
+
+float screen_scale(const Screen* s, float width, float height) {
+    const float x = width / s->reference[0], y = height / s->reference[1];
+    return x < y ? x : y;
+}
+
+Screen* build_screen(Context* context, scene::Scene* doc) {
+    Screen* s = create_screen(context, doc->name);
+    set_navigable(s, doc->navigable);
+    set_reference(s, doc->reference[0], doc->reference[1]);
+    // Image paths are relative to the screen file.
+    char dir[260];
+    snprintf(dir, sizeof(dir), "%s", doc->path);
+    char* slash = strrchr(dir, '/');
+    char* back = strrchr(dir, '\\');
+    if (back && (!slash || back > slash)) slash = back;
+    if (slash) slash[1] = 0;
+    else dir[0] = 0;
+    set_base_dir(s, dir);
+    for (uint32_t i = 0; i < doc->entity_count; ++i) {
+        scene::Entity& e = doc->entities[i];
+        const int n = add_node(s, e.name, e.parent_index);
+        for (uint32_t c = 0; c < e.component_count; ++c) attach_widget(s, n, e.components[c].desc, e.components[c].data);
+    }
+    return s;
+}
 
 void update_screen(Screen* s, const UiInput& input, float width, float height, float scale, float dt) {
     s->event_count = 0;

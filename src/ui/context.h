@@ -2,6 +2,7 @@
 #pragma once
 
 #include "core/diag.h"
+#include "scene/strings.h"
 #include "ui/text.h"
 
 #include <stdint.h>
@@ -34,6 +35,12 @@ struct ImageInfo {
     float uv[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 };
 ImageInfo image_info(const Context* context, int image);
+
+// The string table that '@key' texts resolve against (nullptr: none). Not owned.
+void set_strings(Context* context, const scene::StringTable* table);
+// The text to show: the table's value for "@key", or the text itself when it has no '@' or the key
+// is missing (so a missing key shows as "@key").
+const char* resolve_text(const Context* context, const char* text);
 
 // Call once per frame before drawing.
 void begin_frame(Context* context);

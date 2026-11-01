@@ -32,6 +32,7 @@ struct RunOptions {
     rhi::Backend backend = rhi::Backend::kDefault;
     const char* perf_path = nullptr;        // write perf.json here
     const char* screenshot_path = nullptr;  // headless: PNG of the last frame
+    const char* language = nullptr;         // UI language; nullptr = the scene's first
 };
 
 // Returns the process exit code.

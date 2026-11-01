@@ -168,6 +168,10 @@ const char* suggest_component(const char* name) {
     return best(name, names, g_count);
 }
 
+const char* suggest_name(const char* name, const char* const* candidates, uint32_t count) {
+    return best(name, candidates, count);
+}
+
 const char* suggest_field(const ComponentDesc* desc, const char* name) {
     const char* names[64];
     const uint32_t n = desc->field_count < 64 ? desc->field_count : 64;
@@ -216,6 +220,7 @@ void write_schema_json(void* file) {
         fputs(c ? ",\n    {" : "\n    {", out);
         fputs("\"name\": ", out);
         json_write_string(out, d->name);
+        fprintf(out, ", \"kind\": \"%s\"", d->kind == ComponentKind::kUi ? "ui" : "scene");
         fputs(", \"doc\": ", out);
         json_write_string(out, d->doc);
         fputs(", \"fields\": [", out);

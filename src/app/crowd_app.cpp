@@ -1,6 +1,7 @@
 #include "app/crowd_app.h"
 
 #include "app/tools.h"
+#include "app/ui_layer.h"
 #include "core/diag.h"
 #include "core/jobs.h"
 #include "core/png.h"
@@ -27,6 +28,7 @@ struct Game {
     scene::Scene* scene = nullptr;
     script::Script* script = nullptr;
     bool script_paused = false;  // windowed: a failing script waits for the next reload
+    UiLayer* ui = nullptr;       // the scene's screens, when it has any
     DiagList* diags = nullptr;
 };
 
@@ -180,7 +182,8 @@ int run_headless(const RunOptions& o, Game& g, float* instances) {
         char dir[512];
         shader_dir(dir, sizeof(dir));
         renderer = render::create_crowd_renderer(device, dir, sim::enemy_count(crowd), cells, ncells);
-        if (!renderer) {
+        if (!renderer || (g.ui && !attach_gpu(g.ui, device, dir))) {
+            render::destroy_crowd_renderer(renderer);
             rhi::destroy_device(device);
             return 1;
         }
@@ -201,11 +204,13 @@ int run_headless(const RunOptions& o, Game& g, float* instances) {
         }
         const double sim_ms = ms_since(t0);
         double prep_ms = 0.0;
+        if (g.ui) update_ui(g.ui, nullptr, (float)o.width, (float)o.height, (float)sim::kTickSeconds);
         if (device) {
             const uint64_t t1 = platform::now_ticks();
             sim::write_enemy_instances(crowd, 1.0f, instances);
             if (rhi::begin_frame(device)) {
                 render::render_crowd(renderer, make_scene(crowd, instances, 1.0f, o.zoom));
+                if (g.ui) render_ui_layer(g.ui);
                 prep_ms = ms_since(t1);
                 rhi::end_frame(device);
             }
@@ -268,7 +273,8 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
     char dir[512];
     shader_dir(dir, sizeof(dir));
     render::CrowdRenderer* renderer = render::create_crowd_renderer(device, dir, sim::enemy_count(crowd), cells, ncells);
-    if (!renderer) {
+    if (!renderer || (g.ui && !attach_gpu(g.ui, device, dir))) {
+        render::destroy_crowd_renderer(renderer);
         rhi::destroy_device(device);
         platform::destroy_window(window);
         return 1;
@@ -284,10 +290,13 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
     platform::Input input;
     while (!input.quit) {
         platform::poll_input(&input);
-        if (input.nav_back) break;  // nothing else uses back yet: Escape quits
         const uint64_t now = platform::now_ticks();
-        accumulator += platform::ticks_to_seconds(now - last);
+        const double frame_seconds = platform::ticks_to_seconds(now - last);
+        accumulator += frame_seconds;
         last = now;
+        platform::window_pixel_size(window, &pw, &ph);
+        if (g.ui) update_ui(g.ui, &input, (float)pw, (float)ph, (float)frame_seconds);
+        if (input.nav_back && !ui_used_back(g.ui)) break;  // back with nothing to close quits
         // Fixed tick; never run more than 5 ticks in one frame (spiral-of-death guard).
         uint32_t steps = 0;
         while (accumulator >= sim::kTickSeconds && steps < 5) {
@@ -305,11 +314,11 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
         if (steps == 5) accumulator = 0.0;
         const float alpha = (float)(accumulator / sim::kTickSeconds);
 
-        platform::window_pixel_size(window, &pw, &ph);
         rhi::resize(device, (uint32_t)pw, (uint32_t)ph);
         sim::write_enemy_instances(crowd, alpha, instances);
         if (rhi::begin_frame(device)) {
             render::render_crowd(renderer, make_scene(crowd, instances, alpha, o.zoom));
+            if (g.ui) render_ui_layer(g.ui);
             rhi::end_frame(device);
         }
         ZARO_FRAME_MARK();
@@ -394,6 +403,15 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
     if (g.scene && o.seed_set) {
         if (auto* a = (sim::CrowdArena*)scene::first_component_mut(g.scene, &sim::kCrowdArenaDesc)) a->seed = o.seed;
     }
+    if (g.scene) {
+        bool ui_failed = false;
+        g.ui = create_ui_layer(g.scene, o.language, g.diags, &ui_failed);
+        if (ui_failed) {
+            scene::free_scene(g.scene);
+            g.scene = nullptr;
+            return false;
+        }
+    }
     if (g.scene && g.scene->script[0]) {
         script::ScriptDesc sd;
         sd.path = g.scene->script;
@@ -403,6 +421,8 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         if (!g.script || !script::call_start(g.script, g.diags)) {
             script::destroy_script(g.script);
             g.script = nullptr;
+            destroy_ui_layer(g.ui);
+            g.ui = nullptr;
             scene::free_scene(g.scene);
             g.scene = nullptr;
             return false;
@@ -436,6 +456,7 @@ int run_crowd(const RunOptions& o) {
     free(instances);
     sim::destroy_crowd(g.crowd);
     script::destroy_script(g.script);
+    destroy_ui_layer(g.ui);
     scene::free_scene(g.scene);
     delete g.diags;
     jobs::shutdown();
@@ -458,6 +479,7 @@ bool simulate_scene(const RunOptions& o, uint32_t ticks, DiagList* diags, scene:
     out->ticks = sim::tick(g.crowd);
     sim::destroy_crowd(g.crowd);
     script::destroy_script(g.script);
+    destroy_ui_layer(g.ui);
     jobs::shutdown();
     *scene_out = g.scene;
     return ok;

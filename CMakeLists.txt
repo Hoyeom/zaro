@@ -43,7 +43,7 @@ add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp)
 target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
-add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp)
+add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
@@ -58,12 +58,12 @@ zaro_target_defaults(zaro_render)
 add_library(zaro_ui STATIC
   src/ui/draw.cpp src/ui/font.cpp src/ui/text.cpp src/ui/pack.cpp src/ui/image.cpp src/ui/context.cpp
   src/ui/widgets.cpp src/ui/screen.cpp)
-target_link_libraries(zaro_ui PUBLIC zaro_core PRIVATE zaro_stb_truetype zaro_stb_image)
+target_link_libraries(zaro_ui PUBLIC zaro_scene PRIVATE zaro_stb_truetype zaro_stb_image)
 # font.cpp and image.cpp compile stb implementations; keep them out of the unity source.
 set_source_files_properties(src/ui/font.cpp src/ui/image.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 zaro_target_defaults(zaro_ui)
 
-add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp)
+add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp src/app/ui_layer.cpp)
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform)
 zaro_target_defaults(zaro_app)
 
@@ -99,7 +99,7 @@ if(ZARO_BUILD_TESTS)
 
   # Scenes: prefab overrides, defaults, diagnostics with ids and lines.
   add_executable(test_scene tests/test_scene.cpp)
-  target_link_libraries(test_scene PRIVATE zaro_scene zaro_sim)
+  target_link_libraries(test_scene PRIVATE zaro_scene zaro_sim zaro_ui)
   zaro_target_defaults(test_scene)
   add_test(NAME scene_loading COMMAND test_scene WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -133,6 +133,21 @@ if(ZARO_BUILD_TESTS)
   # The example scene stays valid, and `zaro schema` stays valid JSON.
   add_test(NAME example_crowd_scene COMMAND zaro check examples/crowd/scene.toml
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # The hello scene with its screens and string tables stays valid; a broken one reports its image.
+  add_test(NAME example_hello_scene COMMAND zaro check examples/hello/scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME check_screen_keys COMMAND zaro check tests/data/screens/keys_scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_screen_keys PROPERTIES
+    PASS_REGULAR_EXPRESSION "keys.toml:22:1: error\\[ZE0701\\]: node 'icon': cannot open image")
+  # The HUD in both languages, and the settings popup, rendered over the arena (needs a GPU).
+  foreach(lang ko en)
+    add_test(NAME screenshot_hello_${lang}
+             COMMAND zaro screenshot examples/hello/scene.toml ${CMAKE_BINARY_DIR}/hello_${lang}.png
+                     --frames 3 --size 1280x720 --lang ${lang}
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(screenshot_hello_${lang} PROPERTIES LABELS gpu)
+  endforeach()
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)
     add_test(NAME schema_json

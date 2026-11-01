@@ -36,6 +36,7 @@ struct Context {
     LoadedImage images[kMaxImages];
     uint32_t image_count = 0;
     uint32_t image_dirty[4] = {0, 0, 0, 0};
+    const scene::StringTable* strings = nullptr;
 };
 
 Context* create_context(const ContextDesc& desc) {
@@ -130,6 +131,14 @@ int load_image(Context* c, const char* path, DiagList* diags) {
 
 ImageInfo image_info(const Context* c, int image) {
     return image >= 0 && (uint32_t)image < c->image_count ? c->images[image].info : ImageInfo{};
+}
+
+void set_strings(Context* c, const scene::StringTable* table) { c->strings = table; }
+
+const char* resolve_text(const Context* c, const char* text) {
+    if (text[0] != '@' || !c->strings) return text;
+    const char* value = scene::find_string(c->strings, text + 1);
+    return value ? value : text;
 }
 
 void begin_frame(Context* c) { begin_frame(c->text); }
