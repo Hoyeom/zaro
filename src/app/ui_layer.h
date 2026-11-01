@@ -38,9 +38,9 @@ void update_ui(UiLayer* layer, const platform::Input* input, float width, float 
 // events to on_screen. Diagnostics (a failing hook, an unknown screen) go to diags; returns false
 // if a script hook failed.
 bool handle_ui(UiLayer* layer, bool back_pressed, DiagList* diags);
-// True if a back press reached the root this frame and nothing took it: the game decides (the
+// True if a back press this frame found nothing to close and nothing took it: the game decides (the
 // crowd demo quits).
-bool back_at_root(const UiLayer* layer);
+bool back_unhandled(const UiLayer* layer);
 // True if this frame's pointer went to the UI rather than the game.
 bool ui_captured_input(const UiLayer* layer);
 

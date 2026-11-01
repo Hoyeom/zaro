@@ -45,7 +45,7 @@ struct UiLayer {
     rhi::Device* device = nullptr;
     render::UiRenderer* renderer = nullptr;
     float width = 0.0f, height = 0.0f;
-    bool at_root = false;
+    bool unhandled_back = false;
 };
 
 namespace {
@@ -90,7 +90,7 @@ void do_back(UiLayer* l, bool ask_claim, DiagList* diags, bool* ok) {
         const scene::Scene* doc = owner >= 0 ? ui::entry_document(l->nav, (uint32_t)owner) : nullptr;
         if (doc && !script::call_back(l->script, doc->name, &claimed, diags)) *ok = false;
     }
-    if (ui::back(l->nav, claimed) == ui::BackResult::kBackAtRoot) l->at_root = true;
+    if (ui::back(l->nav, claimed) == ui::BackResult::kUnhandled) l->unhandled_back = true;
 }
 
 // --- script::UiHost, user = UiLayer*
@@ -128,11 +128,11 @@ bool host_close(void* user, const char* name) { return ui::close(((UiLayer*)user
 
 void host_back(void* user) {
     UiLayer* l = (UiLayer*)user;
-    if (ui::back(l->nav, false) == ui::BackResult::kBackAtRoot) l->at_root = true;
+    if (ui::back(l->nav, false) == ui::BackResult::kUnhandled) l->unhandled_back = true;
 }
 
 void host_home(void* user) { ui::home(((UiLayer*)user)->nav); }
-void host_abort_all(void* user) { ui::abort_all(((UiLayer*)user)->nav); }
+void host_reset(void* user) { ui::reset(((UiLayer*)user)->nav); }
 const char* host_state(void* user, const char* name) { return screen_state((UiLayer*)user, name); }
 
 }  // namespace
@@ -156,7 +156,7 @@ UiLayer* create_ui_layer(scene::Scene* scene, const char* language, DiagList* di
     for (uint32_t i = 0; i < scene->ui_count; ++i) ui::add_root(l->nav, scene->ui[i], diags);
     for (uint32_t i = 0; i < scene->screen_count; ++i) ui::add_catalog(l->nav, scene->screens[i], diags);
     l->host = script::UiHost{l,          host_find_screen, host_screen_names, host_language, host_open,
-                             host_ready, host_close,       host_back,         host_home,     host_abort_all,
+                             host_ready, host_close,       host_back,         host_home,     host_reset,
                              host_state};
     if (diags->count != errors_before) {
         destroy_ui_layer(l);
@@ -192,7 +192,7 @@ void update_ui(UiLayer* l, const platform::Input* input, float width, float heig
     ZARO_ZONE("ui.update");
     l->width = width;
     l->height = height;
-    l->at_root = false;
+    l->unhandled_back = false;
     ui::begin_frame(l->context);
     ui::update(l->nav, input ? to_ui_input(*input) : ui::UiInput{}, width, height, dt);
 }
@@ -224,7 +224,7 @@ bool handle_ui(UiLayer* l, bool back_pressed, DiagList* diags) {
     }
     delete[] clicks;
     if (back_pressed) do_back(l, true, diags, &ok);
-    static const char* const kEvents[] = {"created", "opened", "closed", "cancelled", "back_at_root"};
+    static const char* const kEvents[] = {"created", "opened", "closed", "cancelled", "back_unhandled"};
     // Hooks may open or close screens, which adds events; those are sent in the same pass.
     for (uint32_t i = 0; i < ui::event_count(l->nav); ++i) {
         const ui::NavEvent e = *ui::event_at(l->nav, i);
@@ -234,7 +234,7 @@ bool handle_ui(UiLayer* l, bool back_pressed, DiagList* diags) {
     return ok;
 }
 
-bool back_at_root(const UiLayer* l) { return l && l->at_root; }
+bool back_unhandled(const UiLayer* l) { return l && l->unhandled_back; }
 bool ui_captured_input(const UiLayer* l) { return l && ui::input_captured(l->nav); }
 
 void render_ui_layer(UiLayer* l) {

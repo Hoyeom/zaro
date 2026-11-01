@@ -353,7 +353,7 @@ Status of all entries below: **accepted, 2026-11-01**.
   placeholders in texts) and through the same reflection as scenes (`ui.set_field`), so screens
   stay pure data and every change a script makes can be checked by a scene test.
 
-## D-021 UI navigation: a screen stack with one policy for back, close, home and abort
+## D-021 UI navigation: a screen stack with one policy for back, close, home and reset
 
 - **Decision**: Screens are navigated by one policy in the `ui` module (`ui::Navigator`), so every
   game behaves the same. It follows the UI navigation rules of the owner's backend platform, so a
@@ -364,7 +364,7 @@ Status of all entries below: **accepted, 2026-11-01**.
     an open instance already has; reuse is the caller's choice, never a guess.
   - **Four operations**: back (the top screen, by the rules below), close (a named screen, or the
     one a `close` button is on), home (close down to the root, stopping at a forced screen), and
-    abort-all (remove every opened screen at once, forced ones included: scene change, logout).
+    reset (remove every opened screen at once, forced ones included: scene change, logout).
   - **Lifecycle**: opening (only when opened with `wait`, until `ui.ready`; a spinner shows) →
     entering (entrance transition) → open → closing (exit transition) → gone, one direction. Only
     open screens take input; a closing screen has already handed input to the one below, and an
@@ -376,13 +376,13 @@ Status of all entries below: **accepted, 2026-11-01**.
     screen, and then nothing closes. Otherwise, by the top screen's state: opening and dismissible
     → cancelled; entering → a skippable transition jumps to its end, an unskippable one drops the
     press (never queued); open → a dismissible screen closes, a forced one keeps the press. With
-    nothing opened, "back at root" goes to the game, which decides (the crowd demo quits).
+    nothing opened, the back is reported as unhandled and the game decides (the crowd demo quits).
 - **Why**:
   - A back press while a screen waits for the server is a player who wants out, and must cancel.
     A press during a 0.15 s entrance is almost always a leftover double tap, and must not close
     what just opened.
   - A queued press would close a screen at a moment the player did not choose.
-  - Separate close and abort keep a player's close animated and a scene change instant.
+  - Separate close and reset keep a player's close animated and a scene change instant.
   - Keeping the policy out of the renderer makes every rule a plain unit test (`test_ui_nav`) and
     a scene test (`[[back]]`, `state = "..."`).
 - **Rejected**:
