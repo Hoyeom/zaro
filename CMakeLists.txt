@@ -57,7 +57,7 @@ zaro_target_defaults(zaro_render)
 
 add_library(zaro_ui STATIC
   src/ui/draw.cpp src/ui/font.cpp src/ui/text.cpp src/ui/pack.cpp src/ui/image.cpp src/ui/context.cpp
-  src/ui/widgets.cpp src/ui/screen.cpp)
+  src/ui/widgets.cpp src/ui/screen.cpp src/ui/navigator.cpp)
 target_link_libraries(zaro_ui PUBLIC zaro_scene PRIVATE zaro_stb_truetype zaro_stb_image)
 # font.cpp and image.cpp compile stb implementations; keep them out of the unity source.
 set_source_files_properties(src/ui/font.cpp src/ui/image.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
@@ -122,6 +122,15 @@ if(ZARO_BUILD_TESTS)
   zaro_target_defaults(test_ui_screen)
   add_dependencies(test_ui_screen zaro)
   add_test(NAME ui_screen COMMAND test_ui_screen ${CMAKE_BINARY_DIR}/fonts/)
+  # Navigation policy: lifecycle, back in every state, claims, close, home, abort-all, keys, input.
+  add_executable(test_ui_nav tests/test_ui_nav.cpp)
+  target_link_libraries(test_ui_nav PRIVATE zaro_ui)
+  zaro_target_defaults(test_ui_nav)
+  add_test(NAME ui_navigation COMMAND test_ui_nav WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME check_open_action COMMAND zaro check tests/data/screens/nav/typo_scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_open_action PROPERTIES
+    PASS_REGULAR_EXPRESSION "typo_root.toml:7:1: error\\[ZE0406\\]: node 'go': 'open:pupop' opens no screen of the scene's screens \\(did you mean 'open:popup'")
   # Text drawn on the GPU: the frame is written as PNG and must contain glyph pixels.
   add_executable(test_ui_render tests/test_ui_render.cpp)
   target_link_libraries(test_ui_render PRIVATE zaro_ui zaro_render)
@@ -149,7 +158,7 @@ if(ZARO_BUILD_TESTS)
     set_tests_properties(screenshot_hello_${lang} PROPERTIES LABELS gpu)
     add_test(NAME screenshot_hello_settings_${lang}
              COMMAND zaro screenshot examples/hello/scene.toml ${CMAKE_BINARY_DIR}/hello_settings_${lang}.png
-                     --frames 3 --size 1280x720 --lang ${lang} --click hud/settings_button
+                     --frames 15 --size 1280x720 --lang ${lang} --click hud/settings_button
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     set_tests_properties(screenshot_hello_settings_${lang} PROPERTIES LABELS gpu)
   endforeach()

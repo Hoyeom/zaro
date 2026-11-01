@@ -1,0 +1,7 @@
+[screen]
+name = "typo_root"
+
+[[node]]
+name = "go"
+[node.Button]
+action = "open:pupop"

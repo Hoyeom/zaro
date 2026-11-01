@@ -353,6 +353,46 @@ Status of all entries below: **accepted, 2026-11-01**.
   placeholders in texts) and through the same reflection as scenes (`ui.set_field`), so screens
   stay pure data and every change a script makes can be checked by a scene test.
 
+## D-021 UI navigation: a screen stack with one policy for back, close, home and abort
+
+- **Decision**: Screens are navigated by one policy in the `ui` module (`ui::Navigator`), so every
+  game behaves the same. It follows the UI navigation rules of the owner's backend platform, so a
+  game moving between that platform's existing client and ZARO keeps the same behaviour.
+  - **Stack**: `[scene] ui` lists root screens (the HUD), which are always shown and never closed
+    by navigation. `[scene] screens` lists screens that buttons (`action = "open:<name>"`) and
+    scripts (`ui.open`) open on top. Each open is a new instance unless the caller passes a key that
+    an open instance already has; reuse is the caller's choice, never a guess.
+  - **Four operations**: back (the top screen, by the rules below), close (a named screen, or the
+    one a `close` button is on), home (close down to the root, stopping at a forced screen), and
+    abort-all (remove every opened screen at once, forced ones included: scene change, logout).
+  - **Lifecycle**: opening (only when opened with `wait`, until `ui.ready`; a spinner shows) →
+    entering (entrance transition) → open → closing (exit transition) → gone, one direction. Only
+    open screens take input; a closing screen has already handed input to the one below, and an
+    open modal hides input from everything below it.
+  - **Three properties per screen file**: `dismissible` (back may close it), the entrance
+    `transition` and whether it is `skippable`, and (through a `Modal` widget) whether it blocks the
+    screens below. An open call may only tighten them (`force`, `unskippable`).
+  - **Back**: first the script's `on_back(screen)` may claim the press for something inside the
+    screen, and then nothing closes. Otherwise, by the top screen's state: opening and dismissible
+    → cancelled; entering → a skippable transition jumps to its end, an unskippable one drops the
+    press (never queued); open → a dismissible screen closes, a forced one keeps the press. With
+    nothing opened, "back at root" goes to the game, which decides (the crowd demo quits).
+- **Why**:
+  - A back press while a screen waits for the server is a player who wants out, and must cancel.
+    A press during a 0.15 s entrance is almost always a leftover double tap, and must not close
+    what just opened.
+  - A queued press would close a screen at a moment the player did not choose.
+  - Separate close and abort keep a player's close animated and a scene change instant.
+  - Keeping the policy out of the renderer makes every rule a plain unit test (`test_ui_nav`) and
+    a scene test (`[[back]]`, `state = "..."`).
+- **Rejected**:
+  - Hiding and showing nodes of always-loaded screens (step 3 and 4 of P2 did this): no lifecycle,
+    no transitions, and every popup's state survives closing.
+  - Letting each game script its own back handling: the same screens would behave differently
+    from game to game, which is what this decision exists to prevent.
+- **Not yet**: per-screen telemetry of opens and closes, routing over several hops (deep links,
+  tutorials), and pad button prompts per controller family.
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:

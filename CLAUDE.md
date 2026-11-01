@@ -143,7 +143,9 @@ and the optional golden `state_hash`.
   ZE0602 state hash differs, ZE0603 a click found no shown, enabled button (or one behind a modal).
   A script error fails the test as well.
 - `zaro screenshot ... --click hud/settings_button` clicks on the first frames, so a screenshot can
-  show a popup.
+  show a popup (give it `--frames 15` so the entrance has finished).
+- `[[back]]` presses back before a tick, and `[[expect]] screen = ".." state = "open"` checks where a
+  screen is in its lifecycle (`opening`, `entering`, `open`, `closing`, `closed`).
 - `--update` writes the current hash into each file. Use it only when a behaviour change is
   intended, and say so in the commit.
 - CI runs the tests on Windows, Linux and macOS (ARM). The same golden hash must hold on all
@@ -281,6 +283,11 @@ all three together.
 - Each frame: `ui::begin_frame(context)`, `ui::update_screen` (applies the input against the
   previous layout, then lays out), read the click and back events, `ui::draw_screen`. The app fills
   `ui::UiInput` from `platform::Input` (pointer, wheel, edge-triggered navigation).
+- Navigation (D-021, top of `src/ui/navigator.h`): `[scene] ui` screens are roots, `[scene] screens`
+  can be opened. Buttons with `open:<screen>`, `close`, `back` or `home` navigate by themselves;
+  `app/ui_layer` runs the policy, the script hooks (`on_ui`, `on_back`, `on_screen`) and back at
+  root. Screen files declare `dismissible`, `transition` (`none`, `fade`, `pop`),
+  `transition_time` and `skippable`. A screen takes clicks only once its entrance is over.
 
 ## Shaders
 
