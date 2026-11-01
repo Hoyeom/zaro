@@ -185,6 +185,41 @@ add_library(zaro_cjson STATIC ${cjson_SOURCE_DIR}/cJSON.c)
 target_include_directories(zaro_cjson SYSTEM PUBLIC ${cjson_SOURCE_DIR})
 set_target_properties(zaro_cjson PROPERTIES C_STANDARD 17)
 
+# --- LunaSVG 3.5.0 (MIT) with its bundled PlutoVG 1.3.1 (MIT; FreeType License parts), SVG art ----
+# Rasterizes SVG character art in the zaro tool's cook step only (D-028); never built for Android,
+# so no game binary contains it. src/cook/svg.cpp is the one file that includes lunasvg.h. Both are
+# compiled without exceptions and RTTI, as ZARO code is. System fonts are never loaded, so the
+# output does not depend on the machine.
+if(NOT ANDROID)
+  FetchContent_Declare(lunasvg
+    URL https://github.com/sammycage/lunasvg/archive/refs/tags/v3.5.0.tar.gz
+    URL_HASH SHA256=1abf1472ee6c4d19797916e8cc3c2e4b628e0d81178ffac60bdb0d457e32c690
+    SOURCE_SUBDIR _none)
+  FetchContent_MakeAvailable(lunasvg)
+  set(_pvg ${lunasvg_SOURCE_DIR}/plutovg)
+  add_library(zaro_plutovg STATIC
+    ${_pvg}/source/plutovg-blend.c ${_pvg}/source/plutovg-canvas.c ${_pvg}/source/plutovg-font.c
+    ${_pvg}/source/plutovg-matrix.c ${_pvg}/source/plutovg-paint.c ${_pvg}/source/plutovg-path.c
+    ${_pvg}/source/plutovg-rasterize.c ${_pvg}/source/plutovg-surface.c ${_pvg}/source/plutovg-ft-math.c
+    ${_pvg}/source/plutovg-ft-raster.c ${_pvg}/source/plutovg-ft-stroker.c)
+  target_include_directories(zaro_plutovg SYSTEM PUBLIC ${_pvg}/include PRIVATE ${_pvg}/source)
+  target_compile_definitions(zaro_plutovg PUBLIC PLUTOVG_BUILD_STATIC PRIVATE PLUTOVG_BUILD)
+  set_target_properties(zaro_plutovg PROPERTIES C_STANDARD 11)
+  if(NOT WIN32)
+    target_link_libraries(zaro_plutovg PRIVATE m)
+  endif()
+  file(GLOB _luna_sources ${lunasvg_SOURCE_DIR}/source/*.cpp)
+  add_library(zaro_lunasvg STATIC ${_luna_sources})
+  target_include_directories(zaro_lunasvg SYSTEM PUBLIC ${lunasvg_SOURCE_DIR}/include
+    PRIVATE ${lunasvg_SOURCE_DIR}/source)
+  target_compile_definitions(zaro_lunasvg PUBLIC LUNASVG_BUILD_STATIC
+    PRIVATE LUNASVG_BUILD LUNASVG_DISABLE_LOAD_SYSTEM_FONTS $<$<CXX_COMPILER_ID:MSVC>:_HAS_EXCEPTIONS=0>)
+  target_compile_options(zaro_lunasvg PRIVATE
+    $<IF:$<CXX_COMPILER_ID:MSVC>,/EHs-c- /GR- /utf-8,-fno-exceptions -fno-rtti>)
+  target_compile_features(zaro_lunasvg PRIVATE cxx_std_17)
+  target_link_libraries(zaro_lunasvg PRIVATE zaro_plutovg)
+endif()
+
 # --- Noto Sans KR (SIL OFL 1.1), the bundled default font (D-019) --------------------------------
 # Unmodified OTF files from notofonts/noto-cjk, pinned by commit. Copied to <bin>/fonts/.
 set(_noto_base https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans)

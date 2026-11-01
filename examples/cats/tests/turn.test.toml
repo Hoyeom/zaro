@@ -1,0 +1,16 @@
+# Nabi walks right for 360 ticks (12 m at 2 m/s), sits for 90, then walks back mirrored.
+[test]
+scene = "../scene.toml"
+ticks = 500
+
+[[expect]]
+entity = "nabi"
+component = "Sprite"
+field = "flip_x"
+equals = true
+
+[[expect]]
+entity = "nabi"
+component = "Sprite"
+field = "animation"
+equals = "walk"

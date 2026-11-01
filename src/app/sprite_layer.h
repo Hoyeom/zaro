@@ -10,7 +10,8 @@
 
 namespace zaro::scene {
 struct Scene;
-}
+struct SpriteSheet;
+}  // namespace zaro::scene
 
 namespace zaro::app {
 
@@ -26,6 +27,20 @@ void destroy_sprite_layer(SpriteLayer* layer);
 // names it (at load, or when a script changes `animation`); an unknown name is a ZE0902
 // diagnostic, reported once, and the sprite keeps its frame; then this returns false.
 bool step_sprites(SpriteLayer* layer, uint64_t tick, DiagList* diags);
+
+// SVG sheets (D-028): cooks the sheet's PNG when it is missing or its content hash changed, and
+// writes the new hash next to it. Only the zaro tool can cook; a runtime without the cook (Android)
+// reports a missing PNG as ZE0901. *cooked says whether it drew. Other sheets are left alone.
+bool ensure_sheet_art(const scene::SpriteSheet* sheet, bool force, DiagList* diags, bool* cooked);
+// Every SVG sheet of the layer; false if any failed.
+bool prepare_sprite_art(SpriteLayer* layer, DiagList* diags);
+// `zaro check`: the SVG files of every SVG sheet, without drawing them. True when the build has no
+// cook (there is nothing to check against).
+bool check_sprite_art(const SpriteLayer* layer, DiagList* diags);
+
+// The sheets the layer loaded.
+uint32_t sprite_sheet_count(const SpriteLayer* layer);
+const scene::SpriteSheet* sprite_sheet_at(const SpriteLayer* layer, uint32_t index);
 
 // Creates the GPU side: decodes each sheet's image and uploads it. False if a shader or an image
 // is missing.

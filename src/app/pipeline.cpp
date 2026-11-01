@@ -42,10 +42,19 @@ int step_design_check(const char* const* args, uint32_t count, const char*) {
     return import_design(args[0], args[1], true);
 }
 
+// SVG sprite art (D-028): cooks what changed, like a run would, so a pre stage fails on bad art.
+int step_cook_svg(const char* const* args, uint32_t count, const char* game_scene) {
+    if (count == 0) return cook_art(game_scene, false);
+    int code = 0;
+    for (uint32_t i = 0; i < count; ++i) code |= cook_art(args[i], false);
+    return code;
+}
+
 const BuiltinStep kBuiltinSteps[] = {
     {"check", "[files...] (default: the game's scene)", step_check},
     {"test", "<test files or directories...>", step_test},
     {"design-check", "<kit dir> <theme dir>", step_design_check},
+    {"cook-svg", "[scenes or sheets...] (default: the game's scene)", step_cook_svg},
 };
 
 const BuiltinStep* find_builtin(const char* name) {

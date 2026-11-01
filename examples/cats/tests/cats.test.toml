@@ -1,0 +1,23 @@
+# The cats animate on the tick clock without a GPU. After 100 ticks (1.67 s) Nabi has walked 3.3 m
+# and shows walk frame 1 (8 fps); the idle cats (4 fps) show frame 7, the blink.
+[test]
+scene = "../scene.toml"
+ticks = 100
+
+[[expect]]
+entity = "nabi"
+component = "Sprite"
+field = "frame"
+equals = 1
+
+[[expect]]
+entity = "momo"
+component = "Sprite"
+field = "frame"
+equals = 7
+
+[[expect]]
+entity = "portrait"
+component = "Sprite"
+field = "frame"
+equals = 7

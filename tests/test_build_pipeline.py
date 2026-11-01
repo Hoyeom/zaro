@@ -60,7 +60,7 @@ def main() -> int:
                                               r"failed \(exit code 2\)", r.text) is not None, "failing step", r.text)
 
         r = zaro("build", f"{DATA}/unknown_builtin.toml", "--plan")
-        check(r.returncode == 1 and re.search(r"unknown_builtin\.toml:8: step 'cook' uses 'cook-svg'", r.text)
+        check(r.returncode == 1 and re.search(r"unknown_builtin\.toml:8: step 'cook' uses 'cook-fbx'", r.text)
               is not None, "unknown built-in step", r.text)
 
         # Target checks happen in validate, before anything is built (no Android toolchain needed).

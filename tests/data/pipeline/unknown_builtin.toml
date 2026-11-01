@@ -8,4 +8,4 @@ version = "1.0"
 [[step]]
 stage = "pre"
 name = "cook"
-uses = "cook-svg"
+uses = "cook-fbx"

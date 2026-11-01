@@ -48,6 +48,12 @@ BANNED_HEADERS = {
 
 MAX_INCLUDES_PER_HEADER = 12
 
+# Dependency notices (Z010): every "# --- <Name> <version> (<license>)" header in the dependency file
+# names a dependency that THIRD_PARTY_NOTICES.md lists (D-012).
+DEPS_FILE = "cmake/ZaroDeps.cmake"
+NOTICES_FILE = "THIRD_PARTY_NOTICES.md"
+DEP_HEADER_RE = re.compile(r"^# --- (\S+)")
+
 # Agent guidance (Z008): every skill has front matter naming its directory and a description,
 # and the "Skills" list in CLAUDE.md names exactly the skills that exist.
 AGENT_GUIDE = "CLAUDE.md"
@@ -75,7 +81,8 @@ MODULE_DEPS = {
     "ui": {"core", "scene", "ui"},
     "scene": {"core", "scene"},
     "script": {"core", "scene", "script"},
-    "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "ui", "app"},
+    "cook": {"core", "scene", "cook"},
+    "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "ui", "cook", "app"},
     "cli": {"core", "app", "cli"},
 }
 # Third-party headers confined to the one module that wraps them.
@@ -93,6 +100,8 @@ THIRD_PARTY_OWNERS = {
     "stb_truetype.h": "src/ui/font.cpp",
     "stb_image.h": "src/core/png_decode.cpp",
     "cJSON.h": "src/app/design_import.cpp",
+    "lunasvg.h": "src/cook/svg.cpp",
+    "plutovg.h": "src/cook/svg.cpp",
 }
 
 RULES = {
@@ -107,6 +116,7 @@ RULES = {
     "Z008": "skill front matter is malformed, or CLAUDE.md 'Skills' and .claude/skills/ disagree",
     "Z009": "signing material in the repository: a keystore file, or a literal signing password or "
             "keystore path in a Gradle or properties file (use the ZARO_UPLOAD_* environment)",
+    "Z010": "a dependency in cmake/ZaroDeps.cmake has no entry in THIRD_PARTY_NOTICES.md",
 }
 
 BANNED_KEYWORDS = re.compile(r"\b(throw|try|catch|dynamic_cast|typeid)\b")
@@ -260,10 +270,28 @@ def lint_signing(path: Path, r: str) -> list[Diag]:
             for i, line in enumerate(lines) for m in [SIGNING_LITERAL_RE.search(line)] if m]
 
 
+def lint_notices() -> list[Diag]:
+    try:
+        deps = (ROOT / DEPS_FILE).read_text(encoding="utf-8").splitlines()
+        notices = (ROOT / NOTICES_FILE).read_text(encoding="utf-8")
+    except OSError as e:
+        return [Diag(NOTICES_FILE, 1, 1, "Z010", f"cannot read: {e}")]
+    rows = [line for line in notices.splitlines() if line.startswith("| ")]
+    diags = []
+    for i, line in enumerate(deps):
+        m = DEP_HEADER_RE.match(line)
+        if m and not any(m.group(1) in row for row in rows):
+            diags.append(Diag(DEPS_FILE, i + 1, 1, "Z010",
+                              f"'{m.group(1)}' has no row in {NOTICES_FILE}; add its license and use"))
+    return diags
+
+
 def lint_file(path: Path) -> list[Diag]:
     r = rel(path)
     if r == AGENT_GUIDE or SKILL_FILE_RE.match(r):
         return lint_agent_doc(path, r)
+    if r in (DEPS_FILE, NOTICES_FILE):
+        return lint_notices()
     parts = set(Path(r).parts)
     if path.suffix in KEY_EXTS | SIGNING_CONFIG_EXTS:
         return [] if parts & SKIP_PARTS else lint_signing(path, r)
@@ -335,6 +363,7 @@ def repo_files() -> list[Path]:
             if p.is_file() and p.suffix in SOURCE_EXTS:
                 files.append(p)
     files.append(ROOT / AGENT_GUIDE)
+    files.append(ROOT / NOTICES_FILE)
     files.extend((ROOT / SKILLS_DIR).glob("*/SKILL.md"))
     # Signing material can be anywhere: every tracked or untracked, not ignored file.
     listed = subprocess.run(["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT,
@@ -351,7 +380,7 @@ def staged_files() -> list[Path]:
     ).stdout
     return [ROOT / l for l in out.splitlines()
             if Path(l).suffix in SOURCE_EXTS | KEY_EXTS | SIGNING_CONFIG_EXTS or l == AGENT_GUIDE
-            or SKILL_FILE_RE.match(l)]
+            or l in (DEPS_FILE, NOTICES_FILE) or SKILL_FILE_RE.match(l)]
 
 
 def hook_files() -> list[Path]:

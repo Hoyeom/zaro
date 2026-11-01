@@ -23,6 +23,11 @@ int check_scene(const char* path, bool json);
 // golden. Returns 0 when all tests pass, 1 on a failure or when no test was found, 2 on bad paths.
 int run_scene_tests(const char* const* paths, int count, bool update, bool json);
 
+// `zaro cook <scene.toml | sheet.toml> [--force]`: cooks the PNG of every SVG sprite sheet the
+// scene's sprites name (or of one sheet file) whose content hash changed (D-028); --force cooks
+// them all again. Runs also cook on demand, so this is for exports and CI. Returns 0 on success.
+int cook_art(const char* path, bool force);
+
 struct ExportOptions {
     const char* scene_path = nullptr;
     const char* out_dir = nullptr;      // default build/android-project

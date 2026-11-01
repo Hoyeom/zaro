@@ -40,6 +40,7 @@ enum ErrorId {
     kErrSpriteSheet = 900,    // ZE0900 sprite sheet missing or invalid (keys, frames, animations)
     kErrSpriteImage = 901,    // ZE0901 sheet image missing or not a PNG, or a frame outside it
     kErrSpriteRef = 902,      // ZE0902 a sprite component names an animation its sheet does not have
+    kErrSvg = 903,            // ZE0903 SVG art missing, invalid, or using what the cook cannot draw (text, filters)
     kErrBuildSpec = 1000,     // ZE1000 build file or [[step]] invalid, or a step names no built-in step
     kErrBuildStep = 1001,     // ZE1001 a build step failed (its program's exit code, or a built-in step's error)
     kErrBuildRelease = 1002,  // ZE1002 a release environment enables debug_tools or a debug* config key

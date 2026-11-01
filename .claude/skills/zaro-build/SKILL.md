@@ -1,6 +1,6 @@
 ---
 name: zaro-build
-description: The game build pipeline (D-027) — zaro build and its stages (validate, pre, native, export, post, package, sign), game build files with versions, environments and config, pre and post steps from the game and from plugins' build extensions, built-in steps (check, test, design-check) and how to add one such as asset cooking, build_info.toml stamping, the release rule against debug tools, and the ZE1000-ZE1002 errors. Load before writing or changing a build.toml, a [[step]], a built-in step in src/app/pipeline.cpp, or anything a target's build stages run.
+description: The game build pipeline (D-027) — zaro build and its stages (validate, pre, native, export, post, package, sign), game build files with versions, environments and config, pre and post steps from the game and from plugins' build extensions, built-in steps (check, test, design-check, cook-svg) and how to add one, build_info.toml stamping, the release rule against debug tools, and the ZE1000-ZE1002 errors. Load before writing or changing a build.toml, a [[step]], a built-in step in src/app/pipeline.cpp, or anything a target's build stages run.
 ---
 
 # The build pipeline (D-027)
@@ -37,9 +37,11 @@ at the top of `src/scene/build_spec.h`; the stages and the runner are described 
 - **No hidden scripts**: `run` starts the program without a shell. Shells and inline code (`-c`,
   `-e`) are refused (ZE1000). To run logic, ship it as a file in the game or plugin repository
   and run that file.
-- **Built-in steps** are the table `kBuiltinSteps` in `src/app/pipeline.cpp`: `check`, `test` and
-  `design-check`. A new one, such as P3's asset cooking, is one more entry: a name, a usage string
-  and a function that gets the resolved `with` arguments and returns 0 or prints its own errors.
+- **Built-in steps** are the table `kBuiltinSteps` in `src/app/pipeline.cpp`: `check`, `test`,
+  `design-check` and `cook-svg` (cooks the SVG sprite sheets of the `with` scenes or sheets, or of
+  the game's scene, by content hash; `zaro-scene`, D-028). A new one is one more entry: a name, a
+  usage string and a function that gets the resolved `with` arguments and returns 0 or prints its
+  own errors.
   `zaro build --plan` rejects unknown names with the list of known ones.
 - **Stamping**: before the pre steps, the pipeline writes `<out>/build_info.toml` (default
   `build/zaro-build/<game>-<env>`). It holds the game, version, version code, commit,

@@ -1,0 +1,22 @@
+# How `zaro build` builds the cats example (D-027). Its pre stage cooks the SVG cat (D-028) and
+# runs the scene tests, so bad art fails the build before anything is packaged.
+#   zaro build examples/cats/build.toml --plan
+#   zaro build examples/cats/build.toml
+[game]
+name = "cats"
+scene = "scene.toml"
+version = "0.1.0"
+
+[environment.dev]
+debug_tools = true
+
+[[step]]
+stage = "pre"
+name = "cook"
+uses = "cook-svg"
+
+[[step]]
+stage = "pre"
+name = "scene-tests"
+uses = "test"
+with = ["tests"]

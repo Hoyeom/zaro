@@ -1,0 +1,4 @@
+# An SVG sheet whose art uses what the cook cannot draw (zaro check reports it).
+[sheet]
+svg = ["unsupported.svg", "style_clip.svg"]
+size = [32, 32]

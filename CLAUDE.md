@@ -29,6 +29,7 @@ phases sessions pick work from are in [docs/ROADMAP.md](docs/ROADMAP.md).
 | Accept a changed simulation as the new golden | `build/debug/zaro test <paths> --update` |
 | Render a scene to PNG | `build/debug/zaro screenshot examples/crowd/scene.toml out.png [--frames N]` |
 | Render a scene's UI in another language | `build/debug/zaro screenshot examples/hello/scene.toml out.png --lang en` |
+| Cook a scene's SVG sprite art into PNG atlases (runs do it on demand) | `build/debug/zaro cook examples/cats/scene.toml [--force]` |
 | Turn a Claude Design kit into a UI theme | `build/debug/zaro import-design examples/hello/design examples/hello/ui/kit [--check]` |
 | All `run` options | `build/debug/zaro help` |
 | Install the pinned Android toolchain (once) | `python tools/android.py setup` (`doctor` shows what is found) |
@@ -79,7 +80,8 @@ ownership and the rest of the layering rules are in the `zaro-code` skill.
 | `script` | sandboxed Luau scripts acting on a scene through reflection; the only module that includes Luau | core, scene |
 | `render` | draws plain data (the view); never sees sim types | core, rhi |
 | `ui` | game UI: fonts, text layout, glyph atlas, screens, widgets; no GPU | core, scene |
-| `app` | owns the frame loop and wires sim and ui to render | all of the above |
+| `cook` | build-time asset cooking: SVG art into sprite atlases; the only module that includes LunaSVG; not built for Android (D-028) | core, scene |
+| `app` | owns the frame loop and wires sim, sprites and ui to render | all of the above |
 | `cli` | the `zaro` command | core, app |
 
 ## Skills
@@ -136,6 +138,7 @@ check and a row here; a rule written only in prose is not followed.
 | Every skill is well-formed and listed under "Skills" above | lint Z008 |
 | No keystores, signing passwords or keystore paths in the repository (D-025) | lint Z009 |
 | Packed Android libraries: no build-machine paths, 16 KB LOAD alignment | `cmake/ZaroCheckElf.cmake` in the `android` build |
+| Every dependency in `cmake/ZaroDeps.cmake` is listed with its license in `THIRD_PARTY_NOTICES.md` | lint Z010 |
 | Simulation is deterministic across thread counts | `crowd_determinism` test |
 | Golden state hashes hold on Windows, Linux and macOS | scene tests in CI |
 | Branch names, commit messages, sign-off, no commits or pushes to `main` | `tools/git_rules.py` from the git hooks and CI; `permissions.deny` in `.claude/settings.json` |

@@ -62,6 +62,14 @@ add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_rende
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
+# Cook-time asset tools (SVG art into sprite atlases, D-028). Only the zaro tool links them; the
+# Android runtime is built without, so no game binary contains the SVG renderer.
+if(NOT ANDROID)
+  add_library(zaro_cook STATIC src/cook/svg.cpp)
+  target_link_libraries(zaro_cook PUBLIC zaro_scene PRIVATE zaro_lunasvg)
+  zaro_target_defaults(zaro_cook)
+endif()
+
 add_library(zaro_ui STATIC
   src/ui/draw.cpp src/ui/font.cpp src/ui/text.cpp src/ui/pack.cpp src/ui/context.cpp
   src/ui/widgets.cpp src/ui/screen.cpp src/ui/navigator.cpp)
@@ -74,6 +82,10 @@ add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scen
   src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp src/app/pipeline.cpp)
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform
   PRIVATE zaro_cjson)
+if(TARGET zaro_cook)
+  target_link_libraries(zaro_app PRIVATE zaro_cook)
+  target_compile_definitions(zaro_app PRIVATE ZARO_HAS_COOK=1)
+endif()
 zaro_target_defaults(zaro_app)
 # zaro build's target stages run this checkout's tools/build.py and tools/android.py (D-027).
 if(NOT ANDROID)
@@ -190,6 +202,35 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro screenshot tests/data/sprites/scene.toml ${CMAKE_BINARY_DIR}/sprites.png --frames 5 --size 640x360
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(screenshot_sprites PROPERTIES LABELS gpu)
+
+  # SVG cook: classes, clip paths, masks, <use> and gradients drawn; text and filters reported.
+  if(TARGET zaro_cook)
+    add_executable(test_svg tests/test_svg.cpp)
+    target_link_libraries(test_svg PRIVATE zaro_cook)
+    zaro_target_defaults(test_svg)
+    add_test(NAME svg_cook COMMAND test_svg ${CMAKE_BINARY_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    # The cats' SVG art cooks into its atlas (no GPU), and art the cook cannot draw fails `zaro check`.
+    add_test(NAME example_cats_cook COMMAND zaro cook examples/cats/scene.toml --force
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(example_cats_cook PROPERTIES
+      PASS_REGULAR_EXPRESSION "cooked examples/cats/.zaro-cache/cat.png \\(8 frames\\)")
+    # The build pipeline's cook-svg step cooks the game's SVG sheets in the pre stage (D-027, D-028).
+    add_test(NAME example_cats_build COMMAND zaro build examples/cats/build.toml --out ${CMAKE_BINARY_DIR}/zaro-build/cats
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(example_cats_build PROPERTIES DEPENDS example_cats_cook
+      PASS_REGULAR_EXPRESSION "examples/cats/scene.toml: [0-9]+ sheet\\(s\\) cooked, [0-9]+ up to date")
+    add_test(NAME check_svg_art COMMAND zaro check tests/data/svg/bad_scene.toml
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(check_svg_art PROPERTIES
+      PASS_REGULAR_EXPRESSION "unsupported.svg:7:1: error\\[ZE0903\\]: <text> is not drawn by the SVG cook")
+  endif()
+  # The cats scene with SVG sprites stays valid; it renders in the 3D view and on the screen.
+  add_test(NAME example_cats_scene COMMAND zaro check examples/cats/scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME screenshot_cats
+           COMMAND zaro screenshot examples/cats/scene.toml ${CMAKE_BINARY_DIR}/cats.png --frames 30 --size 960x540
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_cats PROPERTIES LABELS gpu)
 
   # The example scene stays valid, and `zaro schema` stays valid JSON.
   add_test(NAME example_crowd_scene COMMAND zaro check examples/crowd/scene.toml

@@ -18,7 +18,7 @@ void print_usage() {
          "  version    print engine and plugin ABI version\n"
          "  run        run a scene: zaro run [scene.toml] [options] (no scene: built-in crowd demo)\n"
          "  schema     print every component (fields, types, defaults, ranges) as JSON\n"
-         "  check      validate a scene (with its screens, strings and script) or a screen file:\n"
+         "  check      validate a scene (with its screens, strings, sprites and script) or a screen file:\n"
          "             zaro check <file.toml> [--json]\n"
          "  test       run scene tests: zaro test [paths...] [--update] [--json] (default path: tests)\n"
          "  screenshot render a scene headless to PNG: zaro screenshot <scene.toml> [out.png]\n"
@@ -27,6 +27,8 @@ void print_usage() {
          "             [--out DIR (default build/android-project)] [--runtime DIR] [--package ID]\n"
          "             [--version-code N (default 1)] [--version-name S (default 1.0)] [--portrait]\n"
          "             (runtime: python tools/build.py android; APK or AAB: tools/android.py apk|aab)\n"
+         "  cook       draw the SVG art of a scene's sprite sheets (or of one sheet) into PNG atlases:\n"
+         "             zaro cook <scene.toml | sheet.toml> [--force]  (runs cook what changed themselves)\n"
          "  build      run a game's build pipeline (validate, pre, native, export, post, package, sign):\n"
          "             zaro build <build.toml> [--env NAME] [--version-code N] [--out DIR] [--plan]\n"
          "             [--target android [--package aab|apk] [--release]]\n"
@@ -295,6 +297,18 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "screenshot") == 0) return cmd_screenshot(argc, argv);
     if (strcmp(argv[1], "export") == 0) return cmd_export(argc, argv);
+    if (strcmp(argv[1], "cook") == 0) {
+        const char* path = nullptr;
+        bool force = false;
+        for (int i = 2; i < argc; ++i) {
+            if (strcmp(argv[i], "--force") == 0) force = true;
+            else if (argv[i][0] == '-') return usage_error("unknown option", argv[i]);
+            else if (!path) path = argv[i];
+            else return usage_error("unexpected argument", argv[i]);
+        }
+        if (!path) return usage_error("cook needs a scene or sheet path, got", "");
+        return zaro::app::cook_art(path, force);
+    }
     if (strcmp(argv[1], "build") == 0) return cmd_build(argc, argv);
     if (strcmp(argv[1], "import-design") == 0) {
         const char* dirs[2] = {nullptr, nullptr};
