@@ -31,6 +31,7 @@ struct Crowd {
     uint32_t g = 0;  // grid size
     uint64_t tick = 0;
     std::atomic<uint64_t> hits{0};
+    uint64_t kills = 0;  // enemies swept away by kill_enemies
 
     // Arena.
     uint8_t* blocked = nullptr;
@@ -438,10 +439,30 @@ uint32_t last_hits(const Crowd* c, const float** xz) {
     return c->last_hit_count;
 }
 
+uint32_t kill_enemies(Crowd* c, float x, float z, float radius, uint32_t max) {
+    const float r2 = radius * radius;
+    uint32_t killed = 0;
+    for (uint32_t i = 0; i < c->n && (!max || killed < max); ++i) {
+        const float dx = c->x[i] - x, dz = c->z[i] - z;
+        if (dx * dx + dz * dz > r2) continue;
+        float nx, nz;
+        respawn_position(c, i, &nx, &nz);
+        c->x[i] = c->prev_x[i] = nx;
+        c->z[i] = c->prev_z[i] = nz;
+        c->vx[i] = c->vz[i] = 0.0f;
+        ++killed;
+    }
+    c->kills += killed;
+    return killed;
+}
+
+uint64_t total_kills(const Crowd* c) { return c->kills; }
+
 uint64_t state_hash(const Crowd* c) {
     uint64_t h = fnv1a(&c->tick, sizeof(c->tick));
     const uint64_t hits = total_hits(c);
     h = fnv1a(&hits, sizeof(hits), h);
+    if (c->kills) h = fnv1a(&c->kills, sizeof(c->kills), h);  // runs without kills keep their goldens
     h = fnv1a(&c->px, sizeof(float), h);
     h = fnv1a(&c->pz, sizeof(float), h);
     const size_t bytes = sizeof(float) * c->n;

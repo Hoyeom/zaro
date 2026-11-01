@@ -41,6 +41,11 @@ uint64_t total_hits(const Crowd* crowd);
 // Where enemies reached the player in the last step (before they were respawned), as x, z pairs in
 // enemy order; returns how many. For effects only: it is not part of the state or its hash.
 uint32_t last_hits(const Crowd* crowd, const float** xz);
+// Sweeps away the enemies within `radius` of (x, z), at most `max` (0: all) in enemy order: they
+// respawn at the arena edge as after a hit, but count as kills. For gameplay scripts between steps
+// (D-031); deterministic. Returns how many.
+uint32_t kill_enemies(Crowd* crowd, float x, float z, float radius, uint32_t max);
+uint64_t total_kills(const Crowd* crowd);
 uint64_t state_hash(const Crowd* crowd);
 
 // Interpolated view of the state for rendering. alpha in [0, 1] blends the previous tick

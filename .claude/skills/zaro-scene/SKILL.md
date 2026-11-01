@@ -86,6 +86,13 @@ applied at the end of each tick, after the simulation, so a scene test can expec
 after N ticks. A new tween on a field replaces the old one; `zaro.set` on the field stops it. The
 names of eases and loops are in `zaro schema` (`tween_eases`, `tween_loops`).
 
+The crowd from scripts (D-031): `zaro.crowd_kill(x, z, radius[, max])` sweeps enemies away (they
+respawn at the edge and count in `sim::total_kills`), through `script::CrowdHost`. After every tick
+the app copies the simulated player's position into the PlayerController entity's `Transform` (if
+it has one), so entities parented to the player follow it, and queues the engine event `crowd_hit`
+`{count, x, z}` when enemies reached the player. A Shape with `follow = "player"` ignores its
+entity's transform. `tests/data/gameplay` tests all three.
+
 Timers and events (D-031) run in the fixed tick and are kept inside the script: `zaro.after`,
 `zaro.every` (seconds of tick time, rounded to whole ticks), `zaro.on`/`zaro.emit` and
 `zaro.cancel`. A tick runs the due timers, on_tick, then the queued events (handlers may emit more);

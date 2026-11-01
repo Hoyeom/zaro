@@ -25,6 +25,11 @@
 //   zaro.children(entity)                      -> {id, ...} in id order
 //   zaro.world(entity)                         -> {x, y, z}, rotation, scale: its Transform combined
 //                                                 with its parents' (a destroyed parent takes its children)
+//   zaro.crowd_kill(x, z, radius[, max])       -> how many of the crowd's enemies within radius were swept
+//                                                 away (they respawn at the edge and count as kills)
+// The app copies the simulated player's position into the Transform of the PlayerController
+// entity after every tick (when it has one), so its children follow the player, and queues the
+// engine event "crowd_hit" {count, x, z} when enemies reached the player in a tick.
 //   zaro.tween(entity, component, field, to, {time = s[, from, delay, ease, loop, count, done = fn]})
 //       -> handle; eases a visual field on the tick clock (scene/tween.h has the eases and loops).
 //          A tween on the same field replaces it, zaro.set on the field stops it, zaro.cancel too;
@@ -91,11 +96,18 @@ struct UiHost {
     const char* (*state)(void* user, const char* name);  // "opening" ... "closed"
 };
 
+// The crowd behind zaro.crowd_kill, provided by the app (nullptr without one).
+struct CrowdHost {
+    void* user;
+    uint32_t (*kill)(void* user, float x, float z, float radius, uint32_t max);
+};
+
 struct ScriptDesc {
     const char* path;
     scene::Scene* scene;          // the scene zaro.get / zaro.set act on
     scene::UiState* ui = nullptr;     // what ui.set writes; nullptr without a UI
     const UiHost* host = nullptr;  // carries out ui.open, ui.language, ...; nullptr without a UI
+    const CrowdHost* crowd = nullptr;  // carries out zaro.crowd_kill; nullptr without a crowd
     uint64_t seed = 1;            // seeds math.random
     double max_call_seconds = 1;  // one hook call longer than this is aborted (ZE0502)
 };

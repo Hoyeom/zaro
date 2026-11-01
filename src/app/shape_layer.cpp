@@ -59,7 +59,7 @@ void linear_rgb(uint32_t color, float intensity, float out[3]) {
 
 // Where a shape is drawn: on an entity with a Transform or a parent, its position is an offset in
 // the entity's space and it turns and scales with it (D-031); screen shapes take the offset and
-// scale, not the turn.
+// scale, not the turn. A shape that follows the player ignores its entity's transform.
 struct Placement {
     float position[3];
     float rotation;  // degrees added to the shape's own
@@ -69,6 +69,7 @@ struct Placement {
 Placement place(scene::Scene* scene, const ShapeRecord& r) {
     const sim::Shape& s = *r.shape;
     Placement p{{s.position[0], s.position[1], s.position[2]}, 0.0f, 1.0f};
+    if (s.follow == sim::kShapeFollowPlayer) return p;  // already relative to the player
     const scene::Entity* e = scene::entity_by_id(scene, r.entity_id);
     if (!e || (!e->parent_id && !scene::get_component(e, &scene::kTransformDesc))) return p;
     if (s.space == sim::kSpriteScreen) {

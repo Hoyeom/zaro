@@ -1,0 +1,28 @@
+# The crowd from a script (D-031): sweeping enemies away, hits as events, the player Transform.
+[scene]
+name = "crowd-gameplay"
+script = "sweep.luau"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+seed = 5
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 600
+speed = 5.0
+
+[[entity]]
+name = "player"
+[entity.PlayerController]
+speed = 6.0
+[entity.Transform]
+
+[[entity]]
+name = "blade"
+parent = "player"
+[entity.Transform]
+position = [2.5, 0.0, 0.0]
