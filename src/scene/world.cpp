@@ -17,7 +17,7 @@ namespace {
 
 const reflect::FieldDesc kTransformFields[] = {
     ZARO_FIELD(Transform, position, kVec3, "Position relative to the parent (or the world), in metres"),
-    ZARO_FIELD(Transform, rotation, kF32, "Turn about +y in degrees, relative to the parent; +x turns toward -z, as Shape.rotation"),
+    ZARO_FIELD(Transform, rotation, kF32, "Turn about +y in degrees, relative to the parent; +x turns toward +z, as Shape.rotation"),
     ZARO_FIELD_RANGE(Transform, scale, kF32, "Size relative to the parent; children are scaled with it", 0.0, 1000.0),
 };
 
@@ -192,9 +192,9 @@ void transform_point(const WorldTransform& w, const float local[3], float out[3]
     double sn = 0.0, cs = 1.0;
     if (w.rotation != 0.0f) det_sincos_deg(w.rotation, &sn, &cs);
     const double x = (double)local[0] * w.scale, y = (double)local[1] * w.scale, z = (double)local[2] * w.scale;
-    out[0] = (float)(w.position[0] + (x * cs + z * sn));
+    out[0] = (float)(w.position[0] + (x * cs - z * sn));
     out[1] = (float)(w.position[1] + y);
-    out[2] = (float)(w.position[2] + (z * cs - x * sn));
+    out[2] = (float)(w.position[2] + (x * sn + z * cs));
 }
 
 WorldTransform world_transform(Scene* s, const Entity* e) {
