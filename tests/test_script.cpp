@@ -1,11 +1,13 @@
 // Luau scripts: hooks and the zaro API, error ids and lines, sandbox, time budget, seeded random,
 // hot reload. argv[1] is a writable directory for the reload test; run from the repository root.
+#include "core/detmath.h"
 #include "core/diag.h"
 #include "scene/scene.h"
 #include "scene/world.h"
 #include "script/script.h"
 #include "sim/crowd_components.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -218,6 +220,25 @@ void test_hierarchy() {
     if (r.diags->count) zaro::diag_print_text(r.diags, stderr);
 }
 
+// core/detmath.h agrees with the C library to well below float precision.
+void test_detmath() {
+    double worst = 0.0;
+    for (int i = -7200; i <= 7200; ++i) {
+        const double deg = i * 0.37;
+        double s = 0.0, c = 0.0;
+        zaro::det_sincos_deg(deg, &s, &c);
+        const double r = deg * (3.14159265358979323846 / 180.0);
+        worst = fmax(worst, fmax(fabs(s - sin(r)), fabs(c - cos(r))));
+    }
+    expect(worst < 1e-12, "det_sincos_deg matches sin/cos");
+    double worst_exp = 0.0;
+    for (int i = -400; i <= 400; ++i) {
+        const double x = i * 0.073;
+        worst_exp = fmax(worst_exp, fabs(zaro::det_exp2(x) / exp2(x) - 1.0));
+    }
+    expect(worst_exp < 1e-13, "det_exp2 matches exp2");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -231,6 +252,7 @@ int main(int argc, char** argv) {
     test_world();
     test_events();
     test_hierarchy();
+    test_detmath();
     if (g_failures) {
         fprintf(stderr, "test_script: %d failure(s)\n", g_failures);
         return 1;
