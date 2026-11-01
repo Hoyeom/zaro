@@ -82,7 +82,7 @@ def repair_header_deps(env: dict[str, str], build_dir: Path) -> int:
 
     With a Korean-localized MSVC, parallel clean builds leave some objects with no recorded
     /showIncludes dependencies, so later header edits would not rebuild them. Rebuilding those
-    objects alone records the dependencies. Third-party objects (under .cache/) are left alone.
+    objects alone records the dependencies. Third-party objects (under _deps/) are left alone.
     Returns the number of objects deleted.
     """
     ninja = shutil.which("ninja", path=env.get("PATH"))
