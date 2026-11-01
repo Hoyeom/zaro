@@ -1,6 +1,6 @@
 # A blade parented to the player sweeps enemies away for 10 s while hits arrive as events.
 # Run with: zaro test tests/data/gameplay
 [test]
-state_hash = "f08f1b03c023f645"
+state_hash = "43f2b23a099161dd"
 scene = "../scene.toml"
 ticks = 600
