@@ -178,13 +178,52 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
 - **Scope**: the first part of the owner's mobile idle game on ZARO, end to end on Android: the
   field, growth, eggs and pets, and the shop, with the backend. This is the proof that ZARO can carry
   the owner's real games. The official announcement waits for it (D-016, D-018).
-- **Waits for**: P1, P2, P3 and P4.
+- **Waits for**: P1, P2, P3, P4 and P6. G1 comes first (D-029).
+
+### P6. Game-making features
+
+What a small game needs that the engine does not have yet, aimed at G1's look (D-029): glowing
+shapes, tweens and particles over thousands of enemies, with no frame-by-frame animation.
+
+- **Scope**, in three tracks that can run side by side:
+  - **Neon rendering**: an HDR frame with bloom, so bright colours glow; a shape renderer for
+    rectangles, lines, rings and polygons with glow, additive blending and trails; GPU particles
+    (compute) for hits and deaths; screen shake and hit flash. All of it is visual only and never
+    feeds the simulation (D-005).
+  - **Gameplay from scripts**: Luau can spawn and destroy entities, query them, send and receive
+    events and run timers, not only read and write fields. Entity hierarchies (a parent moves its
+    children). Tweens with easing curves for visual values (scale, colour, position offsets, UI),
+    started from scripts and from scene files.
+  - **Audio and local save**: sound effects and music with volume groups and a settings hook; a
+    local save that a game declares and that later moves to the backend's save authorities (P4c)
+    without changing game code.
+- **Done when**: `examples/neon`, a small arena where the player sweeps a few thousand glowing
+  enemies, is built only from scenes, scripts and text assets. It has bloom, particles, tweens, sound
+  and a saved best score, runs at a stable 60 fps on PC and on a mid-range Android phone, and is
+  covered by scene tests and `zaro screenshot`.
+- **Waits for**: nothing. Phone measurement shares P1's device run.
+- **Runs beside**: P1 (iOS), P4.
+
+### G1. First game: neon arena (private repository)
+
+- **Scope**: the owner's first game on ZARO (D-029): a light arena game where glowing geometric
+  shapes sweep away large crowds of enemies. It is built in its own private repository on public
+  ZARO and released on Google Play first. Online features (leaderboards, accounts) come through the
+  backend plugin when P4 has them; the game does not wait for them.
+- **Waits for**: P6, and P1's Play release build.
 
 ## Later
 
-iOS store release, the web (WebGPU) build, a crowd-action game (the survivors-like spin-off),
-Steamworks, consoles through private porting layers, the Luau type checker, and entity hierarchies.
+iOS store release, the web (WebGPU) build, Steamworks, consoles through private porting layers, the
+Luau type checker, KTX2 textures and mipmaps.
 
 ## Open decisions
 
-None at the moment. (The SVG rasterizer for P3 was settled as D-024.)
+For P6, each settled by the track that needs it, with the license check from D-012:
+- **Audio library**: miniaudio (public domain or MIT-0) is the candidate.
+- **Bloom and HDR format**: the frame's colour format and the bloom method (downsample chain or
+  compute), measured on a mid-range phone.
+- **Save format**: file layout, versioning and migration, shaped so that P4c's server save can take
+  it over.
+
+(The SVG rasterizer for P3 was settled as D-028.)
