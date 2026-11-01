@@ -24,7 +24,7 @@ int check_scene(const char* path, bool json);
 int run_scene_tests(const char* const* paths, int count, bool update, bool json);
 
 // `zaro cook <scene.toml | sheet.toml> [--force]`: cooks the PNG of every SVG sprite sheet the
-// scene's sprites name (or of one sheet file) whose content hash changed (D-025); --force cooks
+// scene's sprites name (or of one sheet file) whose content hash changed (D-026); --force cooks
 // them all again. Runs also cook on demand, so this is for exports and CI. Returns 0 on success.
 int cook_art(const char* path, bool force);
 
@@ -33,6 +33,8 @@ struct ExportOptions {
     const char* out_dir = nullptr;      // default build/android-project
     const char* runtime_dir = nullptr;  // default build/android/android-runtime next to this binary
     const char* package = nullptr;      // default dev.zaro.<scene name>
+    const char* version_code = nullptr; // Android versionCode, 1..2100000000 (default 1)
+    const char* version_name = nullptr; // versionName shown to players (default "1.0")
     bool portrait = false;              // default landscape
 };
 

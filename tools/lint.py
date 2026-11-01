@@ -48,7 +48,7 @@ BANNED_HEADERS = {
 
 MAX_INCLUDES_PER_HEADER = 12
 
-# Dependency notices (Z009): every "# --- <Name> <version> (<license>)" header in the dependency file
+# Dependency notices (Z010): every "# --- <Name> <version> (<license>)" header in the dependency file
 # names a dependency that THIRD_PARTY_NOTICES.md lists (D-012).
 DEPS_FILE = "cmake/ZaroDeps.cmake"
 NOTICES_FILE = "THIRD_PARTY_NOTICES.md"
@@ -60,6 +60,14 @@ AGENT_GUIDE = "CLAUDE.md"
 SKILLS_DIR = ".claude/skills"
 SKILL_LIST_RE = re.compile(r"^- \*\*`([a-z0-9-]+)`\*\*")
 SKILL_FILE_RE = re.compile(r"^\.claude/skills/([^/]+)/SKILL\.md$")
+
+# Signing material (Z009, D-025): a game's upload key and its passwords never enter this public
+# repository. Keystores are refused outright; Gradle and properties files may read the key only
+# from the environment, never from a literal password or keystore path.
+KEY_EXTS = {".jks", ".keystore", ".p12", ".pfx"}
+SIGNING_CONFIG_EXTS = {".gradle", ".kts", ".properties"}
+SIGNING_LITERAL_RE = re.compile(
+    r"\b(storePassword|keyPassword)\b\s*[=:]?\s*['\"]|\bstoreFile\b\s*[=:]?\s*file\(\s*['\"]")
 
 # Module layering (CLAUDE.md "Modules"). A module under src/ may include only the engine
 # modules listed for it. sim is the model and must stay free of platform and GPU code so it
@@ -106,7 +114,9 @@ RULES = {
     "Z006": "public header is missing an extern \"C\" guard",
     "Z007": "module layering: include of an engine module or third-party header this module may not use",
     "Z008": "skill front matter is malformed, or CLAUDE.md 'Skills' and .claude/skills/ disagree",
-    "Z009": "a dependency in cmake/ZaroDeps.cmake has no entry in THIRD_PARTY_NOTICES.md",
+    "Z009": "signing material in the repository: a keystore file, or a literal signing password or "
+            "keystore path in a Gradle or properties file (use the ZARO_UPLOAD_* environment)",
+    "Z010": "a dependency in cmake/ZaroDeps.cmake has no entry in THIRD_PARTY_NOTICES.md",
 }
 
 BANNED_KEYWORDS = re.compile(r"\b(throw|try|catch|dynamic_cast|typeid)\b")
@@ -246,18 +256,32 @@ def lint_agent_doc(path: Path, r: str) -> list[Diag]:
     return diags
 
 
+def lint_signing(path: Path, r: str) -> list[Diag]:
+    if path.suffix in KEY_EXTS:
+        return [Diag(r, 1, 1, "Z009", "keystores never go into this repository; a game keeps its "
+                     "upload key in its own CI secrets (docs/android-release.md)")]
+    try:
+        lines = path.read_text(encoding="utf-8").split("\n")
+    except (OSError, UnicodeDecodeError) as e:
+        return [Diag(r, 1, 1, "Z000", f"cannot read file: {e}")]
+    return [Diag(r, i + 1, m.start() + 1, "Z009",
+                 "read signing passwords and the keystore path from the environment "
+                 "(System.getenv('ZARO_UPLOAD_...')), never write them here")
+            for i, line in enumerate(lines) for m in [SIGNING_LITERAL_RE.search(line)] if m]
+
+
 def lint_notices() -> list[Diag]:
     try:
         deps = (ROOT / DEPS_FILE).read_text(encoding="utf-8").splitlines()
         notices = (ROOT / NOTICES_FILE).read_text(encoding="utf-8")
     except OSError as e:
-        return [Diag(NOTICES_FILE, 1, 1, "Z009", f"cannot read: {e}")]
+        return [Diag(NOTICES_FILE, 1, 1, "Z010", f"cannot read: {e}")]
     rows = [line for line in notices.splitlines() if line.startswith("| ")]
     diags = []
     for i, line in enumerate(deps):
         m = DEP_HEADER_RE.match(line)
         if m and not any(m.group(1) in row for row in rows):
-            diags.append(Diag(DEPS_FILE, i + 1, 1, "Z009",
+            diags.append(Diag(DEPS_FILE, i + 1, 1, "Z010",
                               f"'{m.group(1)}' has no row in {NOTICES_FILE}; add its license and use"))
     return diags
 
@@ -269,6 +293,8 @@ def lint_file(path: Path) -> list[Diag]:
     if r in (DEPS_FILE, NOTICES_FILE):
         return lint_notices()
     parts = set(Path(r).parts)
+    if path.suffix in KEY_EXTS | SIGNING_CONFIG_EXTS:
+        return [] if parts & SKIP_PARTS else lint_signing(path, r)
     if parts & SKIP_PARTS or path.suffix not in SOURCE_EXTS:
         return []
     try:
@@ -339,7 +365,12 @@ def repo_files() -> list[Path]:
     files.append(ROOT / AGENT_GUIDE)
     files.append(ROOT / NOTICES_FILE)
     files.extend((ROOT / SKILLS_DIR).glob("*/SKILL.md"))
-    return sorted(files)
+    # Signing material can be anywhere: every tracked or untracked, not ignored file.
+    listed = subprocess.run(["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT,
+                            capture_output=True, text=True).stdout
+    files.extend(ROOT / l for l in listed.splitlines()
+                 if Path(l).suffix in KEY_EXTS | SIGNING_CONFIG_EXTS)
+    return sorted(set(files))
 
 
 def staged_files() -> list[Path]:
@@ -348,7 +379,8 @@ def staged_files() -> list[Path]:
         cwd=ROOT, capture_output=True, text=True, check=True,
     ).stdout
     return [ROOT / l for l in out.splitlines()
-            if Path(l).suffix in SOURCE_EXTS or l == AGENT_GUIDE or SKILL_FILE_RE.match(l)]
+            if Path(l).suffix in SOURCE_EXTS | KEY_EXTS | SIGNING_CONFIG_EXTS or l == AGENT_GUIDE
+            or l in (DEPS_FILE, NOTICES_FILE) or SKILL_FILE_RE.match(l)]
 
 
 def hook_files() -> list[Path]:

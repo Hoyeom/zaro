@@ -65,6 +65,19 @@ void package_segment(const char* name, char* out, size_t size) {
     out[o] = 0;
 }
 
+// A version name goes into a Groovy string literal: keep it to characters that need no escaping.
+bool valid_version_name(const char* s) {
+    const size_t n = strlen(s);
+    if (n == 0 || n > 64) return false;
+    for (const char* c = s; *c; ++c) {
+        const char ch = *c;
+        const bool ok = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') ||
+                        ch == ' ' || ch == '.' || ch == '_' || ch == '+' || ch == '-';
+        if (!ok) return false;
+    }
+    return true;
+}
+
 bool valid_package(const char* id) {
     int segments = 0;
     const char* p = id;
@@ -176,7 +189,7 @@ void copy_runtime_file(const char* path, void* user) {
     if (starts_with(rel, kAssets) && !add_unique(e.assets, rel + sizeof(kAssets) - 1)) e.ok = false;
 }
 
-// A sprite sheet and its image. An SVG sheet is cooked first (D-025) and packs the cooked PNG; the
+// A sprite sheet and its image. An SVG sheet is cooked first (D-026) and packs the cooked PNG; the
 // APK never holds the SVG files.
 void add_sheet_files(PathList& files, const char* doc_path, const char* sheet_rel, bool* ok) {
     char path[kPath];
@@ -335,13 +348,24 @@ int export_android(const ExportOptions& o) {
         code = 2;
     }
     display_name(s->name, name, sizeof(name));
-    const zaro_version_info v = zaro_get_version();
-    char version[32];
-    snprintf(version, sizeof(version), "%u.%u.%u", v.major, v.minor, v.patch);
+    // The game's version (D-025). Google Play allows version codes up to 2100000000 and needs a
+    // higher one for every upload; the name is shown to players.
+    const char* version_code = o.version_code ? o.version_code : "1";
+    const char* version_name = o.version_name ? o.version_name : "1.0";
+    char* code_end = nullptr;
+    const unsigned long long code_value = strtoull(version_code, &code_end, 10);
+    if (code == 0 && (!version_code[0] || *code_end || version_code[0] == '0' || code_value > 2100000000ull)) {
+        log_error(kErrCliUsage, "--version-code '%s' must be a whole number from 1 to 2100000000", version_code);
+        code = 2;
+    }
+    if (code == 0 && !valid_version_name(version_name)) {
+        log_error(kErrCliUsage, "--version-name '%s' must be 1 to 64 letters, digits, spaces or ._+-", version_name);
+        code = 2;
+    }
     const char* orientation = o.portrait ? "sensorPortrait" : "sensorLandscape";
     const Substitution subs[] = {
-        {"@ZARO_NAME@", name}, {"@ZARO_PACKAGE@", package}, {"@ZARO_VERSION@", version},
-        {"@ZARO_ORIENTATION@", orientation},
+        {"@ZARO_NAME@", name}, {"@ZARO_PACKAGE@", package}, {"@ZARO_VERSION_CODE@", version_code},
+        {"@ZARO_VERSION_NAME@", version_name}, {"@ZARO_ORIENTATION@", orientation},
     };
 
     Export e;

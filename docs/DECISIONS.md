@@ -480,7 +480,7 @@ Status of all entries below: **accepted, 2026-11-01**.
 
 ## D-024 SVG art: PlutoSVG on PlutoVG, in the zaro tool's cook step only
 
-- **Status**: accepted, 2026-11-02. **Superseded by D-025** (same day): PlutoSVG does not draw
+- **Status**: accepted, 2026-11-02. **Superseded by D-026** (same day): PlutoSVG does not draw
   `clipPath` or `<style>` sheets, contrary to the "Why" below.
 - **Decision**: SVG character art is rasterized into sprite atlases by PlutoSVG (MIT) drawing with
   PlutoVG (MIT), pinned at plutosvg v0.0.8 and plutovg v1.3.3 (the commit plutosvg v0.0.8 pins).
@@ -514,7 +514,90 @@ Status of all entries below: **accepted, 2026-11-01**.
 - **Not supported**: masks, text and filters (drop shadows, blurs). Artists convert text to
   outlines and bake effects into shapes before export. Revisit if the owner's art needs them.
 
-## D-025 SVG art: LunaSVG (with its PlutoVG), in the zaro tool's cook step only
+## D-025 Google Play release builds: requirements as checked on 2026-11-02
+
+- **Decision**: ZARO's Android release path follows Google Play's current requirements, listed below
+  with their official sources and the date they were read. The next check compares against this
+  list and records what changed in a new entry. ZARO's release build (`tools/android.py aab
+  --release`) is an Android App Bundle that targets API 36, carries only 16 KB-aligned native
+  libraries, is signed with the game's upload key, and comes with a native debug symbols file.
+  Google holds the app signing key (Play App Signing); ZARO never holds or produces store-signed
+  artifacts.
+- **Requirements, checked 2026-11-02** (only what the linked pages say):
+  - **Target API**: since 2026-08-31, new apps and app updates must target Android 16 (API 36) or
+    higher; existing apps must target API 35 or higher to stay available to new users on newer
+    devices. Extensions ran to 2026-11-01. No later requirement was stated.
+    [developer.android.com/google/play/requirements/target-sdk](https://developer.android.com/google/play/requirements/target-sdk)
+    (updated 2026-10-28)
+  - **16 KB page sizes**: apps targeting API 35 or higher must support 16 KB pages on 64-bit
+    devices. From 2027-02-01, updates that do not cannot be released. NDK r28 and later link
+    16 KB-aligned by default. Each `.so` must have LOAD segments aligned to at least `2**14`
+    (`llvm-objdump -p`), and uncompressed libraries must sit on a 16 KB zip boundary; a bundle
+    requests that with `PAGE_ALIGNMENT_16K` in its bundletool config.
+    [developer.android.com/guide/practices/page-sizes](https://developer.android.com/guide/practices/page-sizes)
+    (updated 2026-10-16)
+  - **App Bundles and size**: new apps must publish as an AAB (since August 2021). Limits on the
+    compressed download: base module 500 MB, each feature module 500 MB, each asset pack 1.5 GB,
+    all modules plus install-time asset packs 4 GB, on-demand and fast-follow asset packs 30 GB,
+    34 GB overall.
+    [developer.android.com/guide/app-bundle](https://developer.android.com/guide/app-bundle)
+    (updated 2026-06-24),
+    [support.google.com/googleplay/android-developer/answer/9859372](https://support.google.com/googleplay/android-developer/answer/9859372)
+  - **Signing**: with Play App Signing, Google manages the app signing key and the developer keeps
+    an upload key. New apps are enrolled automatically in "quantum-ready, hybrid signing with
+    Google-generated keys" (RSA 4096 plus ML-DSA-65). The upload key must be an RSA key of 2048
+    bits or more in a Java keystore. A lost or compromised upload key can be reset by Google.
+    [support.google.com/googleplay/android-developer/answer/9842756](https://support.google.com/googleplay/android-developer/answer/9842756)
+  - **Native debug symbols**: one file per app version. Its layout is one directory per ABI holding
+    the unstripped `.so` files. The size limit differs between sources: 800 MB in the Play Console
+    Help, 1.6 GB on developer.android.com.
+    [developer.android.com/build/include-native-symbols](https://developer.android.com/build/include-native-symbols)
+    (updated 2026-09-21),
+    [support.google.com/googleplay/android-developer/answer/9848633](https://support.google.com/googleplay/android-developer/answer/9848633)
+  - **Play Billing Library**: since 2026-08-31 (extension to 2026-11-01), new apps and updates must
+    use version 8 or later. Version 8 reaches the same deadline on 2027-08-31 and version 9 on
+    2028-08-31. This concerns the billing bridge in P4c.
+    [developer.android.com/google/play/billing/deprecation-faq](https://developer.android.com/google/play/billing/deprecation-faq)
+    (updated 2026-10-23)
+  - **Play Integrity**: standard requests (low latency, replay protection by Google Play) are the
+    recommended kind; classic requests remain. The default quota is 10,000 requests per day.
+    Verification belongs to P4c.
+    [developer.android.com/google/play/integrity/overview](https://developer.android.com/google/play/integrity/overview)
+    (updated 2026-04-20)
+  - **Developer verification**: Play apps had to be registered in Play Console by 2026-09-30.
+    From the same date, certified devices in Brazil, Indonesia, Singapore and Thailand require
+    apps from registered developers, and global rollout is planned for 2027.
+    [support.google.com/googleplay/android-developer/answer/17134731](https://support.google.com/googleplay/android-developer/answer/17134731),
+    [developer.android.com/developer-verification](https://developer.android.com/developer-verification)
+  - **Technical quality from February 2027**: games must stay under memory thresholds (anonymous
+    RSS plus swap, 90th percentile; for example 2.25 GB in the foreground on 4 GB devices and
+    3.5 GB on 8 GB devices), bitmap memory thresholds, and a code optimization rule for games with
+    more than 50 MB of DEX. ZARO's DEX is SDL's Java side, far below that.
+    [support.google.com/googleplay/android-developer/answer/17492799](https://support.google.com/googleplay/android-developer/answer/17492799),
+    [support.google.com/googleplay/android-developer/answer/18100766](https://support.google.com/googleplay/android-developer/answer/18100766)
+  - **API 37 and later**: apps targeting Android 17 must declare the local network permission and
+    use the location button for one-time location. ZARO uses neither.
+    [support.google.com/googleplay/android-developer/answer/18100766](https://support.google.com/googleplay/android-developer/answer/18100766)
+- **Why**: the requirements change every year. A dated list with links turns the next check into a
+  diff, and the build checks below keep a release from silently falling behind.
+- **How ZARO meets them**:
+  - The Gradle template targets API 36 and builds an AAB with `bundleRelease`.
+  - The native build fails if a packed `.so` has a LOAD segment aligned below 16 KB
+    (`cmake/ZaroCheckElf.cmake`). `tools/android.py aab` runs `bundletool validate`, checks the
+    bundle's `PAGE_ALIGNMENT_16K`, and runs `zipalign -c -P 16` on the device APKs bundletool
+    builds from it.
+  - The upload key comes only from the `ZARO_UPLOAD_*` environment variables; `aab --release`
+    stops without them, and lint Z009 rejects keystores and literal signing passwords in this
+    repository. The version code and name come from the game (`zaro export android
+    --version-code N --version-name S`).
+  - `native-debug-symbols.zip` holds the unstripped libraries, one directory per ABI.
+  - ZARO's CI builds a debug-key bundle and a release bundle signed with a key generated for that
+    run. How a game's CI keeps its real upload key is in
+    [docs/android-release.md](android-release.md).
+- **Revisit when**: Google announces the next target API year, before 2027-02-01 (16 KB and the
+  quality thresholds), and before P4c ships billing (Billing Library 9 by 2028-08-31).
+
+## D-026 SVG art: LunaSVG (with its PlutoVG), in the zaro tool's cook step only
 
 - **Status**: accepted, 2026-11-02. Supersedes D-024.
 - **Decision**: SVG character art is drawn into sprite atlases by LunaSVG 3.5.0 (MIT), with the
@@ -544,7 +627,7 @@ Status of all entries below: **accepted, 2026-11-01**.
 - **License duty**: PlutoVG's scan converter and stroker are FreeType code under the FreeType
   License. A binary distribution of the `zaro` tool must state that it is based in part on the
   work of the FreeType Team. `THIRD_PARTY_NOTICES.md` holds that statement and every dependency's
-  license; lint rule Z009 fails when a dependency in `cmake/ZaroDeps.cmake` is missing there.
+  license; lint rule Z010 fails when a dependency in `cmake/ZaroDeps.cmake` is missing there.
 - **Rejected**: PlutoSVG (above); nanosvg (zlib, but no `<style>`, `clipPath` or `use`, and
   unmaintained); ThorVG (MIT, its rasterizer also FreeType-derived, about 900 KB of C++ with Lottie);
   resvg (Apache-2.0, the most complete, but needs a Rust toolchain); librsvg and cairo (LGPL, D-012).

@@ -10,7 +10,7 @@
 //   rect = [0, 0, 64, 64]      # x, y, width, height in image pixels
 //   pivot = [0.5, 1.0]         # optional, overrides the sheet's pivot
 //
-//   [sheet]                    # or SVG art (D-025): each file is one frame, in this order
+//   [sheet]                    # or SVG art (D-026): each file is one frame, in this order
 //   svg = ["cat/walk_0.svg", "cat/walk_1.svg"]
 //   size = [128, 128]          # pixels each SVG is drawn at (scaled to fit, centred)
 //

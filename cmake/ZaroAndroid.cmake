@@ -7,25 +7,39 @@
 #     app/src/main/assets/shaders/*.wgsl           shaders compiled by the host's slangc
 #     app/src/main/assets/fonts/                   the bundled fonts (D-019)
 #
+#   <build>/android-symbols/arm64-v8a/*.so         the same libraries unstripped, for ndk-stack and
+#                                                  native-debug-symbols.zip (tools/android.py aab, D-025)
+#
 # The template holds @ZARO_...@ placeholders that the export fills in, so this directory is not a
-# Gradle project by itself. Unstripped libraries stay in the build directory for ndk-stack.
+# Gradle project by itself. Every packed library passes cmake/ZaroCheckElf.cmake (no build-machine
+# paths, 16 KB LOAD alignment).
 
 set(_rt ${CMAKE_BINARY_DIR}/android-runtime)
 set(_jni ${_rt}/app/src/main/jniLibs/${ANDROID_ABI})
+set(_sym ${CMAKE_BINARY_DIR}/android-symbols/${ANDROID_ABI})
 set(_template ${CMAKE_SOURCE_DIR}/src/platform/android/project)
 file(GLOB_RECURSE _template_files CONFIGURE_DEPENDS ${_template}/*)
 
+set(_pack_commands)
+foreach(pair "libmain.so|$<TARGET_FILE:zaro>" "libSDL3.so|$<TARGET_FILE:SDL3::SDL3-shared>"
+             "libwgpu_native.so|$<TARGET_FILE:zaro_wgpu>")
+  string(REPLACE "|" ";" pair "${pair}")
+  list(GET pair 0 name)
+  list(GET pair 1 file)
+  list(APPEND _pack_commands
+    COMMAND ${CMAKE_COMMAND} -E copy ${file} ${_sym}/${name}
+    COMMAND ${CMAKE_STRIP} --strip-unneeded -o ${_jni}/${name} ${file}
+    COMMAND ${CMAKE_COMMAND} -DREADELF=${CMAKE_READELF} -DLIB=${_jni}/${name}
+            -P ${CMAKE_SOURCE_DIR}/cmake/ZaroCheckElf.cmake)
+endforeach()
+
 add_custom_target(zaro_android_runtime ALL
-  COMMAND ${CMAKE_COMMAND} -E rm -rf ${_rt}
+  COMMAND ${CMAKE_COMMAND} -E rm -rf ${_rt} ${_sym}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${_template} ${_rt}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sdl3_SOURCE_DIR}/android-project/app/src/main/java/org/libsdl/app
           ${_rt}/app/src/main/java/org/libsdl/app
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${_jni}
-  COMMAND ${CMAKE_STRIP} --strip-unneeded -o ${_jni}/libmain.so $<TARGET_FILE:zaro>
-  COMMAND ${CMAKE_COMMAND} -DREADELF=${CMAKE_READELF} -DLIB=${_jni}/libmain.so
-          -P ${CMAKE_SOURCE_DIR}/cmake/ZaroCheckNeeded.cmake
-  COMMAND ${CMAKE_STRIP} --strip-unneeded -o ${_jni}/libSDL3.so $<TARGET_FILE:SDL3::SDL3-shared>
-  COMMAND ${CMAKE_STRIP} --strip-unneeded -o ${_jni}/libwgpu_native.so $<TARGET_FILE:zaro_wgpu>
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${_jni} ${_sym}
+  ${_pack_commands}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/shaders ${_rt}/app/src/main/assets/shaders
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/fonts ${_rt}/app/src/main/assets/fonts
   DEPENDS zaro ${_template_files}
