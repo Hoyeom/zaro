@@ -1,6 +1,6 @@
 ---
 name: zaro-fx
-description: Visual effects for the neon look (P6, D-029, D-030) — glowing shapes (Shape, CrowdShape, ArenaLook) with halos, additive blending, trails and hit flash, the HDR frame with bloom and its formats, the post-processing passes and tonemap, and how effect components reach render without touching the simulation. Load before adding or changing a Shape, CrowdShape, ArenaLook, Bloom or another effect component, before editing src/app/fx_layer, src/app/shape_layer, src/render/post_renderer, src/render/shape_renderer or shaders/post.slang, shape.slang or shape_sdf.slang, before adding a pass that draws into the 3D view, and when a glow looks wrong or costs too much.
+description: Visual effects for the neon look (P6, D-029, D-030) — glowing shapes (Shape, CrowdShape, ArenaLook) with halos, additive blending, trails and hit flash, GPU particles (ParticleEmitter, CrowdFx), screen shake and flash (ScreenFx), the HDR frame with bloom and its formats, the post-processing passes and tonemap, and how effect components reach render without touching the simulation. Load before adding or changing an effect component (Shape, CrowdShape, ArenaLook, Bloom, ScreenFx, CrowdFx, ParticleEmitter), before editing src/app/fx_layer, src/app/shape_layer, src/render/post_renderer, shape_renderer or particle_renderer, or shaders/post, shape, shape_sdf, particle or particles_* .slang, before adding a pass that draws into the 3D view, and when a glow looks wrong or costs too much.
 ---
 
 # Visual effects (P6)
@@ -13,7 +13,8 @@ every field.
 ## Glowing shapes
 
 - **`Shape`** (any entity): a rect, circle, ring, regular polygon or line. In the world it lies flat
-  on the ground at `position` (y is its height; local +y points to world -z); on the screen it is
+  on the ground at `position` (y is its height; local +y is world +z, and `rotation` turns +x toward
+  +z as `Transform` does, which the camera shows as clockwise, like screen shapes); on the screen it is
   in pixels. `follow = "player"` draws it at the player's interpolated position plus `position` and
   hides the player's cube. `intensity` above 1 glows under `Bloom`; `glow` adds a halo of that width
   beyond the edge; `blend = "add"` adds light, `"alpha"` covers. `spin` turns it on the tick clock.
@@ -33,6 +34,28 @@ every field.
   player (`zaro check` reports both).
 - **Tests**: `shape_render_gpu` (every kind at known pixels), `scene_tests_fx` (flash on the tick
   clock), `check_crowd_two_looks`, `check_screen_shape_follow`, `screenshot_shapes`.
+
+## Particles, shake and flash
+
+- **`ParticleEmitter`** (any entity): sparks at `rate` per second, plus `burst` at once; the app
+  emits the burst and sets it back to 0 on the next tick, so a script fires one with
+  `zaro.set(entity, "ParticleEmitter", "burst", 40)`. `follow = "player"` emits around the player.
+- **`CrowdFx`** (on the crowd's spawner): when an enemy reaches the player (it vanishes and respawns
+  at the edge, `sim::last_hits`), a burst of `particles` where it was, `shake` and `flash` added to
+  `ScreenFx`, and `Shape.flash` raised to `player_flash` on shapes that follow the player. At most
+  64 hit bursts per tick; more hits still add shake.
+- **`ScreenFx`** (one per scene): `shake` is trauma 0..1, the camera moves by `shake_strength` times
+  its square along two smooth noises; `flash` adds `flash_color` over the frame in the tonemap. Both
+  fall by their decay per second on the tick clock (`app::step_fx`), so scene tests can expect them.
+  A scene with ScreenFx renders through the HDR frame even without Bloom.
+- `render::ParticleRenderer` keeps a ring buffer of `app::kParticleCapacity` (32768) particles. The
+  CPU sends 64 bytes per burst (`render::ParticleBurst`); a "particles" compute pass integrates the
+  live ones and writes the new ones with hashed random directions (shaders/particles_sim.slang); a
+  "particles" render pass draws each as an additive streak along its motion, without a depth test
+  (shaders/particles_draw.slang). Bursts are only queued when there is a GPU; the component values
+  change the same way either way.
+- **Tests**: `particle_render_gpu` (a burst emitted, then moved by a frame's time),
+  `scene_tests_fx` (decay.test.toml, hits.test.toml), `check_sparks_scene`, `screenshot_sparks`.
 
 ## The HDR frame and bloom (D-030)
 

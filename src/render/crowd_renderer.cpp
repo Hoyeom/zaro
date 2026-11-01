@@ -234,19 +234,19 @@ void destroy_crowd_renderer(CrowdRenderer* r) {
 
 namespace {
 
-Vec3 camera_eye(const CrowdScene& scene) {
-    return Vec3{scene.player_x, 0.0f, scene.player_z} + Vec3{0.0f, 30.0f, 24.0f} * scene.zoom;
+Vec3 camera_target(const CrowdScene& scene) {
+    return Vec3{scene.player_x + scene.camera_offset[0], 0.0f, scene.player_z + scene.camera_offset[1]};
 }
 
+Vec3 camera_eye(const CrowdScene& scene) { return camera_target(scene) + Vec3{0.0f, 30.0f, 24.0f} * scene.zoom; }
+
 Mat4 camera_view_proj(const CrowdScene& scene, uint32_t width, uint32_t height) {
-    const Vec3 target{scene.player_x, 0.0f, scene.player_z};
     const float aspect = height ? (float)width / (float)height : 1.0f;
-    return mul(perspective(0.87f, aspect, 0.5f, 600.0f), look_at(camera_eye(scene), target, Vec3{0, 1, 0}));
+    return mul(perspective(0.87f, aspect, 0.5f, 600.0f), look_at(camera_eye(scene), camera_target(scene), Vec3{0, 1, 0}));
 }
 
 Vec3 camera_right(const CrowdScene& scene) {
-    const Vec3 target{scene.player_x, 0.0f, scene.player_z};
-    return normalize(cross(target - camera_eye(scene), Vec3{0, 1, 0}));
+    return normalize(cross(camera_target(scene) - camera_eye(scene), Vec3{0, 1, 0}));
 }
 
 }  // namespace
@@ -258,6 +258,13 @@ void crowd_camera(const CrowdScene& scene, uint32_t width, uint32_t height, floa
     right[0] = r.x;
     right[1] = r.y;
     right[2] = r.z;
+}
+
+void crowd_camera_forward(const CrowdScene& scene, float forward[3]) {
+    const Vec3 f = normalize(camera_target(scene) - camera_eye(scene));
+    forward[0] = f.x;
+    forward[1] = f.y;
+    forward[2] = f.z;
 }
 
 void render_crowd(CrowdRenderer* r, const CrowdScene& scene) {
