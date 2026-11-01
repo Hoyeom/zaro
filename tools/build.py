@@ -2,9 +2,13 @@
 """Configure, build and optionally test ZARO with one command.
 
 Usage:
-  python tools/build.py [preset] [--test] [--clean]
+  python tools/build.py [preset] [--test] [--no-gpu-tests] [--clean] [--engine-budget=SECONDS]
 
 preset is one of the configure presets in CMakePresets.json (default: debug).
+--no-gpu-tests skips ctest tests labelled `gpu` (hosted CI runners have no GPU).
+--engine-budget=S deletes ZARO's own object files after the build, rebuilds them alone and
+fails if that takes longer than S seconds (`engine_build_seconds=<n>`). Third-party code is
+excluded, so the number tracks the engine's own compile time (D-001, D-013).
 
 On Windows this locates the MSVC toolchain (vcvars64.bat) and the CMake/Ninja
 that ship with Visual Studio, so nothing has to be on PATH beforehand.
@@ -95,8 +99,23 @@ def repair_header_deps(env: dict[str, str], build_dir: Path) -> int:
     return len(stale)
 
 
+def remove_engine_objects(build_dir: Path) -> int:
+    """Deletes object files of ZARO-owned targets (CMakeFiles/zaro*.dir, test_*.dir)."""
+    count = 0
+    for pattern in ("zaro*.dir", "test_*.dir"):
+        for target_dir in (build_dir / "CMakeFiles").glob(pattern):
+            for obj in list(target_dir.rglob("*.obj")) + list(target_dir.rglob("*.o")):
+                obj.unlink()
+                count += 1
+    return count
+
+
 def main(argv: list[str]) -> int:
     preset = next((a for a in argv if not a.startswith("--")), "debug")
+    budget = None
+    for a in argv:
+        if a.startswith("--engine-budget="):
+            budget = float(a.split("=", 1)[1])
     # Tool output can hold characters the console code page cannot encode; never crash on them.
     sys.stdout.reconfigure(errors="replace")
     env = dict(os.environ)
@@ -137,11 +156,25 @@ def main(argv: list[str]) -> int:
         if sys.platform == "win32" and repair_header_deps(env, ROOT / "build" / preset):
             run("cmake", "--build", "--preset", preset)
         elapsed = time.perf_counter() - start
+        engine_seconds = None
+        if budget is not None:
+            removed = remove_engine_objects(ROOT / "build" / preset)
+            t0 = time.perf_counter()
+            run("cmake", "--build", "--preset", preset)
+            engine_seconds = time.perf_counter() - t0
+            print(f"engine_build_seconds={engine_seconds:.1f} objects={removed} budget={budget:g}")
         if "--test" in argv:
-            run("ctest", "--preset", preset)
+            ctest = ["ctest", "--preset", preset]
+            if "--no-gpu-tests" in argv:
+                ctest += ["-LE", "gpu"]
+            run(*ctest)
     except subprocess.CalledProcessError as e:
         return e.returncode or 1
     print(f"build_seconds={elapsed:.1f}")
+    if engine_seconds is not None and engine_seconds > budget:
+        print(f"build.py: error: engine rebuild took {engine_seconds:.1f}s, budget is {budget:g}s",
+              file=sys.stderr)
+        return 1
     return 0
 
 
