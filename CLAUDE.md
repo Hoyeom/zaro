@@ -3,7 +3,8 @@
 ZARO (**Z**ero-royalty, **A**I-native, **R**apid, **O**pen) is a royalty-free game engine built
 to be driven by AI agents: text assets, a headless CLI, structured errors. It targets very large
 entity counts (tens of thousands of enemies) with compute-shader-heavy rendering.
-Every architectural decision and its reasoning is in [docs/DECISIONS.md](docs/DECISIONS.md).
+Every architectural decision and its reasoning is in [docs/DECISIONS.md](docs/DECISIONS.md); the
+phases sessions pick work from are in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Commands
 
@@ -35,7 +36,7 @@ Every architectural decision and its reasoning is in [docs/DECISIONS.md](docs/DE
 | Gradle project for an APK | `build/debug/zaro export android examples/crowd/scene.toml [--out DIR]` |
 | APK in one step (native build, export, Gradle) | `python tools/android.py apk examples/crowd/scene.toml` |
 | Install and start on a device / benchmark it | `python tools/android.py run`, `python tools/android.py perf [--enemies N]` |
-| Enable the pre-commit hook (once per clone) | `git config core.hooksPath tools/githooks` |
+| Enable the git hooks (once per clone) | `git config core.hooksPath tools/githooks` |
 
 `tools/build.py` wraps the presets in `CMakePresets.json` (`debug`, `release`, `profile`).
 On Windows it finds MSVC through `vswhere`, falling back to a scan for `vcvars64.bat`, and adds
@@ -52,18 +53,19 @@ from source compile into each preset's own `build/<preset>/_deps/`.
 include/zaro/   public C API = plugin ABI (C only, lint rules Z001/Z006)
 src/<module>/   engine modules, see "Modules"
 shaders/        Slang sources; the build compiles them to <bin>/shaders/*.wgsl
-examples/       example scenes and prefabs (TOML)
+examples/       example scenes, prefabs, scripts and scene tests
 tests/          test executables and tests/data/; c_abi_check.c compiles public headers as C
-tools/          build.py, lint.py, githooks/
+tools/          build.py, lint.py, git_rules.py, githooks/, ci/, github/
 cmake/          ZaroCompilerFlags.cmake (zaro_target_defaults), ZaroDeps.cmake (pinned deps)
-docs/           DECISIONS.md, ROADMAP.md (phases sessions pick work from), guide.md (walkthrough)
+docs/           DECISIONS.md, ROADMAP.md, guide.md (walkthrough)
+.claude/        settings.json (hooks, denied commands) and skills/
 ```
 
 ## Modules
 
 Each directory under `src/` is one module and one static library. It may include only the
-modules listed for it (lint rule Z007, `MODULE_DEPS` in tools/lint.py). Link dependencies in
-CMakeLists.txt follow the same graph.
+modules listed for it (lint rule Z007, `MODULE_DEPS` in tools/lint.py). Adding a module, header
+ownership and the rest of the layering rules are in the `zaro-code` skill.
 
 | Module | Role | May include |
 |---|---|---|
@@ -78,106 +80,21 @@ CMakeLists.txt follow the same graph.
 | `app` | owns the frame loop and wires sim and ui to render | all of the above |
 | `cli` | the `zaro` command | core, app |
 
-Third-party headers belong to one module only: `SDL3/`, `android/` and `jni.h` → platform, `webgpu/` → rhi,
-`TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` → scene, `lua.h`/`lualib.h`/`luacode.h` → script,
-`stb_truetype.h` → `ui/font.cpp`, `stb_image.h` → `ui/image.cpp`, `cJSON.h` → `app/design_import.cpp`.
-To add a feature, put the state and rules in `sim`, the drawing in `render`, and the
-connection in `app`. A new module needs an entry in `MODULE_DEPS` (tools/lint.py), in `SCOPES`
-(tools/git_rules.py) and in this table.
+## Skills
 
-## Scenes and components (D-017)
+Load a skill before working in the situation it names; it holds what would otherwise be here.
 
-The file format is documented at the top of `src/scene/scene.h`. A scene is a `[scene]` table
-plus `[[entity]]` tables. Each entity has a `name`, an optional `prefab` (path relative to the
-scene) and `[entity.<Component>]` tables. Values start from the component's defaults, then the
-prefab, then the entity, field by field.
-
-To add a component:
-1. Define a plain struct with default member initializers in the module that owns the behaviour
-   (see `src/sim/crowd_components.h`).
-2. Describe it with `ZARO_FIELD` or `ZARO_FIELD_RANGE` and `ZARO_COMPONENT` (`src/core/reflect.h`),
-   with a doc string for the component and for every field.
-3. Register it from `app::register_all_components` (`src/app/tools.cpp`).
-
-Field types: `bool i32 u32 u64 f32 vec2 vec3 vec4 string color enum` (strings up to 127 bytes).
-`color` is written `"#RRGGBB"` or `"#RRGGBBAA"` (sRGB) and `enum` as one of the names that
-`zaro schema` lists under `choices`; both are `uint32_t` members (`ZARO_FIELD_ENUM` for enums).
-`zaro check` reports every problem in one pass as `file:line:col: error[ZE04nn]` (ids in
-`src/core/log.h`), with a "did you mean" hint for misspelt components and fields.
-
-## Scripts (D-009)
-
-Game scripts are Luau files. The API and the sandbox are documented at the top of
-`src/script/script.h`: the `on_start()` and `on_tick(tick)` hooks, and `zaro.get`, `zaro.set`,
-`zaro.has`, `zaro.tick` and `zaro.log`. `zaro.set` goes through reflection, so a script can change
-any registered component field with the same type and range checks as a scene file.
-
-A scene names its script with `script = "file.luau"` in `[scene]`. `zaro run <scene>` calls
-`on_start()` once and `on_tick(tick)` before every simulation tick (tick 1 is the first). Values
-the script changes are read back the same tick. Today these are `CrowdSpawner.speed` and
-`PlayerController.speed`; count, arena and seed are fixed at start. `zaro check` also compiles
-the script and runs its top level.
-
-Scripts drive the scene's UI through `ui` (same header): `ui.set(key, value)` sets a view-model
-value that texts show as `{key}` (`{key:,}` groups digits), `ui.get_field`/`ui.set_field` read and
-change any widget field of a screen node (for example `Layout.visible` to open a popup), and
-`ui.language(code)` switches the string tables after the call. A clicked button with an `action`
-calls `on_ui(action, screen, node)` before the frame's ticks. The view model and the command queue
-are `scene::UiState` (`src/scene/ui_state.h`), owned by the app's UI layer.
-
-A failing script ends a headless run with exit code 1. In a window it is paused and reloads when
-the file is saved.
-
-- There is no `os`, `io`, `loadstring` or `require`. The standard library and `zaro` are
-  read-only, and `math.random` is seeded from the scene. Scripts are deterministic.
-- Errors carry file and line: ZE0500 for compile errors, ZE0501 for runtime errors including
-  API misuse (with "did you mean" hints), and ZE0502 for a call over its time budget.
-- The Luau VM is built with `LUA_USE_LONGJMP=1`, so script errors never cross ZARO code as C++
-  exceptions. A `zaro.*` binding raises with `luaL_error`, which does not return. Bindings must
-  therefore hold no objects with destructors.
-
-## Scene tests
-
-`zaro test` runs `*.test.toml` files (format at the top of `src/scene/test_spec.h`). It looks in the
-given files or directories, or in `tests/` when none are given. Each test runs its scene for N
-ticks without a GPU, with the scripted player, the scene's script and its UI. `[[click]]` entries
-click a screen's button before a given tick's `on_tick`. It then checks the `[[expect]]` values
-(`equals`, `min`, `max`; with `screen` + `node` a widget field, or `text` for what a node shows)
-and the optional golden `state_hash`.
-
-- Failures are `file:line` diagnostics: ZE0600 invalid test file, ZE0601 expectation not met,
-  ZE0602 state hash differs, ZE0603 a click found no shown, enabled button (or one behind a modal).
-  A script error fails the test as well.
-- `zaro screenshot ... --click hud/settings_button` clicks on the first frames, so a screenshot can
-  show a popup (give it `--frames 15` so the entrance has finished).
-- `[[back]]` presses back before a tick, and `[[expect]] screen = ".." state = "open"` checks where a
-  screen is in its lifecycle (`opening`, `entering`, `open`, `closing`, `closed`).
-- `--update` writes the current hash into each file. Use it only when a behaviour change is
-  intended, and say so in the commit.
-- CI runs the tests on Windows, Linux and macOS (ARM). The same golden hash must hold on all
-  three. A ZE0602 on only one OS means float results diverged on that platform (D-005).
-
-## Android (D-022)
-
-- `python tools/android.py setup` installs the pinned NDK, SDK packages, JDK and Gradle (versions
-  at the top of `tools/android.py`). It accepts the Android SDK license only with
-  `--accept-licenses`; otherwise it shows the license.
-- The `android` preset builds `libmain.so`: the `zaro` command line as a shared library that
-  `dev.zaro.ZaroActivity` (an `SDLActivity`) calls. It writes `build/android/android-runtime`, a
-  Gradle template with the libraries and shaders. The template lives in
-  `src/platform/android/project`; `@ZARO_...@` placeholders are filled in by the export.
-- `zaro export android <scene>` copies the scene's directory (without `tests/` and `*.test.toml`)
-  and every file the scene names outside it (script, prefabs, screens with their prefabs and
-  images, string tables) to `assets/game/`. On the device they are unpacked to `/sdcard/Android/data/<package>/files`, which
-  becomes the working directory. Output goes to logcat: `adb logcat -s zaro`.
-- Launch with other arguments: `adb shell am start -S -n <package>/dev.zaro.ZaroActivity --es args
-  "'run game/scene.toml --headless --perf perf.json'"`. `tools/android.py perf` does this and pulls
-  the report.
-- Touch is a virtual stick in `platform::poll_input`. In the background the app drops its GPU
-  surface (`rhi::set_window(device, nullptr)`) and recreates it when `Input::window_changed` is set.
-- Export errors are ZE0800 (no runtime package, or a scene file outside the packed tree). The
-  build fails if `libmain.so` depends on a build-machine path (`cmake/ZaroCheckNeeded.cmake`).
-- CI builds the APK (`android apk` job); running it needs a device and stays local.
+- **`zaro-code`**: engine C++ and shaders: module layering, the C++ subset, deterministic
+  parallel simulation, Slang shaders, the Windows header-dependency repair.
+- **`zaro-scene`**: scenes, prefabs and components, Luau scripts, scene tests and golden hashes,
+  headless runs and perf.json.
+- **`zaro-ui`**: text and the glyph atlas, screen files, widgets, string tables, and how a frame's
+  UI is built and drawn.
+- **`zaro-android`**: the Android toolchain, the `android` preset, APK export and running on a
+  device.
+- **`zaro-docs`**: how documentation is written in this public repository and where each fact goes.
+- **`zaro-git`**: branches, commits, pull requests, auto-merge and CI. **Load it before writing a
+  commit message.**
 
 ## Design principles (do not erode these)
 
@@ -201,7 +118,8 @@ and the optional golden `state_hash`.
 
 ## Rules that are enforced
 
-Breaking a rule fails something. Each rule is listed with whatever catches it.
+Breaking a rule fails something. Each rule is listed with whatever catches it. A new rule gets a
+check and a row here; a rule written only in prose is not followed.
 
 | Rule | Enforced by |
 |---|---|
@@ -211,161 +129,32 @@ Breaking a rule fails something. Each rule is listed with whatever catches it.
 | No heavy standard headers (`<iostream>`, `<format>`, `<functional>`, `<filesystem>`, `<regex>`, …) | lint Z002 (full list: `BANNED_HEADERS` in tools/lint.py) |
 | Headers stay light: at most 12 includes, `#pragma once` | lint Z004, Z005 |
 | Module layering and third-party header ownership | lint Z007 |
+| Every skill is well-formed and listed under "Skills" above | lint Z008 |
 | Simulation is deterministic across thread counts | `crowd_determinism` test |
+| Golden state hashes hold on Windows, Linux and macOS | scene tests in CI |
+| Branch names, commit messages, sign-off, no commits or pushes to `main` | `tools/git_rules.py` from the git hooks and CI; `permissions.deny` in `.claude/settings.json` |
 
 Lint runs in three places:
 1. The Claude Code `PostToolUse` hook in `.claude/settings.json`, after every Edit or Write.
    A violation exits 2 and the agent sees the diagnostic immediately.
 2. The git pre-commit hook, `tools/githooks/pre-commit`.
-3. The `lint` test in ctest.
+3. The `lint` test in ctest, and the CI `rules` job.
 
 A single line can opt out with `// zaro-lint: allow Z00N <reason>`. Without a reason the
 opt-out is ignored.
 
-MSVC 19.44 compiles a bare `throw` without a diagnostic even with `/EHs-c-`. It rejects only
-`try`/`catch` (C4530) and `dynamic_cast` (C4541) under `/WX`. On MSVC, lint Z003 is the only
-check that catches `throw`.
+## Don't
 
-## C++ subset
+These bite before you know you are in the situation, which is why they are not in a skill.
 
-The engine is C++20, but only a restricted subset of it, chosen for compile speed (D-001).
-
-- Use instead of a banned header:
-  - `<iostream>` / `<format>` → `<stdio.h>` (`printf`, `snprintf`)
-  - `<functional>` → a function pointer plus `void* user` (see `jobs::RangeFn`)
-  - `<variant>` / `<any>` → a tagged union
-  - `<filesystem>` → the platform layer (`platform::file_mtime`, `platform::base_path`)
-- Report errors by return value, never by exception. Log them with `log_error(ErrorId, ...)`
-  (`src/core/log.h`), which prints `zaro: error[ZEnnnn]: ...`. Ids are stable and never
-  renumbered.
-- Templates only for small containers and math. No template metaprogramming in headers.
-- The plugin boundary (`include/zaro/`) is C: POD structs, function-pointer tables, a
-  `struct_size` field first for forward compatibility (D-011).
-
-## Simulation and parallelism
-
-- Gameplay runs at a fixed 60 Hz (`sim::kTickSeconds`). Rendering interpolates between ticks.
-- `jobs::parallel_for` bodies write only elements inside their `[begin, end)` range and read
-  only data that no iteration writes. Then results are identical for any thread count. Use
-  double buffers (`nvx`/`nvz` in `src/sim/crowd.cpp`) when a step reads neighbours.
-- Per-entity randomness inside parallel loops comes from `hash_u32` on entity index, tick and
-  seed, never from a shared RNG.
-
-## Headless runs and perf.json
-
-`zaro run --headless` runs one simulation tick per frame with a scripted player, renders
-offscreen, and keeps at most two frames in flight. `--perf PATH` writes:
-
-| Field | Meaning |
-|---|---|
-| `fps`, `frame_ms` (`avg`, `p50`, `p99`, `max`) | wall time per frame over the measured frames (after `warmup_frames`) |
-| `cpu_ms.sim`, `cpu_ms.render_prep` | average CPU time of the simulation tick and of instance upload + command recording |
-| `gpu_ms` | average GPU time per timed pass (`cull`, `main`) and `total`; `null` without timestamp support |
-| `draw_calls`, `entities`, `enemies`, `ticks`, `hits` | per-frame draw calls and simulation counters |
-| `state_hash` | simulation state after the run; equal for equal seed, tick count and build |
-| `adapter`, `backend`, `threads`, `resolution`, `mode` | run environment |
-
-The run also prints `state_hash=<hex> ticks=<n>` on stdout.
-
-## CI
-
-`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`:
-
-1. `rules` (Ubuntu): `tools/lint.py`, then the PR title and every PR commit through
-   `tools/git_rules.py` (format and DCO sign-off).
-2. `build` on Windows, Linux and macOS: `tools/build.py release --test --no-gpu-tests
-   --engine-budget=180`, then a simulation-only benchmark (`zaro run --sim-only`). Its
-   numbers go to the job summary and a `perf-<os>` artifact.
-
-Hosted runners have no GPU, so `gpu`-labelled tests and GPU timings run only locally. Linux
-system packages are listed in `tools/ci/install-linux-deps.sh`, which CI and
-`tools/ci/linux-docker.sh` share. Actions are pinned by commit SHA.
-
-## Text and UI (D-019, D-020)
-
-The `ui` module builds the frame's UI as a `ui::DrawList` of screen-space quads (pixels, origin
-top-left). `render::UiRenderer` draws the list over the frame in one pass ("ui") and one draw call.
-`ui::Quad`, `render::UiQuad` and `struct Quad` in `shaders/ui.slang` are the same 80 bytes; change
-all three together.
-
-- Text is UTF-8. `ui::draw_text` lays out lines (breaks at `
-` and after spaces, long words
-  between characters) and rasterizes glyphs into the atlas on first use. Measuring needs no GPU and
-  never touches the atlas.
-- Call `ui::begin_frame` before drawing text each frame. A full atlas skips the glyphs that do not
-  fit for that frame, then is cleared and refilled on the next one.
-- Screen files (`[screen]` + `[[node]]`, format at the top of `src/scene/scene.h`) load through the
-  scene loader; widgets are UI components (`ZARO_UI_COMPONENT`, `"kind": "ui"` in `zaro schema`)
-  and cannot go on scene entities, nor scene components on nodes (ZE0401). A node's `parent` must be
-  an earlier node (ZE0408). `[scene] ui = [...]` lists the screens drawn over the scene.
-- Texts starting with `@` are keys into `strings/<language>.toml` (`src/scene/strings.h`), chosen by
-  `[scene] strings`, `languages` (first is the default) and `--lang`. `zaro check` on a scene reports
-  keys missing from any language (ZE0702, with a hint), tables that disagree (ZE0703), and missing
-  images (ZE0701).
-- The bundled font is Noto Sans KR (Regular, Bold; OFL 1.1). The build copies it to `<bin>/fonts/`.
-  Font errors are ZE0700. PNG images go into a second, RGBA atlas (`ui::load_image`, ZE0701).
-- `ui::Context` holds the named fonts (`regular`, `bold`) and both atlases. A `ui::Screen` is a tree
-  of named nodes carrying widgets (`src/ui/widgets.h`: `Layout`, `Panel`, `Label`, `Image`, `Button`,
-  `ScrollList`, `Modal`), which are reflected structs like scene components. The top of
-  `src/ui/screen.h` describes layout, input and focus.
-- Each frame: `ui::begin_frame(context)`, `ui::update_screen` (applies the input against the
-  previous layout, then lays out), read the click and back events, `ui::draw_screen`. The app fills
-  `ui::UiInput` from `platform::Input` (pointer, wheel, edge-triggered navigation).
-- Navigation (D-021, top of `src/ui/navigator.h`): `[scene] ui` screens are roots, `[scene] screens`
-  can be opened. Buttons with `open:<screen>`, `close`, `back` or `home` navigate by themselves;
-  `app/ui_layer` runs the policy, the script hooks (`on_ui`, `on_back`, `on_screen`) and back at
-  root. Screen files declare `dismissible`, `transition` (`none`, `fade`, `pop`),
-  `transition_time` and `skippable`. A screen takes clicks only once its entrance is over.
-- Themes (D-023, top of `src/scene/theme.h`): `theme = "kit/theme.toml"` in `[screen]` lets colour
-  and number fields of the screen and its prefabs say `"$name"` (ZE0409 if unknown).
-  `zaro import-design` writes the theme from a Claude Design kit and a prefab stub per kit
-  component; fill stubs in with tokens. Do not edit a generated theme: change the kit and import
-  again (`--check` in CI fails otherwise).
-
-## Shaders
-
-Shaders are Slang (`shaders/*.slang`). `zaro_add_shaders` in `cmake/ZaroDeps.cmake` compiles
-them with `slangc -target wgsl -warnings-as-errors all` into `<bin>/shaders/`. A Slang error
-fails the build with the file and line. `shaders/frame.slang` must stay byte-compatible with
-`FrameConstants` in `src/render/crowd_renderer.cpp`, which a `static_assert` on its size checks.
-
-Hot reload: a windowed `zaro run` polls the `.wgsl` files twice a second. Rebuild with
-`python tools/build.py` while it runs, and the pipelines are recreated (`zaro: shaders reloaded`).
-
-## Troubleshooting
-
-- **Header edits did not rebuild a file** (Windows, Korean-localized MSVC). In parallel clean
-  builds, Ninja sometimes does not recognize MSVC's localized `/showIncludes` prefix and
-  records `#deps 0` for an object (`ninja -C build/<preset> -t deps`). `tools/build.py`
-  deletes such ZARO objects after each build and rebuilds them alone, which records the
-  dependencies. Running `cmake --build` directly skips that repair. Third-party objects under
-  `_deps/` are not repaired; they change only with a dependency bump, which reconfigures.
-  English MSVC output does not need the repair.
-
-## Branches, commits and pull requests (D-015)
-
-- `main` always builds and passes tests. Nothing is committed or pushed to it directly.
-- Work on a short-lived branch named `type/short-name`, e.g. `feat/flow-field-lod`,
-  `fix/rhi-resolve-align`. Types: `feat fix perf refactor docs test build ci chore revert`.
-- Commit messages: `type(scope): subject`, header at most 72 characters, no trailing period,
-  plus a DCO sign-off (`git commit -s`). Scope is optional; when given it is a module
-  (`core platform rhi sim scene render app cli`) or an area (`abi shaders tools cmake deps docs ci repo`).
-  Example: `fix(rhi): align query resolve offset to 256 bytes`.
-- One pull request per logical change. Changes are merged by **squash**; the PR title becomes the
-  commit on `main`, so it follows the same `type(scope): subject` format. Reverting a PR is
-  one `git revert`.
-- Run `python tools/build.py debug --test` before pushing.
-
-CI (`.github/workflows/ci.yml`) checks the PR title and every PR commit with
-`tools/git_rules.py pr-title` and `commits`.
-Enforced by `tools/git_rules.py` (rules G001–G006, `--list-rules`) through the git hooks in
-`tools/githooks/` (`pre-commit`: branch, `commit-msg`: message, `pre-push`: no push to `main`),
-and by `permissions.deny` in `.claude/settings.json` (pushes to `main`, `--no-verify`). The
-GitHub repository allows squash merges only, uses the PR title as the commit title, and deletes
-merged branches. The `main` ruleset (`tools/github/ruleset-main.json`, applied on GitHub) blocks
-deletion, force pushes and direct pushes. It also requires the four CI checks (`lint and
-repository rules` and `build and test` on each OS) before a squash merge. To land a PR once CI
-passes, enable auto-merge (`gh pr merge <n> --squash --auto`); nobody has to wait for the checks.
-Editing the JSON file does not change GitHub. Re-apply it with `gh api -X PUT
-repos/Hoyeom/zaro/rulesets/<id> --input tools/github/ruleset-main.json`; the ruleset id is in
-`gh api repos/Hoyeom/zaro/rulesets`.
+- **Don't write anything about a private repository here.** This repository and its history are
+  public. The owner's backend platform, its plugin and proprietary SDKs are described only in
+  ZARO's own terms, with no copied text, type names, paths or repository names (`zaro-docs`).
+- **Don't make the owner watch CI or press merge.** Open the PR, enable auto-merge
+  (`gh pr merge <n> --squash --auto`) and go on with the next step (`zaro-git`).
+- **Don't commit or push to `main`, and don't pass `--no-verify`.** The hooks and
+  `permissions.deny` refuse both.
+- **Don't build with `cmake --build` directly on Windows.** It skips the header-dependency repair
+  that `tools/build.py` runs (`zaro-code`).
+- **Don't run `zaro test --update` to make a failing test pass.** Update a golden hash only for an
+  intended behaviour change, and say so in the commit (`zaro-scene`).

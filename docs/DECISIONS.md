@@ -9,7 +9,7 @@ Status of all entries below: **accepted, 2026-11-01**.
 
 ## D-001 Language: restricted C++20, C ABI at the plugin boundary
 
-- **Decision**: The engine is C++20, limited to the subset in CLAUDE.md ("C++ subset").
+- **Decision**: The engine is C++20, limited to the subset in the zaro-code skill ("C++ subset").
   Exceptions and RTTI are off. Public headers stay STL-free. Builds use unity builds and skip
   the C++20 module scan. Everything under `include/zaro/` is plain C.
 - **Why**: Compile speed is the top priority, but C makes vector math and containers verbose,
@@ -110,7 +110,7 @@ Status of all entries below: **accepted, 2026-11-01**.
   C++ systems.
 
 - **Current state (M2-2)**: Luau 0.743 (VM and compiler only) runs scripts through the
-  `script` module (CLAUDE.md "Scripts"). The type checker (`luau-analyze`) is not integrated
+  `script` module (zaro-scene skill, "Scripts"). The type checker (`luau-analyze`) is not integrated
   yet. Script errors carry file and line from the VM and compiler.
 
 ## D-010 Profiling: Tracy as an opt-in build + built-in perf counters
@@ -185,7 +185,7 @@ Status of all entries below: **accepted, 2026-11-01**.
 - **Decision**: `main` is the only long-lived branch and always passes the build and tests.
   Work happens on short-lived `type/short-name` branches and lands through pull requests that
   are squash-merged. The PR title becomes the commit on `main`. Commit messages and PR titles
-  use `type(scope): subject`, where scope is an engine module or a repository area (CLAUDE.md).
+  use `type(scope): subject`, where scope is an engine module or a repository area (zaro-git skill).
   Every commit carries a DCO sign-off. Releases are `v0.x.y` tags on `main`.
 - **Why**: Each PR is one commit on `main`, so an agent's change can be reverted with one
   `git revert`, and `git log --grep '(sim)'` finds a module's history. The format makes a

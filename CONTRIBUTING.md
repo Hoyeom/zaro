@@ -34,8 +34,8 @@ are certifying that you have reviewed the change and have the right to contribut
 1. Enable the git hooks once per clone: `git config core.hooksPath tools/githooks`
    (lint, branch and commit-message checks, no pushes to `main`).
 2. Branch from `main` as `type/short-name`, e.g. `feat/flow-field-lod`.
-3. Commit as `type(scope): subject` with a sign-off (`git commit -s`). See CLAUDE.md
-   "Branches, commits and pull requests" for types and scopes.
+3. Commit as `type(scope): subject` with a sign-off (`git commit -s`). See the
+   [zaro-git skill](.claude/skills/zaro-git/SKILL.md) for types and scopes.
 4. Run `python tools/build.py debug --test`; it must pass.
 5. Open a pull request whose title follows the same format. It is squash-merged, so the title
    becomes the commit on `main`. Describe what changed and why, and link a decision in

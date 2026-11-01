@@ -84,8 +84,8 @@ give the same hash, whatever the thread count (`--threads 1` prints the same lin
 state_hash=3b7bc8351ec39836 ticks=600
 ```
 
-`zaro run --headless --perf perf.json` renders offscreen and writes timings; see CLAUDE.md
-"Headless runs and perf.json".
+`zaro run --headless --perf perf.json` renders offscreen and writes timings; see
+"Headless runs and perf.json" in `.claude/skills/zaro-scene/SKILL.md`.
 
 ## 5. Add a script
 
@@ -246,6 +246,6 @@ report.
 ## Where to go next
 
 - `examples/hello/` uses every `zaro.*` function once; `examples/crowd/` uses waves and a prefab.
-- To add your own components, see CLAUDE.md "Scenes and components".
-- The UI is described in CLAUDE.md "Text and UI".
+- To add your own components, see "Scenes and components" in `.claude/skills/zaro-scene/SKILL.md`.
+- The UI (screens, navigation, themes) is described in `.claude/skills/zaro-ui/SKILL.md`.
 - The reasons behind these designs are in `docs/DECISIONS.md` (D-009, D-017, D-019 to D-021, D-023).
