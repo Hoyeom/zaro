@@ -18,7 +18,7 @@ enum ShapeFlags : uint32_t { kShapeAdditive = 1u << 0, kShapeScreen = 1u << 1 };
 // 64 bytes. Mirrors `struct Instance` in shaders/shape.slang.
 struct ShapeInstance {
     float position[3];  // world metres (x, height, z), or screen pixels from the top-left (z unused)
-    float rotation;     // radians; world: from +x toward -z, screen: clockwise
+    float rotation;     // radians; world: +x turns toward +z (as Transform), screen: clockwise
     float size[2];      // full width and height (rect); diameter in x (circle, ring, polygon); length (line)
     float thickness;    // outline width, 0 fills; a line's width
     float glow;         // halo width beyond the edge, in the shape's units

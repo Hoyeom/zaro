@@ -1,0 +1,25 @@
+# ScreenFx shake and flash fall on the tick clock: after 30 ticks (half a second) shake has lost
+# 0.5 and flash all of it. The emitter's burst went back to 0 on the first tick.
+# Run with: zaro test tests/data/fx
+[test]
+scene = "../decay.toml"
+ticks = 30
+
+[[expect]]
+entity = "screen"
+component = "ScreenFx"
+field = "shake"
+min = 0.499
+max = 0.501
+
+[[expect]]
+entity = "screen"
+component = "ScreenFx"
+field = "flash"
+equals = 0.0
+
+[[expect]]
+entity = "blast"
+component = "ParticleEmitter"
+field = "burst"
+equals = 0

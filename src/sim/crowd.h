@@ -38,6 +38,9 @@ uint64_t tick(const Crowd* crowd);
 uint32_t enemy_count(const Crowd* crowd);
 // Enemies that reached the player and were respawned at the arena edge, since start.
 uint64_t total_hits(const Crowd* crowd);
+// Where enemies reached the player in the last step (before they were respawned), as x, z pairs in
+// enemy order; returns how many. For effects only: it is not part of the state or its hash.
+uint32_t last_hits(const Crowd* crowd, const float** xz);
 uint64_t state_hash(const Crowd* crowd);
 
 // Interpolated view of the state for rendering. alpha in [0, 1] blends the previous tick
