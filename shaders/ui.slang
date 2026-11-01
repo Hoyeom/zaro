@@ -4,11 +4,11 @@
 
 struct Quad {
     float4 rect;  // x0, y0, x1, y1 in pixels, origin top-left
-    float4 uv;    // glyph atlas u0, v0, u1, v1
+    float4 uv;    // glyph or image atlas u0, v0, u1, v1
     float4 clip;  // x0, y0, x1, y1
     uint color;   // sRGB RGBA8, red in the low byte, straight alpha
     uint border_color;
-    uint kind;    // 0 shape, 1 glyph
+    uint kind;    // 0 shape, 1 glyph, 2 image
     float radius;
     float border;
     float pad0;
@@ -24,6 +24,7 @@ struct Screen {
 [[vk::binding(1, 0)]] StructuredBuffer<Quad> quads;
 [[vk::binding(2, 0)]] Texture2D<float4> atlas;
 [[vk::binding(3, 0)]] SamplerState atlas_sampler;
+[[vk::binding(4, 0)]] Texture2D<float4> images;  // sRGB, so samples are linear
 
 struct VSOut {
     float4 pos : SV_Position;
@@ -65,6 +66,10 @@ float4 fs_quad(VSOut i) : SV_Target {
     const float4 color = premultiplied(q.color);
     // SampleLevel: the branch on q.kind is not uniform control flow, where WGSL forbids Sample.
     if (q.kind == 1u) return color * atlas.SampleLevel(atlas_sampler, i.uv, 0.0).r;
+    if (q.kind == 2u) {
+        const float4 texel = images.SampleLevel(atlas_sampler, i.uv, 0.0);
+        return color * float4(texel.rgb * texel.a, texel.a);
+    }
 
     // Signed distance to the rounded rectangle; negative inside.
     const float2 half_size = (q.rect.zw - q.rect.xy) * 0.5;

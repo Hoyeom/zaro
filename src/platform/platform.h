@@ -20,6 +20,23 @@ struct Input {
     bool quit = false;
     float move_x = 0.0f;  // -1..1, right is +x
     float move_y = 0.0f;  // -1..1, up (screen) is +y
+    // Pointer: the mouse, or a finger on a touch screen, in window pixels (origin top-left).
+    float pointer_x = 0.0f;
+    float pointer_y = 0.0f;
+    bool pointer_down = false;      // held now
+    bool pointer_pressed = false;   // went down since the previous poll
+    bool pointer_released = false;  // went up since the previous poll
+    bool pointer_touch = false;     // the pointer is a finger, which does not hover
+    float wheel_y = 0.0f;           // wheel steps since the previous poll, + scrolls up
+    // UI navigation since the previous poll: arrow keys or d-pad, Enter or Space or gamepad A
+    // (confirm), Escape or Android back or gamepad B (back). The app decides what an unused back
+    // does; the crowd demo quits.
+    bool nav_up = false;
+    bool nav_down = false;
+    bool nav_left = false;
+    bool nav_right = false;
+    bool nav_confirm = false;
+    bool nav_back = false;
     // Mobile lifecycle. While in the background the window has no surface: do not render.
     // window_changed is set for one poll when the app returns: recreate the GPU surface from
     // native_window(), which may be a new OS window.
@@ -41,9 +58,10 @@ NativeWindow native_window(Window* window);
 void window_pixel_size(Window* window, int* width, int* height);
 void set_window_title(Window* window, const char* title);
 
-// Pumps OS events and samples the keyboard and touch. A finger on the screen acts as a virtual
-// stick: where it lands is the centre, and dragging it a tenth of the window's shorter side away
-// is full speed. Keys win over touch. Escape and Android's back button quit.
+// Pumps OS events and samples the keyboard and touch. Edge-triggered fields (pressed, released,
+// wheel, nav) cover the events since the previous call. A finger on the screen also acts as a
+// virtual stick for move_x/move_y: where it lands is the centre, and dragging it a tenth of the
+// window's shorter side away is full speed. Keys win over touch.
 void poll_input(Input* input);
 
 uint64_t now_ticks();

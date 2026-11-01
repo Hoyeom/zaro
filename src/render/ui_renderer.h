@@ -11,11 +11,11 @@ namespace zaro::render {
 // 80 bytes. Mirrors ui::Quad and `struct Quad` in shaders/ui.slang.
 struct UiQuad {
     float rect[4];  // x0, y0, x1, y1 in pixels, origin top-left
-    float uv[4];    // glyph atlas u0, v0, u1, v1
+    float uv[4];    // glyph or image atlas u0, v0, u1, v1
     float clip[4];  // x0, y0, x1, y1
     uint32_t color;  // sRGB RGBA8, red in the low byte
     uint32_t border_color;
-    uint32_t kind;  // 0 shape, 1 glyph
+    uint32_t kind;  // 0 shape, 1 glyph, 2 image
     float radius;
     float border;
     float pad[3];
@@ -30,12 +30,17 @@ struct UiFrame {
     const uint8_t* atlas = nullptr;
     uint32_t atlas_size = 0;
     uint32_t atlas_x0 = 0, atlas_y0 = 0, atlas_x1 = 0, atlas_y1 = 0;
+    // The image atlas (RGBA8 sRGB, image_atlas_size squared texels) and its changed region.
+    const uint8_t* images = nullptr;
+    uint32_t image_atlas_size = 0;
+    uint32_t images_x0 = 0, images_y0 = 0, images_x1 = 0, images_y1 = 0;
 };
 
 struct UiRenderer;
 
-// shader_dir holds ui.wgsl. atlas_size must match the UiFrame atlas.
-UiRenderer* create_ui_renderer(rhi::Device* device, const char* shader_dir, uint32_t atlas_size);
+// shader_dir holds ui.wgsl. The atlas sizes must match the UiFrame atlases.
+UiRenderer* create_ui_renderer(rhi::Device* device, const char* shader_dir, uint32_t atlas_size,
+                               uint32_t image_atlas_size);
 void destroy_ui_renderer(UiRenderer* renderer);
 bool reload_ui_shaders(UiRenderer* renderer);
 

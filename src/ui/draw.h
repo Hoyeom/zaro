@@ -9,12 +9,13 @@ namespace zaro::ui {
 enum QuadKind : uint32_t {
     kQuadShape = 0,  // filled rectangle with optional rounded corners and border
     kQuadGlyph = 1,  // coverage from the glyph atlas, tinted with color
+    kQuadImage = 2,  // colour from the image atlas, multiplied by color
 };
 
 // 80 bytes. Mirrors render::UiQuad and `struct Quad` in shaders/ui.slang; keep all three in step.
 struct Quad {
     float rect[4];  // x0, y0, x1, y1 in pixels
-    float uv[4];    // glyph atlas u0, v0, u1, v1 (normalized)
+    float uv[4];    // glyph or image atlas u0, v0, u1, v1 (normalized)
     float clip[4];  // x0, y0, x1, y1; pixels outside are not drawn
     uint32_t color;         // sRGB RGBA8, red in the low byte, straight (not premultiplied) alpha
     uint32_t border_color;  // shapes only

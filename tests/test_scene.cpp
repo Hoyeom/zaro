@@ -4,7 +4,9 @@
 #include "core/path.h"
 #include "core/reflect.h"
 #include "scene/scene.h"
+#include "scene/strings.h"
 #include "sim/crowd_components.h"
+#include "ui/widgets.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -44,12 +46,12 @@ void test_override() {
 }
 
 void test_errors() {
-    struct Expected {
+    struct SceneExpected {
         zaro::ErrorId id;
         int line;
     };
     // One entry per problem in tests/data/scenes/errors.toml, in file order of discovery.
-    const Expected expected[] = {
+    const SceneExpected expected[] = {
         {zaro::kErrSceneStructure, 4},         // unknown key in [scene]
         {zaro::kErrSceneUnknownComponent, 8},  // CrowdSpwner
         {zaro::kErrSceneUnknownField, 14},     // cuont
@@ -73,6 +75,110 @@ void test_errors() {
            "unknown component suggests the closest name");
     if (g_failures) zaro::diag_print_text(diags, stderr);
     zaro::scene::free_scene(s);
+    delete diags;
+}
+
+struct Expected {
+    zaro::ErrorId id;
+    int line;
+    const char* needle;  // must appear in the message, or nullptr
+};
+
+void expect_diags(const zaro::DiagList* diags, const Expected* expected, uint32_t n, const char* file) {
+    char what[256];
+    snprintf(what, sizeof(what), "%s reports exactly one diagnostic per problem (%u, got %u)", file, n, diags->count);
+    expect(diags->count == n, what);
+    for (uint32_t i = 0; i < n && i < diags->count; ++i) {
+        const zaro::Diag& d = diags->items[i];
+        snprintf(what, sizeof(what), "%s diagnostic %u is ZE%04d on line %d%s%s", file, i, (int)expected[i].id,
+                 expected[i].line, expected[i].needle ? " with " : "", expected[i].needle ? expected[i].needle : "");
+        expect(d.id == expected[i].id && d.line == expected[i].line &&
+                   (!expected[i].needle || strstr(d.message, expected[i].needle)),
+               what);
+    }
+    if (g_failures) zaro::diag_print_text(diags, stderr);
+}
+
+void test_screen_errors() {
+    // Header and node problems in file order, then the parents (resolved after every node).
+    const Expected expected[] = {
+        {zaro::kErrSceneStructure, 4, "refrence"},
+        {zaro::kErrSceneUnknownComponent, 8, "did you mean 'Label'"},
+        {zaro::kErrSceneUnknownField, 15, "did you mean 'color'"},
+        {zaro::kErrSceneRange, 17, "#RRGGBB"},
+        {zaro::kErrSceneRange, 23, "did you mean 'row'"},
+        {zaro::kErrSceneUnknownComponent, 24, "scene component"},
+        {zaro::kErrSceneParent, 13, "did you mean 'bar'"},
+        {zaro::kErrSceneParent, 21, "must come before"},
+    };
+    zaro::DiagList* diags = new zaro::DiagList();
+    zaro::scene::Scene* s = zaro::scene::load_screen("tests/data/screens/errors.toml", diags);
+    expect(s == nullptr, "screens/errors.toml is rejected");
+    expect_diags(diags, expected, sizeof(expected) / sizeof(expected[0]), "screens/errors.toml");
+    delete diags;
+
+    diags = new zaro::DiagList();
+    s = zaro::scene::load_scene("tests/data/screens/widget_in_scene.toml", diags);
+    const Expected widget[] = {{zaro::kErrSceneUnknownComponent, 6, "UI widget"}};
+    expect_diags(diags, widget, 1, "widget_in_scene.toml");
+    delete diags;
+
+    diags = new zaro::DiagList();
+    s = zaro::scene::load_scene("tests/data/screens/keys.toml", diags);
+    const Expected wrong_kind[] = {{zaro::kErrSceneStructure, 1, "got a screen file"}};
+    expect_diags(diags, wrong_kind, 1, "load_scene(screen file)");
+    delete diags;
+}
+
+void test_screen_tree() {
+    zaro::DiagList* diags = new zaro::DiagList();
+    zaro::scene::Scene* s = zaro::scene::load_document("examples/hello/ui/settings.toml", diags);
+    expect(s && s->kind == zaro::scene::DocKind::kScreen && s->navigable, "settings.toml loads as a navigable screen");
+    if (s) {
+        const zaro::scene::Entity* title = zaro::scene::find_entity(s, "title");
+        expect(title && title->parent_index >= 0 && strcmp(s->entities[title->parent_index].name, "panel") == 0,
+               "a node links to its parent");
+        expect(s->entities[0].parent_index == -1, "a node without parent is top level");
+        const zaro::scene::ComponentData* label = title ? zaro::scene::find_component_data(title, &zaro::ui::kLabelDesc)
+                                                        : nullptr;
+        expect(label && label->field_lines[0] > title->line, "field lines are recorded");
+        const auto* layout = (const zaro::ui::Layout*)zaro::scene::get_component(&s->entities[0], &zaro::ui::kLayoutDesc);
+        expect(layout && !layout->visible, "the popup starts hidden");
+    }
+    zaro::scene::free_scene(s);
+    delete diags;
+}
+
+void test_strings() {
+    zaro::DiagList* diags = new zaro::DiagList();
+    zaro::scene::StringTable* ko = zaro::scene::load_string_table("tests/data/screens/strings/", "ko", diags);
+    zaro::scene::StringTable* en = zaro::scene::load_string_table("tests/data/screens/strings/", "en", diags);
+    expect(ko && en && diags->count == 0, "string tables load");
+    if (!ko || !en) return;
+    expect(strcmp(zaro::scene::find_string(ko, "a.title"), "\xec\xa0\x9c\xeb\xaa\xa9") == 0, "nested tables join keys with '.'");
+    expect(zaro::scene::find_string(ko, "a.missing") == nullptr, "missing keys are nullptr");
+    const zaro::scene::StringTable* tables[2] = {ko, en};
+    zaro::scene::check_tables_agree(tables, 2, diags);
+    const Expected agree[] = {
+        {zaro::kErrStringTable, 0, "missing 'a.body'"},
+        {zaro::kErrStringTable, 3, "'a.extra' is not in"},
+    };
+    expect_diags(diags, agree, 2, "check_tables_agree");
+    delete diags;
+
+    diags = new zaro::DiagList();
+    zaro::scene::Scene* screen = zaro::scene::load_screen("tests/data/screens/keys.toml", diags);
+    expect(screen != nullptr, "keys.toml loads");
+    if (screen) zaro::scene::check_string_keys(screen, tables, 2, diags);
+    const Expected keys[] = {
+        {zaro::kErrStringKey, 7, "did you mean '@a.title'"},
+        {zaro::kErrStringKey, 7, "did you mean '@a.title'"},
+        {zaro::kErrStringKey, 12, "en.toml"},
+    };
+    expect_diags(diags, keys, 3, "check_string_keys");
+    zaro::scene::free_scene(screen);
+    zaro::scene::free_string_table(ko);
+    zaro::scene::free_string_table(en);
     delete diags;
 }
 
@@ -104,8 +210,12 @@ void test_paths() {
 int main() {
     test_paths();
     zaro::sim::register_crowd_components();
+    zaro::ui::register_ui_components();
     test_override();
     test_errors();
+    test_screen_errors();
+    test_screen_tree();
+    test_strings();
     if (g_failures) {
         fprintf(stderr, "test_scene: %d failure(s)\n", g_failures);
         return 1;

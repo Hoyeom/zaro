@@ -17,10 +17,11 @@ void print_usage() {
          "  version    print engine and plugin ABI version\n"
          "  run        run a scene: zaro run [scene.toml] [options] (no scene: built-in crowd demo)\n"
          "  schema     print every component (fields, types, defaults, ranges) as JSON\n"
-         "  check      validate a scene and its script: zaro check <scene.toml> [--json]\n"
+         "  check      validate a scene (with its screens, strings and script) or a screen file:\n"
+         "             zaro check <file.toml> [--json]\n"
          "  test       run scene tests: zaro test [paths...] [--update] [--json] (default path: tests)\n"
          "  screenshot render a scene headless to PNG: zaro screenshot <scene.toml> [out.png]\n"
-         "             [--frames N (default 60)] [--size WxH]\n"
+         "             [--frames N (default 60)] [--size WxH] [--lang LANG]\n"
          "  export     write a Gradle project for an Android APK: zaro export android <scene.toml>\n"
          "             [--out DIR (default build/android-project)] [--runtime DIR] [--package ID]\n"
          "             [--portrait]  (runtime: python tools/build.py android; APK: tools/android.py apk)\n"
@@ -40,6 +41,7 @@ void print_usage() {
          "  --backend NAME       vulkan | d3d12 | metal (default: wgpu's choice)\n"
          "  --perf PATH          write a perf report (JSON) to PATH\n"
          "  --screenshot PATH    headless: save the last frame as PNG\n"
+         "  --lang LANG          UI language, one of the scene's languages (default: its first)\n"
          "\n"
          "planned (not implemented yet): plugin");
 }
@@ -114,6 +116,10 @@ int cmd_run(int argc, char** argv) {
             if (!next) return usage_error("--screenshot needs a path, got", "");
             o.screenshot_path = next;
             ++i;
+        } else if (strcmp(a, "--lang") == 0) {
+            if (!next) return usage_error("--lang needs a language, got", "");
+            o.language = next;
+            ++i;
         } else if (a[0] != '-' && !o.scene_path) {
             o.scene_path = a;
         } else {
@@ -144,6 +150,10 @@ int cmd_screenshot(int argc, char** argv) {
             }
             o.width = w;
             o.height = h;
+            ++i;
+        } else if (strcmp(a, "--lang") == 0) {
+            if (!next) return usage_error("--lang needs a language, got", "");
+            o.language = next;
             ++i;
         } else if (a[0] == '-') {
             return usage_error("unknown option", a);

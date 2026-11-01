@@ -345,6 +345,10 @@ Status of all entries below: **accepted, 2026-11-01**.
     table header.
   - Immediate-mode UI written in Luau: flexible, but screens could no longer be checked without
     running code, and layouts would not be text assets.
+- **Current state (P2 step 3)**: `scene::load_document` reads both kinds of file. String tables are
+  one TOML file per language whose nested tables flatten to dotted keys; `zaro check` on a scene
+  checks every `@key` against every language. A screen's `reference` size scales it to the
+  target (the largest scale at which it fits).
 
 ## D-021 Android: pinned NDK toolchain, own CMake build, SDLActivity, Gradle only packages
 

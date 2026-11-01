@@ -1,0 +1,7 @@
+# A UI widget on a scene entity is rejected.
+[scene]
+name = "widget_in_scene"
+[[entity]]
+name = "e"
+[entity.Label]
+text = "x"

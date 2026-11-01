@@ -1,0 +1,6 @@
+# Screens whose texts name string keys; strings/ has two languages that disagree.
+[scene]
+name = "keys"
+ui = ["keys.toml"]
+strings = "strings"
+languages = ["ko", "en"]

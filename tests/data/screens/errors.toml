@@ -1,0 +1,28 @@
+# Every problem below is reported once, with its line (tests/test_scene.cpp).
+[screen]
+name = "errors"
+refrence = [1280, 720]
+
+[[node]]
+name = "bar"
+[node.Lable]
+text = "hi"
+
+[[node]]
+name = "title"
+parent = "barr"
+[node.Label]
+colour = "#ffffff"
+[node.Panel]
+color = "#12345"
+
+[[node]]
+name = "row"
+parent = "later"
+[node.Layout]
+direction = "rows"
+[node.CrowdSpawner]
+count = 3
+
+[[node]]
+name = "later"

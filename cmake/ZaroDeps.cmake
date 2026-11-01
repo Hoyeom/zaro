@@ -164,6 +164,16 @@ FetchContent_MakeAvailable(stb_truetype)
 add_library(zaro_stb_truetype INTERFACE)
 target_include_directories(zaro_stb_truetype SYSTEM INTERFACE ${stb_truetype_SOURCE_DIR})
 
+# --- stb_image 2.30 (public domain or MIT), PNG decoding for UI images -----------------------------
+# Same pinned commit; src/ui/image.cpp holds the implementation (PNG only).
+FetchContent_Declare(stb_image
+  URL https://raw.githubusercontent.com/nothings/stb/003501f6d7a8668ce8b6d875e34dd97ad0d5d5b5/stb_image.h
+  URL_HASH SHA256=594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
+  DOWNLOAD_NO_EXTRACT TRUE SOURCE_SUBDIR _none)
+FetchContent_MakeAvailable(stb_image)
+add_library(zaro_stb_image INTERFACE)
+target_include_directories(zaro_stb_image SYSTEM INTERFACE ${stb_image_SOURCE_DIR})
+
 # --- Noto Sans KR (SIL OFL 1.1), the bundled default font (D-019) --------------------------------
 # Unmodified OTF files from notofonts/noto-cjk, pinned by commit. Copied to <bin>/fonts/.
 set(_noto_base https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans)

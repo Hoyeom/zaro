@@ -57,7 +57,7 @@ MODULE_DEPS = {
     "rhi": {"core", "platform", "rhi"},
     "sim": {"core", "sim"},
     "render": {"core", "rhi", "render"},
-    "ui": {"core", "ui"},
+    "ui": {"core", "scene", "ui"},
     "scene": {"core", "scene"},
     "script": {"core", "scene", "script"},
     "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "ui", "app"},
@@ -76,6 +76,7 @@ THIRD_PARTY_OWNERS = {
     "lualib.h": "src/script/",
     "luacode.h": "src/script/",
     "stb_truetype.h": "src/ui/font.cpp",
+    "stb_image.h": "src/ui/image.cpp",
 }
 
 RULES = {
