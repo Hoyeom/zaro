@@ -53,10 +53,11 @@ bool get_uint(const toml_datum_t& t, const char* key, uint64_t* out, const char*
 void load_expect(const toml_datum_t& t, Expect* e, const char* file, DiagList* d) {
     e->line = t.lineno;
     char component[64] = {}, field[64] = {};
-    const bool ok = get_string(t, "entity", e->entity, sizeof(e->entity), file, d, true) &
-                    get_string(t, "component", component, sizeof(component), file, d, true) &
-                    get_string(t, "field", field, sizeof(field), file, d, true);
-    if (!ok) return;
+    // Read all three before returning, so one pass reports every missing key.
+    const bool has_entity = get_string(t, "entity", e->entity, sizeof(e->entity), file, d, true);
+    const bool has_component = get_string(t, "component", component, sizeof(component), file, d, true);
+    const bool has_field = get_string(t, "field", field, sizeof(field), file, d, true);
+    if (!has_entity || !has_component || !has_field) return;
     e->component = reflect::find_component(component);
     if (!e->component) {
         const char* hint = reflect::suggest_component(component);
