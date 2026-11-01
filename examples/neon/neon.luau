@@ -128,7 +128,6 @@ function on_tick(tick)
         if swept > 0 then
             score += swept
             combo += swept
-            zaro.set(blade, "ParticleEmitter", "position", { x = tip.x, y = 0.3, z = tip.z })
             zaro.set(blade, "ParticleEmitter", "burst", math.min(swept * 4, 40))
         end
     end

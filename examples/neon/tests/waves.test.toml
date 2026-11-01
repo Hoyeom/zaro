@@ -4,7 +4,7 @@
 # hash covers every spawned and destroyed entity.
 # Run with: zaro test examples/neon/tests   (refresh the golden hash with --update)
 [test]
-state_hash = "ed543d8bcda45cab"
+state_hash = "0a2e95445d130a5b"
 scene = "../scene.toml"
 ticks = 1500
 

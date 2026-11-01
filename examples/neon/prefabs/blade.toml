@@ -1,5 +1,5 @@
-# A blade that orbits the player (neon.luau spawns it on the rotor). Its tip sweeps enemies away;
-# the emitter throws sparks where it does.
+# A blade that orbits the player (neon.luau spawns it on the rotor). It sweeps enemies away, and
+# its emitter (placed in the blade's space, like the shape) throws sparks where it does.
 [prefab]
 name = "blade"
 
