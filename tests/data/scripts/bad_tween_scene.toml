@@ -1,0 +1,21 @@
+# Invalid [[tween]] tables (ZE1202).
+[scene]
+name = "bad-tweens"
+
+[[entity]]
+name = "dot"
+[entity.Transform]
+[entity.Sprite]
+sheet = "none.toml"
+[[entity.tween]]
+component = "Transform"
+field = "rotation"
+to = 90.0
+time = 1.0
+[[entity.tween]]
+component = "Sprite"
+field = "scale"
+to = 2.0
+time = 1.0
+ease = "out_cubc"
+speed = 3

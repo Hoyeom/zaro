@@ -49,7 +49,7 @@ add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp src/s
 target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
-add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/world.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
+add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/world.cpp src/scene/tween.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
   src/scene/theme.cpp src/scene/sprite_sheet.cpp src/scene/build_extension.cpp
   src/scene/build_spec.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
@@ -222,6 +222,11 @@ if(ZARO_BUILD_TESTS)
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(check_entity_parents PROPERTIES
     PASS_REGULAR_EXPRESSION "bad_parent_scene.toml:10:11: error\\[ZE0408\\]: parent 'planet' must come before entity 'moon'.*bad_parent_scene.toml:14:11: error\\[ZE0408\\]: unknown parent entity 'snu' \\(did you mean 'sun'")
+  # Tweens change only visual fields; their tables are checked like components (D-031).
+  add_test(NAME check_tweens COMMAND zaro check tests/data/scripts/bad_tween_scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_tweens PROPERTIES
+    PASS_REGULAR_EXPRESSION "bad_tween_scene.toml:11:14: error\\[ZE1202\\]: Transform.rotation is gameplay state.*bad_tween_scene.toml:20:9: error\\[ZE1202\\]: unknown tween ease 'out_cubc' \\(did you mean 'out_cubic'.*bad_tween_scene.toml:21:9: error\\[ZE1202\\]: unexpected tween key 'speed'")
   add_test(NAME scene_tests_sprites COMMAND zaro test tests/data/sprites
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME screenshot_sprites

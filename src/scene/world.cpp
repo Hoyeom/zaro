@@ -120,6 +120,7 @@ Entity* spawn_entity(Scene* s, int prefab, const char* name, char* err, uint32_t
             to.data = malloc(to.desc->size);
             memcpy(to.data, p.components[c].data, to.desc->size);
         }
+        for (uint32_t t = 0; t < p.tween_count; ++t) start_tween(s, p.tweens[t], e->id, nullptr, nullptr, 0, s->tick);
     } else {
         e->components = (ComponentData*)calloc(1, sizeof(ComponentData));
     }

@@ -212,7 +212,7 @@ void write_default(FILE* out, const FieldDesc& f, const void* defaults) {
 
 }  // namespace
 
-void write_schema_json(void* file) {
+void write_schema_json(void* file, const SchemaList* lists, uint32_t list_count) {
     FILE* out = (FILE*)file;
     fputs("{\n  \"schema_version\": 1,\n  \"components\": [", out);
     for (uint32_t c = 0; c < g_count; ++c) {
@@ -247,7 +247,18 @@ void write_schema_json(void* file) {
         }
         fputs(d->field_count ? "\n    ]}" : "]}", out);
     }
-    fputs(g_count ? "\n  ]\n}\n" : "]\n}\n", out);
+    fputs(g_count ? "\n  ]" : "]", out);
+    for (uint32_t l = 0; l < list_count; ++l) {
+        fputs(",\n  ", out);
+        json_write_string(out, lists[l].name);
+        fputs(": [", out);
+        for (uint32_t k = 0; lists[l].values[k]; ++k) {
+            if (k) fputs(", ", out);
+            json_write_string(out, lists[l].values[k]);
+        }
+        fputc(']', out);
+    }
+    fputs("\n}\n", out);
 }
 
 }  // namespace zaro::reflect

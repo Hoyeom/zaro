@@ -2,6 +2,7 @@
 
 #include "core/reflect.h"
 #include "scene/ui_state.h"
+#include "scene/tween.h"
 #include "scene/world.h"
 
 #include <lua.h>
@@ -29,6 +30,12 @@ struct Timer {
     uint64_t interval;  // 0 for zaro.after
     int64_t remaining;  // firings left; -1 forever
     bool cancelled;
+};
+
+// A tween's `done` callback.
+struct TweenDone {
+    uint32_t handle;
+    int ref;
 };
 
 // A zaro.on subscription.
@@ -60,6 +67,8 @@ struct Script {
     uint32_t timer_count = 0, timer_capacity = 0;
     Handler* handlers = nullptr;
     uint32_t handler_count = 0, handler_capacity = 0;
+    TweenDone* tween_done = nullptr;
+    uint32_t tween_done_count = 0, tween_done_capacity = 0;
     int queue_ref = 0;  // registry table: name, payload, name, payload, ... from queue_head on
     int queue_head = 1, queue_tail = 1;
     uint32_t events_this_tick = 0;  // delivered since the last on_tick (kMaxEventsPerTick)
@@ -296,6 +305,7 @@ int zaro_set(lua_State* L) {
     uint8_t* data = (uint8_t*)component_arg(L, e, 2, &desc);
     const FieldDesc* f = field_arg(L, desc, 3);
     store_field(L, desc, f, data + f->offset, 4);
+    if (reflect::is_visual(desc)) scene::stop_tweens(self(L)->scene, e->id, nullptr, nullptr, desc, f);
     return 0;
 }
 
@@ -426,8 +436,11 @@ int ui_set_field(lua_State* L) {
     uint8_t* data = (uint8_t*)component_arg(L, e, 3, &desc);
     const FieldDesc* f = field_arg(L, desc, 4);
     store_field(L, desc, f, data + f->offset, 5);
+    scene::stop_tweens(self(L)->scene, 0, lua_tostring(L, 1), e->name, desc, f);
     return 0;
 }
+
+int ui_tween(lua_State* L);
 
 int ui_language(lua_State* L) {
     const UiHost* h = host_of(L, "ui.language");
@@ -725,7 +738,103 @@ int zaro_cancel(lua_State* L) {
         Handler& h = s->handlers[i];
         if (!h.cancelled && (double)h.handle == handle) found = h.cancelled = true;
     }
+    if (!found && handle >= 1 && handle <= 4294967295.0) found = scene::cancel_tween(s->scene, (uint32_t)handle);
     lua_pushboolean(L, found);
+    return 1;
+}
+
+// --- Tweens (D-031, scene/tween.h).
+
+// Reads a tween value for the field from the Lua value at `arg`: a number, {x, y[, z[, w]]} or a
+// colour string.
+void tween_lanes(lua_State* L, const ComponentDesc* desc, const FieldDesc* f, int arg, float lanes[4]) {
+    uint8_t tmp[16] = {};
+    FieldDesc local = *f;
+    local.offset = 0;
+    local.min = 1.0;  // a tween may overshoot (back, elastic), so no range check here
+    local.max = 0.0;
+    store_field(L, desc, &local, tmp, arg);
+    scene::read_lanes(&local, tmp, lanes);
+}
+
+double opt_number(lua_State* L, int table, const char* key, double fallback) {
+    lua_getfield(L, table, key);
+    double v = fallback;
+    if (lua_type(L, -1) == LUA_TNUMBER) v = lua_tonumber(L, -1);
+    else if (!lua_isnil(L, -1)) luaL_error(L, "tween option %s must be a number", key);
+    lua_pop(L, 1);
+    return v;
+}
+
+// One of names[] for the string option `key`, or `fallback` when it is absent.
+uint8_t opt_choice(lua_State* L, int table, const char* key, const char* const* names, uint8_t fallback) {
+    lua_getfield(L, table, key);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return fallback;
+    }
+    const char* v = lua_tostring(L, -1);
+    uint32_t n = 0;
+    while (names[n]) ++n;
+    for (uint32_t i = 0; v && i < n; ++i) {
+        if (strcmp(names[i], v) == 0) {
+            lua_pop(L, 1);
+            return (uint8_t)i;
+        }
+    }
+    const char* hint = v ? reflect::suggest_name(v, names, n) : nullptr;
+    luaL_error(L, "unknown tween %s '%s'%s%s%s", key, v ? v : "?", hint ? " (did you mean '" : "", hint ? hint : "",
+               hint ? "'?)" : "");
+}
+
+// Builds the spec from (to, options) at `to_arg` and `to_arg + 1`; returns the handle it will use.
+uint32_t tween_spec(lua_State* L, const ComponentDesc* desc, const FieldDesc* f, int to_arg, scene::TweenSpec* spec) {
+    if (const char* why = scene::tween_target_error(desc, f)) luaL_error(L, "%s.%s %s", desc->name, f->name, why);
+    const int opts = to_arg + 1;
+    if (lua_type(L, opts) != LUA_TTABLE) luaL_error(L, "a tween needs options with at least {time = seconds}");
+    memset(spec, 0, sizeof(*spec));
+    spec->component = desc;
+    spec->field = f;
+    tween_lanes(L, desc, f, to_arg, spec->to);
+    lua_getfield(L, opts, "from");
+    if (!lua_isnil(L, -1)) {
+        tween_lanes(L, desc, f, lua_gettop(L), spec->from);
+        spec->has_from = true;
+    }
+    lua_pop(L, 1);
+    spec->time = opt_number(L, opts, "time", -1.0);
+    if (!(spec->time > 0.0)) luaL_error(L, "tween time must be seconds above 0");
+    spec->delay = opt_number(L, opts, "delay", 0.0);
+    if (spec->delay < 0.0) luaL_error(L, "tween delay must be 0 or more");
+    spec->ease = opt_choice(L, opts, "ease", scene::kEaseNames, scene::kEaseLinear);
+    spec->loop = opt_choice(L, opts, "loop", scene::kLoopNames, scene::kLoopNone);
+    const double count = opt_number(L, opts, "count", 0.0);
+    if (count < 0 || floor(count) != count) luaL_error(L, "tween count must be a whole number, 0 or more");
+    spec->count = (uint32_t)count;
+    Script* s = self(L);
+    const uint32_t handle = s->next_handle++;
+    lua_getfield(L, opts, "done");
+    if (lua_type(L, -1) == LUA_TFUNCTION) {
+        s->tween_done = grow(s->tween_done, s->tween_done_count, &s->tween_done_capacity);
+        s->tween_done[s->tween_done_count++] = {handle, lua_ref(L, -1)};
+    } else if (!lua_isnil(L, -1)) {
+        luaL_error(L, "tween option done must be a function");
+    }
+    lua_pop(L, 1);
+    return handle;
+}
+
+// zaro.tween(entity, component, field, to, {time, from, delay, ease, loop, count, done}) -> handle
+int zaro_tween(lua_State* L) {
+    Script* s = self(L);
+    scene::Entity* e = entity_arg(L, 1);
+    const ComponentDesc* desc = nullptr;
+    component_arg(L, e, 2, &desc);
+    const FieldDesc* f = field_arg(L, desc, 3);
+    scene::TweenSpec spec;
+    const uint32_t handle = tween_spec(L, desc, f, 4, &spec);
+    scene::start_tween(s->scene, spec, e->id, nullptr, nullptr, handle, s->scene->tick);
+    lua_pushnumber(L, (double)handle);
     return 1;
 }
 
@@ -815,6 +924,20 @@ bool call_hook(Script* s, const char* name, int nargs, DiagList* diags, bool* re
         lua_pop(s->T, 1);
     }
     return true;
+}
+
+// ui.tween(screen, node, component, field, to, options) -> handle; like zaro.tween on a widget.
+int ui_tween(lua_State* L) {
+    Script* s = self(L);
+    scene::Entity* e = node_arg(L, screen_arg(L, 1), 2);
+    const ComponentDesc* desc = nullptr;
+    component_arg(L, e, 3, &desc);
+    const FieldDesc* f = field_arg(L, desc, 4);
+    scene::TweenSpec spec;
+    const uint32_t handle = tween_spec(L, desc, f, 5, &spec);
+    scene::start_tween(s->scene, spec, 0, lua_tostring(L, 1), e->name, handle, s->scene->tick);
+    lua_pushnumber(L, (double)handle);
+    return 1;
 }
 
 // Calls the registry function `ref` with the nargs values on top of the stack. Errors are ZE0501
@@ -955,8 +1078,8 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
         {"find", zaro_find},     {"name", zaro_name},   {"id", zaro_id},       {"query", zaro_query},
         {"count", zaro_count},   {"after", zaro_after}, {"every", zaro_every}, {"on", zaro_on},
         {"emit", zaro_emit},     {"cancel", zaro_cancel}, {"parent", zaro_parent}, {"set_parent", zaro_set_parent},
-        {"children", zaro_children}, {"world", zaro_world}, {nullptr, nullptr}};
-    lua_createtable(L, 0, 23);
+        {"children", zaro_children}, {"world", zaro_world}, {"tween", zaro_tween}, {nullptr, nullptr}};
+    lua_createtable(L, 0, 24);
     for (const luaL_Reg* r = kApi; r->name; ++r) {
         lua_pushcfunction(L, r->func, r->name);
         lua_setfield(L, -2, r->name);
@@ -968,8 +1091,8 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
         {"set", ui_set},         {"get", ui_get},     {"get_field", ui_get_field}, {"set_field", ui_set_field},
         {"language", ui_language}, {"open", ui_open}, {"ready", ui_ready},         {"close", ui_close},
         {"back", ui_back},       {"home", ui_home},   {"reset", ui_reset}, {"state", ui_state},
-        {nullptr, nullptr}};
-    lua_createtable(L, 0, 12);
+        {"tween", ui_tween},     {nullptr, nullptr}};
+    lua_createtable(L, 0, 13);
     for (const luaL_Reg* r = kUiApi; r->name; ++r) {
         lua_pushcfunction(L, r->func, r->name);
         lua_setfield(L, -2, r->name);
@@ -998,6 +1121,7 @@ void destroy_script(Script* s) {
     if (s->L) lua_close(s->L);
     free(s->timers);
     free(s->handlers);
+    free(s->tween_done);
     delete s;
 }
 
@@ -1028,6 +1152,22 @@ bool call_screen(Script* s, const char* event, const char* screen, DiagList* dia
     lua_pushstring(s->T, event);
     lua_pushstring(s->T, screen);
     return call_hook(s, "on_screen", 2, diags) && drain_events(s, diags);
+}
+
+bool finish_tweens(Script* s, const uint32_t* handles, uint32_t count, DiagList* diags) {
+    bool ok = true;
+    for (uint32_t i = 0; i < count && ok; ++i) {
+        for (uint32_t j = 0; j < s->tween_done_count; ++j) {
+            if (s->tween_done[j].handle != handles[i]) continue;
+            const int ref = s->tween_done[j].ref;
+            s->tween_done[j] = s->tween_done[--s->tween_done_count];
+            lua_pushnumber(s->T, (double)handles[i]);
+            ok = call_ref(s, ref, 1, diags);
+            lua_unref(s->T, ref);
+            break;
+        }
+    }
+    return drain_events(s, diags) && ok;
 }
 
 bool emit_event(Script* s, const char* name, const char* const* keys, const double* values, uint32_t count) {

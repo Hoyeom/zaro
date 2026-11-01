@@ -48,6 +48,7 @@ enum ErrorId {
                               //        a version code or the upload key
     kErrSpawnPrefab = 1200,   // ZE1200 a [scene] prefabs entry has no [prefab] name, or two share one (D-031)
     kErrEventLimit = 1201,    // ZE1201 more script events in one tick than script::kMaxEventsPerTick (handlers in a loop)
+    kErrTween = 1202,         // ZE1202 a [[tween]] table is invalid: unknown key, gameplay component, field, value or ease
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

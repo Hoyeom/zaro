@@ -1,0 +1,27 @@
+# A sprite that pulses from a [[entity.tween]] (D-031).
+#   zaro run tests/data/sprites/tween_scene.toml
+[scene]
+name = "sprite-tween"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 0
+
+[[entity]]
+name = "pulse"
+[entity.Sprite]
+sheet = "blob.toml"
+position = [32.0, 0.0, 32.0]
+scale = 1.0
+[[entity.tween]]
+component = "Sprite"
+field = "scale"
+to = 3.0
+time = 1.0
+loop = "pingpong"

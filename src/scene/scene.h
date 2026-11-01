@@ -21,6 +21,11 @@
 //   parent = "player"                # optional: an earlier entity; it moves, turns and scales this
 //   [entity.Transform]               # one (scene/world.h, D-031)
 //   position = [2.0, 0.0, 0.0]
+//   [[entity.tween]]                 # optional, any number: eases a visual field (scene/tween.h)
+//   component = "Sprite"
+//   field = "scale"
+//   to = 1.5
+//   time = 0.4
 //
 // A screen file (D-020) has the same shape with UI widgets on nodes instead of components on
 // entities. A node's parent must come earlier in the file; nodes without one are top level.
@@ -44,10 +49,12 @@
 // A prefab file has a [prefab] table with a name and top-level component tables. Prefabs do not
 // nest. Values start from the component defaults, then the prefab, then the entity. A prefab in
 // [scene] prefabs needs its name, which scripts pass to zaro.spawn; names are unique in a scene.
+// Its [[tween]] tables start on every entity made from it (scene/tween.h).
 #pragma once
 
 #include "core/diag.h"
 #include "core/reflect.h"
+#include "scene/tween.h"
 
 #include <stdint.h>
 
@@ -101,7 +108,11 @@ struct SpawnPrefab {
     char path[kPathCapacity];  // resolved
     ComponentData* components;
     uint32_t component_count;
+    TweenSpec* tweens;  // started on each spawned entity
+    uint32_t tween_count;
 };
+
+struct Tween;  // a running tween (scene/tween.cpp)
 
 struct Scene {
     char path[kPathCapacity];
@@ -133,6 +144,9 @@ struct Scene {
     // Changes whenever entities are added or removed, which may move `entities`. Code that keeps
     // pointers into it rebuilds them when this differs from the value it saw.
     uint64_t generation;
+    uint64_t tick;  // the tick being run, set by the app before scripts; 0 while loading and in on_start
+    Tween* tweens;  // running tweens (scene/tween.h)
+    uint32_t tween_count, tween_capacity;
 
     // Screens only.
     char theme[kPathCapacity];  // resolved theme path, or empty

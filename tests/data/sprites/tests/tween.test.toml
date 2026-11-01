@@ -1,0 +1,10 @@
+# The pulse grows from 1 to 3 over a second and shrinks back: after 90 ticks it is halfway down.
+[test]
+scene = "../tween_scene.toml"
+ticks = 90
+
+[[expect]]
+entity = "pulse"
+component = "Sprite"
+field = "scale"
+equals = 2.0
