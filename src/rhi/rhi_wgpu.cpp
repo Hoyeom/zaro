@@ -37,6 +37,7 @@ struct Texture {
     WGPUTexture texture = nullptr;
     WGPUTextureView view = nullptr;
     uint32_t texel_bytes = 1;
+    uint32_t width = 0, height = 0;
 };
 struct Sampler {
     WGPUSampler sampler = nullptr;
@@ -46,9 +47,12 @@ namespace {
 
 // Two frames in flight: frame N waits for frame N-2 before reusing its slot.
 constexpr uint32_t kSlots = 2;
-constexpr uint32_t kQueriesPerSlot = kMaxTimedPasses * 2;
+// Passes timed per frame. Passes that share a name (the levels of a bloom chain) are summed into
+// one GpuTimings entry, so there can be more passes than names.
+constexpr uint32_t kMaxPassQueries = 32;
+constexpr uint32_t kQueriesPerSlot = kMaxPassQueries * 2;
 // Query resolve destinations must be 256-byte aligned (QUERY_RESOLVE_BUFFER_ALIGNMENT).
-constexpr uint64_t kResolveStride = 256;
+constexpr uint64_t kResolveStride = 512;
 static_assert(kQueriesPerSlot * 8 <= kResolveStride, "slot timestamps must fit one stride");
 
 }  // namespace
@@ -63,7 +67,7 @@ struct FrameSlot {
     bool map_done = false;
     bool map_ok = false;
     uint32_t pass_count = 0;
-    const char* names[kMaxTimedPasses] = {};
+    const char* names[kMaxPassQueries] = {};
 };
 
 namespace {
@@ -100,6 +104,7 @@ struct Device {
     uint32_t prev_draw_calls = 0;
 
     bool timing = false;
+    bool rg11b10_renderable = false;
     float timestamp_period = 1.0f;
     WGPUQuerySet queries = nullptr;
     WGPUBuffer resolve = nullptr;
@@ -194,6 +199,25 @@ void create_targets(Device* d) {
     }
 }
 
+WGPUTextureFormat texture_format(const Device* d, TextureFormat f) {
+    switch (f) {
+        case TextureFormat::kR8: return WGPUTextureFormat_R8Unorm;
+        case TextureFormat::kRGBA8Srgb: return WGPUTextureFormat_RGBA8UnormSrgb;
+        case TextureFormat::kRGBA16Float: return WGPUTextureFormat_RGBA16Float;
+        case TextureFormat::kRG11B10Float: return WGPUTextureFormat_RG11B10Ufloat;
+        case TextureFormat::kFrame: return d->color_format;
+    }
+    return d->color_format;
+}
+
+uint32_t texel_bytes(TextureFormat f) {
+    switch (f) {
+        case TextureFormat::kR8: return 1;
+        case TextureFormat::kRGBA16Float: return 8;
+        default: return 4;
+    }
+}
+
 WGPUSurface create_surface(WGPUInstance instance, const platform::NativeWindow& w) {
     WGPUSurfaceDescriptor sd = WGPU_SURFACE_DESCRIPTOR_INIT;
     WGPUSurfaceSourceWindowsHWND win32 = WGPU_SURFACE_SOURCE_WINDOWS_HWND_INIT;
@@ -248,12 +272,18 @@ void retire_slot(Device* d, FrameSlot& s) {
         const uint64_t* ts = (const uint64_t*)wgpuBufferGetConstMappedRange(s.readback, 0, kQueriesPerSlot * 8);
         GpuTimings t;
         t.valid = true;
-        t.pass_count = s.pass_count;
         for (uint32_t i = 0; i < s.pass_count; ++i) {
             const uint64_t begin = ts[i * 2], end = ts[i * 2 + 1];
-            t.names[i] = s.names[i];
-            t.ms[i] = end > begin ? (double)(end - begin) * d->timestamp_period / 1.0e6 : 0.0;
-            t.total_ms += t.ms[i];
+            const double ms = end > begin ? (double)(end - begin) * d->timestamp_period / 1.0e6 : 0.0;
+            uint32_t k = 0;
+            while (k < t.pass_count && strcmp(t.names[k], s.names[i]) != 0) ++k;
+            if (k == t.pass_count) {
+                if (k == kMaxTimedPasses) continue;
+                t.names[k] = s.names[i];
+                t.pass_count++;
+            }
+            t.ms[k] += ms;
+            t.total_ms += ms;
         }
         d->last_timings = t;
         wgpuBufferUnmap(s.readback);
@@ -265,7 +295,7 @@ void retire_slot(Device* d, FrameSlot& s) {
 WGPUPassTimestampWrites timestamp_writes(Device* d, FrameSlot& s, const char* name) {
     WGPUPassTimestampWrites tw = WGPU_PASS_TIMESTAMP_WRITES_INIT;
     const uint32_t pass = s.pass_count;
-    if (pass < kMaxTimedPasses) {
+    if (pass < kMaxPassQueries) {
         const uint32_t base = (uint32_t)(d->frame_index % kSlots) * kQueriesPerSlot + pass * 2;
         tw.querySet = d->queries;
         tw.beginningOfPassWriteIndex = base;
@@ -314,10 +344,14 @@ Device* create_device(const DeviceDesc& desc) {
     wgpuAdapterInfoFreeMembers(info);
 
     d->timing = wgpuAdapterHasFeature(d->adapter, WGPUFeatureName_TimestampQuery);
-    WGPUFeatureName features[1] = {WGPUFeatureName_TimestampQuery};
+    d->rg11b10_renderable = wgpuAdapterHasFeature(d->adapter, WGPUFeatureName_RG11B10UfloatRenderable);
+    WGPUFeatureName features[2];
+    size_t feature_count = 0;
+    if (d->timing) features[feature_count++] = WGPUFeatureName_TimestampQuery;
+    if (d->rg11b10_renderable) features[feature_count++] = WGPUFeatureName_RG11B10UfloatRenderable;
     WGPUDeviceDescriptor dd = WGPU_DEVICE_DESCRIPTOR_INIT;
     dd.label = sv("zaro device");
-    dd.requiredFeatureCount = d->timing ? 1 : 0;
+    dd.requiredFeatureCount = feature_count;
     dd.requiredFeatures = features;
     dd.uncapturedErrorCallbackInfo.callback = on_uncaptured_error;
     dd.uncapturedErrorCallbackInfo.userdata1 = d;
@@ -450,13 +484,34 @@ Texture* create_texture(Device* d, uint32_t width, uint32_t height, TextureForma
     WGPUTextureDescriptor td = WGPU_TEXTURE_DESCRIPTOR_INIT;
     td.label = sv(label);
     td.size = {width, height, 1};
-    td.format = format == TextureFormat::kR8 ? WGPUTextureFormat_R8Unorm : WGPUTextureFormat_RGBA8UnormSrgb;
+    td.format = texture_format(d, format);
     td.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
     Texture* t = new Texture();
     t->texture = wgpuDeviceCreateTexture(d->device, &td);
     t->view = wgpuTextureCreateView(t->texture, nullptr);
-    t->texel_bytes = format == TextureFormat::kR8 ? 1 : 4;
+    t->texel_bytes = texel_bytes(format);
+    t->width = width;
+    t->height = height;
     return t;
+}
+
+Texture* create_render_texture(Device* d, uint32_t width, uint32_t height, TextureFormat format, const char* label) {
+    WGPUTextureDescriptor td = WGPU_TEXTURE_DESCRIPTOR_INIT;
+    td.label = sv(label);
+    td.size = {width ? width : 1, height ? height : 1, 1};
+    td.format = texture_format(d, format);
+    td.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment;
+    Texture* t = new Texture();
+    t->texture = wgpuDeviceCreateTexture(d->device, &td);
+    t->view = wgpuTextureCreateView(t->texture, nullptr);
+    t->texel_bytes = texel_bytes(format);
+    t->width = td.size.width;
+    t->height = td.size.height;
+    return t;
+}
+
+bool supports_format(const Device* d, TextureFormat format) {
+    return format != TextureFormat::kRG11B10Float || d->rg11b10_renderable;
 }
 
 void destroy_texture(Texture* t) {
@@ -610,7 +665,7 @@ void destroy_compute_pipeline(ComputePipeline* p) {
 
 RenderPipeline* create_render_pipeline(Device* d, const RenderPipelineDesc& desc) {
     WGPUColorTargetState target = WGPU_COLOR_TARGET_STATE_INIT;
-    target.format = d->color_format;
+    target.format = texture_format(d, desc.format);
     target.writeMask = WGPUColorWriteMask_All;
     WGPUBlendState blend = WGPU_BLEND_STATE_INIT;
     if (desc.alpha_blend) {
@@ -627,7 +682,7 @@ RenderPipeline* create_render_pipeline(Device* d, const RenderPipelineDesc& desc
     ds.format = WGPUTextureFormat_Depth32Float;
     // Every pass has a depth attachment, so pipelines without depth keep the format and turn the
     // test and the writes off.
-    ds.depthWriteEnabled = desc.depth ? WGPUOptionalBool_True : WGPUOptionalBool_False;
+    ds.depthWriteEnabled = desc.depth && desc.depth_write ? WGPUOptionalBool_True : WGPUOptionalBool_False;
     ds.depthCompare = desc.depth ? WGPUCompareFunction_Less : WGPUCompareFunction_Always;
     WGPURenderPipelineDescriptor rd = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
     rd.label = sv(desc.label);
@@ -637,7 +692,7 @@ RenderPipeline* create_render_pipeline(Device* d, const RenderPipelineDesc& desc
     rd.primitive.topology = WGPUPrimitiveTopology_TriangleList;
     rd.primitive.frontFace = WGPUFrontFace_CCW;
     rd.primitive.cullMode = desc.cull_back ? WGPUCullMode_Back : WGPUCullMode_None;
-    rd.depthStencil = &ds;
+    rd.depthStencil = desc.depth_buffer ? &ds : nullptr;
     rd.fragment = &fs;
     RenderPipeline* p = new RenderPipeline();
     p->pipeline = wgpuDeviceCreateRenderPipeline(d->device, &rd);
@@ -700,10 +755,10 @@ void compute_end(Device* d) {
     d->compute = nullptr;
 }
 
-void render_begin(Device* d, const char* name, const float clear[4], uint32_t depth) {
+void render_begin(Device* d, const char* name, const float clear[4], uint32_t depth, Texture* target) {
     FrameSlot& slot = d->slots[d->frame_index % kSlots];
     WGPURenderPassColorAttachment ca = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
-    ca.view = d->frame_view;
+    ca.view = target ? target->view : d->frame_view;
     ca.loadOp = clear ? WGPULoadOp_Clear : WGPULoadOp_Load;
     ca.storeOp = WGPUStoreOp_Store;
     if (clear) ca.clearValue = {clear[0], clear[1], clear[2], clear[3]};
@@ -716,7 +771,7 @@ void render_begin(Device* d, const char* name, const float clear[4], uint32_t de
     rd.label = sv(name);
     rd.colorAttachmentCount = 1;
     rd.colorAttachments = &ca;
-    rd.depthStencilAttachment = &da;
+    rd.depthStencilAttachment = (depth & kDepthNone) ? nullptr : &da;
     WGPUPassTimestampWrites tw;
     if (d->timing) {
         tw = timestamp_writes(d, slot, name);

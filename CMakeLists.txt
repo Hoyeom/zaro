@@ -44,7 +44,8 @@ add_library(zaro_rhi STATIC src/rhi/rhi_wgpu.cpp)
 target_link_libraries(zaro_rhi PUBLIC zaro_platform PRIVATE zaro_wgpu)
 zaro_target_defaults(zaro_rhi)
 
-add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp src/sim/sprite_components.cpp)
+add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp src/sim/sprite_components.cpp
+            src/sim/fx_components.cpp)
 target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
@@ -58,7 +59,8 @@ add_library(zaro_script STATIC src/script/script.cpp)
 target_link_libraries(zaro_script PUBLIC zaro_scene PRIVATE Luau.VM Luau.Compiler)
 zaro_target_defaults(zaro_script)
 
-add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_renderer.cpp src/render/sprite_renderer.cpp)
+add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_renderer.cpp src/render/sprite_renderer.cpp
+            src/render/post_renderer.cpp)
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
@@ -79,7 +81,8 @@ set_source_files_properties(src/ui/font.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSIO
 zaro_target_defaults(zaro_ui)
 
 add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp src/app/ui_layer.cpp
-  src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp src/app/pipeline.cpp)
+  src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp src/app/pipeline.cpp
+  src/app/fx_layer.cpp)
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform
   PRIVATE zaro_cjson)
 if(TARGET zaro_cook)
@@ -104,7 +107,8 @@ else()
 endif()
 target_link_libraries(zaro PRIVATE zaro_app)
 zaro_target_defaults(zaro)
-zaro_add_shaders(zaro shaders/crowd_cull.slang shaders/crowd_draw.slang shaders/ui.slang shaders/sprite.slang)
+zaro_add_shaders(zaro shaders/crowd_cull.slang shaders/crowd_draw.slang shaders/ui.slang shaders/sprite.slang
+                 shaders/post.slang)
 zaro_add_fonts(zaro)
 add_custom_command(TARGET zaro POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:zaro_wgpu> $<TARGET_FILE_DIR:zaro>
@@ -189,6 +193,14 @@ if(ZARO_BUILD_TESTS)
   add_test(NAME sprite_render_gpu COMMAND test_sprite_render ${CMAKE_BINARY_DIR}/ ${CMAKE_BINARY_DIR}/sprite_render_test.png
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(sprite_render_gpu PROPERTIES LABELS gpu)
+  # The HDR frame and bloom (D-030): glow beside a bright sprite, in each renderable HDR format.
+  add_executable(test_post_render tests/test_post_render.cpp)
+  target_link_libraries(test_post_render PRIVATE zaro_render)
+  zaro_target_defaults(test_post_render)
+  add_dependencies(test_post_render zaro)  # the shaders are built with zaro
+  add_test(NAME post_render_gpu COMMAND test_post_render ${CMAKE_BINARY_DIR}/ ${CMAKE_BINARY_DIR}/post_render_test.png
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(post_render_gpu PROPERTIES LABELS gpu)
   # A scene with sprites stays valid; a misspelt animation is reported at its line.
   add_test(NAME check_sprite_scene COMMAND zaro check tests/data/sprites/scene.toml
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -211,6 +223,13 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro screenshot tests/data/sprites/scene.toml ${CMAKE_BINARY_DIR}/sprites.png --frames 5 --size 640x360
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(screenshot_sprites PROPERTIES LABELS gpu)
+  # A scene with Bloom: valid, and it renders through the HDR frame.
+  add_test(NAME check_bloom_scene COMMAND zaro check tests/data/fx/bloom.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME screenshot_bloom
+           COMMAND zaro screenshot tests/data/fx/bloom.toml ${CMAKE_BINARY_DIR}/bloom.png --frames 5 --size 640x360
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_bloom PROPERTIES LABELS gpu)
 
   # SVG cook: classes, clip paths, masks, <use> and gradients drawn; text and filters reported.
   if(TARGET zaro_cook)

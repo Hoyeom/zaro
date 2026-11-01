@@ -1,0 +1,19 @@
+# A small crowd rendered in HDR with bloom (zaro-fx). The low threshold makes the lit cubes glow.
+[scene]
+name = "bloom"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 500
+
+[[entity]]
+name = "post"
+[entity.Bloom]
+threshold = 0.5
+intensity = 1.2

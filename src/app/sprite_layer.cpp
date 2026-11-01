@@ -394,10 +394,10 @@ bool ensure_gpu(SpriteLayer* l) {
 
 }  // namespace
 
-bool attach_sprite_gpu(SpriteLayer* l, rhi::Device* device, const char* shader_dir) {
+bool attach_sprite_gpu(SpriteLayer* l, rhi::Device* device, const char* shader_dir, rhi::TextureFormat format) {
     l->device = device;
     if (!l->record_count && !l->spawnable) return true;  // only the crowd's look, which the crowd renderer draws
-    l->renderer = render::create_sprite_renderer(device, shader_dir);
+    l->renderer = render::create_sprite_renderer(device, shader_dir, format);
     if (!l->renderer) return false;
     return ensure_gpu(l);
 }
@@ -447,7 +447,7 @@ bool has_world_sprites(const SpriteLayer* l) {
     return false;
 }
 
-void render_sprite_layer(SpriteLayer* l, const float view_proj[16], const float right[3]) {
+void render_sprite_layer(SpriteLayer* l, const float view_proj[16], const float right[3], rhi::Texture* target) {
     if (!l || !l->renderer) return;
     ZARO_ZONE("app.sprites");
     uint32_t n = 0, batches = 0;
@@ -486,6 +486,7 @@ void render_sprite_layer(SpriteLayer* l, const float view_proj[16], const float 
     draw.batch_count = batches;
     memcpy(draw.view_proj, view_proj, sizeof(draw.view_proj));
     memcpy(draw.right, right, sizeof(draw.right));
+    draw.target = target;
     render::render_sprites(l->renderer, draw);
 }
 
