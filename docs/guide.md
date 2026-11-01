@@ -180,7 +180,7 @@ $ python tools/android.py run            # install and start it on the connected
 ```
 
 `apk` builds `libmain.so` for arm64 (`python tools/build.py android`), runs `zaro export android`,
-which packs the scene, its script and its prefabs, and builds the APK with Gradle. The phone needs
+which packs the scene's folder and anything it names outside it, and builds the APK with Gradle. The phone needs
 USB debugging on. Drag a finger to move the player; the back button quits. The game's output is in
 `adb logcat -s zaro`. `python tools/android.py perf` runs it headless on the phone and pulls the perf
 report.

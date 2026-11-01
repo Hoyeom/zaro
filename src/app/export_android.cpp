@@ -6,6 +6,7 @@
 #include "core/path.h"
 #include "platform/platform.h"
 #include "scene/scene.h"
+#include "ui/widgets.h"
 #include "zaro/zaro.h"
 
 #include <stdio.h>
@@ -16,7 +17,7 @@ namespace zaro::app {
 
 namespace {
 
-constexpr uint32_t kMaxFiles = 256;
+constexpr uint32_t kMaxFiles = 1024;
 constexpr size_t kPath = 512;
 constexpr size_t kLongPath = 2048;  // a directory joined with a kPath-sized relative path
 
@@ -172,6 +173,39 @@ void copy_runtime_file(const char* path, void* user) {
     if (starts_with(rel, kAssets) && !add_unique(e.assets, rel + sizeof(kAssets) - 1)) e.ok = false;
 }
 
+// A document's own files: the prefabs of its entities or nodes and the images of its Image widgets,
+// all relative to the document.
+void add_document_files(PathList& files, const scene::Scene* doc, bool* ok) {
+    char path[kPath];
+    for (uint32_t i = 0; i < doc->entity_count; ++i) {
+        const scene::Entity& en = doc->entities[i];
+        if (en.prefab[0]) {
+            path_join_relative(doc->path, en.prefab, path, sizeof(path));
+            *ok &= add_unique(files, path);
+        }
+        const auto* image = (const ui::Image*)scene::get_component(&en, &ui::kImageDesc);
+        if (image && image->path[0]) {
+            path_join_relative(doc->path, image->path, path, sizeof(path));
+            *ok &= add_unique(files, path);
+        }
+    }
+}
+
+struct DirScan {
+    PathList* files;
+    bool ok;
+};
+
+// Everything in the scene's directory goes into the APK (a script may name images or screens at
+// run time), except scene tests.
+void add_scanned_file(const char* found, void* user) {
+    DirScan& scan = *(DirScan*)user;
+    char path[kPath];
+    path_join_relative("", found, path, sizeof(path));
+    if (ends_with(path, ".test.toml") || starts_with(path, "tests/") || strstr(path, "/tests/")) return;
+    scan.ok &= add_unique(*scan.files, path);
+}
+
 void strip_trailing_slash(char* path) {
     size_t n = strlen(path);
     while (n > 1 && path[n - 1] == '/') path[--n] = 0;
@@ -190,20 +224,39 @@ int export_android(const ExportOptions& o) {
     }
     delete diags;
 
-    // The files the scene needs: itself, its script and its prefabs.
+    // The files the scene needs: itself (first), everything in its directory, and what it names
+    // outside it: script, prefabs, screens with their prefabs and images, string tables.
     PathList files;
     files.items = new char[kMaxFiles][kPath];
+    bool listed = true;
     char path[kPath];
     path_join_relative("", s->path, path, sizeof(path));
     add_unique(files, path);
+    char scene_dir[kPath];
+    snprintf(scene_dir, sizeof(scene_dir), "%.*s", (int)dir_length(path), path);
+    DirScan scan{&files, true};
+    platform::find_files(scene_dir[0] ? scene_dir : ".", "", add_scanned_file, &scan);
+    listed &= scan.ok;
     if (s->script[0]) {
         path_join_relative("", s->script, path, sizeof(path));
-        add_unique(files, path);
+        listed &= add_unique(files, path);
     }
-    for (uint32_t i = 0; i < s->entity_count; ++i) {
-        if (!s->entities[i].prefab[0]) continue;
-        path_join_relative(s->path, s->entities[i].prefab, path, sizeof(path));
-        add_unique(files, path);
+    add_document_files(files, s, &listed);
+    for (uint32_t i = 0; i < s->ui_count; ++i) {
+        path_join_relative("", s->ui[i], path, sizeof(path));
+        listed &= add_unique(files, path);
+        DiagList* screen_diags = new DiagList();
+        if (scene::Scene* screen = scene::load_screen(s->ui[i], screen_diags)) {
+            add_document_files(files, screen, &listed);
+            scene::free_scene(screen);
+        }
+        delete screen_diags;
+    }
+    for (uint32_t i = 0; s->strings[0] && i < s->language_count; ++i) {
+        char table[kPath + scene::kLanguageCapacity + 8];
+        snprintf(table, sizeof(table), "%s%s.toml", s->strings, s->languages[i]);
+        path_join_relative("", table, path, sizeof(path));
+        listed &= add_unique(files, path);
     }
 
     // They are packed below assets/game/ relative to their deepest common directory.
@@ -215,6 +268,10 @@ int export_android(const ExportOptions& o) {
         }
     }
     int code = 0;
+    if (!listed) {
+        log_error(kErrExport, "%s: more than %u files to pack", s->path, kMaxFiles);
+        code = 1;
+    }
     for (uint32_t i = 0; i < files.count && code == 0; ++i) {
         const char* rel = files.items[i] + root;
         if (starts_with(rel, "../") || rel[0] == '/' || (rel[0] && rel[1] == ':')) {
@@ -279,18 +336,20 @@ int export_android(const ExportOptions& o) {
             add_unique(e.assets, rel);
         }
         // The runtime unpacks the files listed here and runs the command line in zaro_args.txt.
-        char list[kMaxFiles * 96] = {};
+        const size_t list_size = (size_t)kMaxFiles * kPath;
+        char* list = (char*)calloc(list_size, 1);
         size_t used = 0;
-        for (uint32_t i = 0; i < e.assets.count && used < sizeof(list); ++i) {
-            used += (size_t)snprintf(list + used, sizeof(list) - used, "%s\n", e.assets.items[i]);
+        for (uint32_t i = 0; i < e.assets.count && used < list_size; ++i) {
+            used += (size_t)snprintf(list + used, list_size - used, "%s\n", e.assets.items[i]);
         }
         char args[kPath + 16];
         const int args_len = snprintf(args, sizeof(args), "run game/%s\n", files.items[0] + root);
         snprintf(file, sizeof(file), "%s/app/src/main/assets/zaro_assets.txt", out);
-        if (e.ok && (used >= sizeof(list) || !write_file(file, list, used))) {
+        if (e.ok && (used >= list_size || !write_file(file, list, used))) {
             log_error(kErrIo, "%s: cannot write", file);
             e.ok = false;
         }
+        free(list);
         snprintf(file, sizeof(file), "%s/app/src/main/assets/zaro_args.txt", out);
         if (e.ok && !write_file(file, args, (size_t)args_len)) {
             log_error(kErrIo, "%s: cannot write", file);

@@ -369,9 +369,11 @@ Status of all entries below: **accepted, 2026-11-01**.
   - **Entry point**: `dev.zaro.ZaroActivity` extends `SDLActivity` and calls `main` in
     `libmain.so`, which is the `zaro` command line itself. Arguments come from the launch
     intent's `args` extra, or from `assets/zaro_args.txt` (`run game/<scene>`).
-  - **Assets**: `zaro export android` packs the scene, its script and its prefabs under
-    `assets/game/`, with the shaders under `assets/shaders/`. At start the runtime copies every
-    file listed in `assets/zaro_assets.txt` to the app's external files directory
+  - **Assets**: `zaro export android` packs the scene's whole directory, without scene tests
+    (a script may name files at run time), and every file the scene names outside it (script,
+    prefabs, screens with their prefabs and images, string tables) under `assets/game/`. Fonts
+    go under `assets/fonts/` and shaders under `assets/shaders/`. At start the runtime copies
+    every file listed in `assets/zaro_assets.txt` to the app's external files directory
     (`/sdcard/Android/data/<package>/files`) and runs there. Loaders keep reading plain files,
     and `adb pull` can fetch the perf report. stdout and stderr go to logcat (tag `zaro`).
   - **Project export**: the native build writes a runtime package (`cmake/ZaroAndroid.cmake`):

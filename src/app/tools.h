@@ -32,7 +32,8 @@ struct ExportOptions {
 };
 
 // `zaro export android <scene>`: writes a Gradle project (D-021) from the Android runtime package
-// (cmake/ZaroAndroid.cmake) plus the scene, its script and its prefabs under assets/game/. The
+// (cmake/ZaroAndroid.cmake) plus the scene's directory (scene tests excluded) and the files the
+// scene names outside it (script, prefabs, screens, their images, string tables) under assets/game/. The
 // APK runs `zaro run game/<scene>` unless launched with other arguments. Returns 0 on success,
 // 1 when the scene is invalid or a file cannot be written, 2 on bad options.
 int export_android(const ExportOptions& options);
