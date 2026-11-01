@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ZARO">
+  <title>ZARO</title>
+  <!-- A zero split by a Z-shaped cut 7 units wide. The two halves are point-symmetric about (32,32). -->
+  <defs>
+    <linearGradient id="zaro-mark-fill" gradientUnits="userSpaceOnUse" x1="8" y1="4" x2="56" y2="60">
+      <stop offset="0" stop-color="#9B6BFF"/>
+      <stop offset="1" stop-color="#2E8BFF"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#zaro-mark-fill)">
+    <path d="M5.737 17.5H48.385L30.385 39.5H61.047A30 30 0 0 0 5.737 17.5Z"/>
+    <path d="M58.263 46.5H15.615L33.615 24.5H2.953A30 30 0 0 0 58.263 46.5Z"/>
+  </g>
+</svg>
