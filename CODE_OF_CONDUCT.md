@@ -26,7 +26,7 @@ entirety to all project spaces.
 ## Reporting
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the
-project maintainers at: **TODO: conduct contact (set before the repository goes public)**.
+project maintainers at **hoyeom.ember+conduct@gmail.com**.
 All complaints will be reviewed and investigated promptly and fairly, and the privacy of the
 reporter will be respected.
 
