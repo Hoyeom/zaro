@@ -21,7 +21,7 @@ void print_usage() {
          "             zaro check <file.toml> [--json]\n"
          "  test       run scene tests: zaro test [paths...] [--update] [--json] (default path: tests)\n"
          "  screenshot render a scene headless to PNG: zaro screenshot <scene.toml> [out.png]\n"
-         "             [--frames N (default 60)] [--size WxH] [--lang LANG]\n"
+         "             [--frames N (default 60)] [--size WxH] [--lang LANG] [--click SCREEN/NODE]...\n"
          "  help       print this message\n"
          "\n"
          "run options:\n"
@@ -39,6 +39,8 @@ void print_usage() {
          "  --perf PATH          write a perf report (JSON) to PATH\n"
          "  --screenshot PATH    headless: save the last frame as PNG\n"
          "  --lang LANG          UI language, one of the scene's languages (default: its first)\n"
+         "  --click SCREEN/NODE  headless: click that button on the first frames, one per frame;\n"
+         "                       repeat for more (up to 8)\n"
          "\n"
          "planned (not implemented yet): plugin");
 }
@@ -117,6 +119,11 @@ int cmd_run(int argc, char** argv) {
             if (!next) return usage_error("--lang needs a language, got", "");
             o.language = next;
             ++i;
+        } else if (strcmp(a, "--click") == 0) {
+            if (!next || !strchr(next, '/')) return usage_error("--click needs SCREEN/NODE, got", next ? next : "");
+            if (o.click_count == zaro::app::RunOptions::kMaxClicks) return usage_error("too many clicks at", next);
+            o.clicks[o.click_count++] = next;
+            ++i;
         } else if (a[0] != '-' && !o.scene_path) {
             o.scene_path = a;
         } else {
@@ -151,6 +158,11 @@ int cmd_screenshot(int argc, char** argv) {
         } else if (strcmp(a, "--lang") == 0) {
             if (!next) return usage_error("--lang needs a language, got", "");
             o.language = next;
+            ++i;
+        } else if (strcmp(a, "--click") == 0) {
+            if (!next || !strchr(next, '/')) return usage_error("--click needs SCREEN/NODE, got", next ? next : "");
+            if (o.click_count == zaro::app::RunOptions::kMaxClicks) return usage_error("too many clicks at", next);
+            o.clicks[o.click_count++] = next;
             ++i;
         } else if (a[0] == '-') {
             return usage_error("unknown option", a);

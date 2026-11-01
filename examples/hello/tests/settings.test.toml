@@ -1,0 +1,51 @@
+# The settings popup through clicks: the HUD button opens it, then English and sound off are
+# chosen. on_ui in hello.luau does the work; the texts switch language at once.
+[test]
+scene = "../scene.toml"
+ticks = 60
+
+[[click]]
+tick = 10
+screen = "hud"
+node = "settings_button"
+
+[[click]]
+tick = 20
+screen = "settings"
+node = "english"
+
+[[click]]
+tick = 30
+screen = "settings"
+node = "sound_off"
+
+[[expect]]
+screen = "settings"
+node = "popup"
+component = "Layout"
+field = "visible"
+equals = true
+
+[[expect]]
+screen = "settings"
+node = "title"
+text = "Settings"
+
+[[expect]]
+screen = "hud"
+node = "speed"
+text = "Speed 6 m/s"
+
+[[expect]]
+screen = "settings"
+node = "sound_off"
+component = "Button"
+field = "color"
+equals = "#3a6ab0"
+
+[[expect]]
+screen = "settings"
+node = "sound_on"
+component = "Button"
+field = "color"
+equals = "#787c88"

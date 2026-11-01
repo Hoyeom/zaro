@@ -11,6 +11,7 @@
 namespace zaro {
 namespace scene {
 struct Scene;
+struct UiState;
 }
 namespace ui {
 struct Screen;
@@ -43,6 +44,19 @@ void render_ui_layer(UiLayer* layer);
 uint32_t screen_count(const UiLayer* layer);
 ui::Screen* screen_at(UiLayer* layer, uint32_t index);
 ui::Screen* find_screen(UiLayer* layer, const char* name);
+// The loaded screen files, bottom to top (scripts change their widget fields in place).
+scene::Scene* const* screen_documents(UiLayer* layer);
+// The view-model values the texts show and the commands scripts send (scene/ui_state.h). The layer
+// owns it and keeps its value "language" current. nullptr for a null layer.
+scene::UiState* ui_state(UiLayer* layer);
+
+// Switches to another of the scene's languages. False (with a ZE0703 diagnostic) if its table
+// does not load; the current language stays.
+bool set_language(UiLayer* layer, const char* language, DiagList* diags);
+// Clicks a button by screen and node name (see ui::click_node). Call after update_ui.
+bool click(UiLayer* layer, const char* screen, const char* node);
+// The text a node shows, or nullptr if the screen or node does not exist.
+const char* node_text(UiLayer* layer, const char* screen, const char* node, char* out, size_t size);
 
 // `zaro check`: loads the scene's screens and every language's string table and reports missing
 // keys, tables that disagree and missing images. Returns false if anything was reported.

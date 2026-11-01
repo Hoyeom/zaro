@@ -9,3 +9,16 @@ entity = "player"
 component = "PlayerController"
 field = "speed"
 equals = 7.5
+
+# The HUD shows the new speed through the view-model value {speed}; the popup stays closed.
+[[expect]]
+screen = "hud"
+node = "speed"
+text = "속도 7.5 m/s"
+
+[[expect]]
+screen = "settings"
+node = "popup"
+component = "Layout"
+field = "visible"
+equals = false

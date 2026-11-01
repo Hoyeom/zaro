@@ -41,11 +41,29 @@ bool get_uint(const toml_datum_t& t, const char* key, uint64_t* out, const char*
     return true;
 }
 
+void load_click(const toml_datum_t& t, Click* c, const char* file, DiagList* d) {
+    c->line = t.lineno;
+    uint64_t tick = 0;
+    if (get_uint(t, "tick", &tick, file, d, true)) c->tick = (uint32_t)tick;
+    get_string(t, "screen", c->screen, sizeof(c->screen), file, d, true);
+    get_string(t, "node", c->node, sizeof(c->node), file, d, true);
+    if (c->tick == 0 && tick == 0 && toml_get(t, "tick").type == TOML_INT64) {
+        diag_add(d, kErrTestSpec, file, t.lineno, t.colno, "click ticks start at 1");
+    }
+}
+
 void load_expect(const toml_datum_t& t, Expect* e, const char* file, DiagList* d) {
     e->line = t.lineno;
     char component[64] = {}, field[64] = {};
+    // A screen node is named with `node`, a scene entity with `entity`.
+    const bool on_screen = get_string(t, "screen", e->screen, sizeof(e->screen), file, d, false);
+    if (on_screen && get_string(t, "text", e->text, sizeof(e->text), file, d, false)) {
+        e->has_text = true;
+        get_string(t, "node", e->entity, sizeof(e->entity), file, d, true);
+        return;
+    }
     // Read all three before returning, so one pass reports every missing key.
-    const bool has_entity = get_string(t, "entity", e->entity, sizeof(e->entity), file, d, true);
+    const bool has_entity = get_string(t, on_screen ? "node" : "entity", e->entity, sizeof(e->entity), file, d, true);
     const bool has_component = get_string(t, "component", component, sizeof(component), file, d, true);
     const bool has_field = get_string(t, "field", field, sizeof(field), file, d, true);
     if (!has_entity || !has_component || !has_field) return;
@@ -164,6 +182,12 @@ bool load_test_spec(const char* path, TestSpec* spec, DiagList* d) {
             if (!spec->has_state_hash) {
                 diag_add(d, kErrTestSpec, path, spec->state_hash_line, 1, "state_hash must be hexadecimal");
             }
+        }
+    }
+    const toml_datum_t clicks = toml_get(top, "click");
+    if (clicks.type == TOML_ARRAY) {
+        for (int32_t i = 0; i < clicks.u.arr.size && spec->click_count < TestSpec::kMaxClicks; ++i) {
+            load_click(clicks.u.arr.elem[i], &spec->clicks[spec->click_count++], path, d);
         }
     }
     const toml_datum_t ex = toml_get(top, "expect");
