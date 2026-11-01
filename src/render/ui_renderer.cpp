@@ -1,0 +1,115 @@
+#include "render/ui_renderer.h"
+
+#include "core/profile.h"
+
+#include <stdio.h>
+
+namespace zaro::render {
+
+struct UiRenderer {
+    rhi::Device* device = nullptr;
+    char shader_dir[512] = {};
+    uint32_t atlas_size = 0;
+    uint32_t capacity = 0;  // quads the buffer holds
+
+    rhi::Buffer* screen = nullptr;
+    rhi::Buffer* quads = nullptr;
+    rhi::Texture* atlas = nullptr;
+    rhi::Sampler* sampler = nullptr;
+    rhi::BindLayout* layout = nullptr;
+    rhi::BindGroup* group = nullptr;
+    rhi::RenderPipeline* pipeline = nullptr;
+};
+
+namespace {
+
+// (Re)creates the quad buffer for at least `count` quads, and the bind group that points at it.
+void ensure_capacity(UiRenderer* r, uint32_t count) {
+    if (count <= r->capacity && r->group) return;
+    uint32_t capacity = r->capacity ? r->capacity : 1024;
+    while (capacity < count) capacity *= 2;
+    rhi::destroy_bind_group(r->group);
+    rhi::destroy_buffer(r->quads);
+    r->capacity = capacity;
+    r->quads = rhi::create_buffer(r->device, (uint64_t)capacity * sizeof(UiQuad), rhi::kBufStorage, "ui quads");
+    rhi::BindEntry entries[4] = {{0, r->screen}, {1, r->quads}, {2, nullptr}, {3, nullptr}};
+    entries[2].texture = r->atlas;
+    entries[3].sampler = r->sampler;
+    r->group = rhi::create_bind_group(r->device, r->layout, entries, 4);
+}
+
+}  // namespace
+
+bool reload_ui_shaders(UiRenderer* r) {
+    char path[600];
+    snprintf(path, sizeof(path), "%sui.wgsl", r->shader_dir);
+    rhi::Shader* shader = rhi::load_shader(r->device, path);
+    if (!shader) return false;
+    rhi::destroy_render_pipeline(r->pipeline);
+    rhi::RenderPipelineDesc d{"ui", shader, "vs_quad", "fs_quad", r->layout};
+    d.cull_back = false;
+    d.depth = false;
+    d.alpha_blend = true;
+    r->pipeline = rhi::create_render_pipeline(r->device, d);
+    rhi::destroy_shader(shader);
+    return true;
+}
+
+UiRenderer* create_ui_renderer(rhi::Device* device, const char* shader_dir, uint32_t atlas_size) {
+    UiRenderer* r = new UiRenderer();
+    r->device = device;
+    snprintf(r->shader_dir, sizeof(r->shader_dir), "%s", shader_dir);
+    r->atlas_size = atlas_size;
+    r->screen = rhi::create_buffer(device, 16, rhi::kBufUniform, "ui screen");
+    r->atlas = rhi::create_texture(device, atlas_size, atlas_size, rhi::TextureFormat::kR8, "glyph atlas");
+    r->sampler = rhi::create_sampler(device, true);
+    using rhi::BindingType;
+    const rhi::BindingDesc bindings[] = {
+        {0, BindingType::kUniform, rhi::kStageVertex},
+        {1, BindingType::kStorageRead, rhi::kStageVertex | rhi::kStageFragment},
+        {2, BindingType::kTexture, rhi::kStageFragment},
+        {3, BindingType::kSampler, rhi::kStageFragment},
+    };
+    r->layout = rhi::create_bind_layout(device, bindings, 4);
+    ensure_capacity(r, 1);
+    if (!reload_ui_shaders(r)) {
+        destroy_ui_renderer(r);
+        return nullptr;
+    }
+    return r;
+}
+
+void destroy_ui_renderer(UiRenderer* r) {
+    if (!r) return;
+    rhi::destroy_render_pipeline(r->pipeline);
+    rhi::destroy_bind_group(r->group);
+    rhi::destroy_bind_layout(r->layout);
+    rhi::destroy_sampler(r->sampler);
+    rhi::destroy_texture(r->atlas);
+    rhi::destroy_buffer(r->quads);
+    rhi::destroy_buffer(r->screen);
+    delete r;
+}
+
+void render_ui(UiRenderer* r, const UiFrame& frame, const float* clear_rgba) {
+    ZARO_ZONE("render.ui");
+    if (frame.atlas && frame.atlas_size == r->atlas_size && frame.atlas_x1 > frame.atlas_x0 &&
+        frame.atlas_y1 > frame.atlas_y0) {
+        const uint8_t* first = frame.atlas + (size_t)frame.atlas_y0 * frame.atlas_size + frame.atlas_x0;
+        rhi::write_texture(r->device, r->atlas, frame.atlas_x0, frame.atlas_y0, frame.atlas_x1 - frame.atlas_x0,
+                           frame.atlas_y1 - frame.atlas_y0, first, frame.atlas_size);
+    }
+    uint32_t width, height;
+    rhi::target_size(r->device, &width, &height);
+    const float screen[4] = {(float)width, (float)height, 1.0f / (float)width, 1.0f / (float)height};
+    rhi::write_buffer(r->device, r->screen, 0, screen, sizeof(screen));
+    ensure_capacity(r, frame.quad_count);
+    if (frame.quad_count) {
+        rhi::write_buffer(r->device, r->quads, 0, frame.quads, (uint64_t)frame.quad_count * sizeof(UiQuad));
+    }
+    rhi::render_begin(r->device, "ui", clear_rgba);
+    if (frame.quad_count) rhi::draw(r->device, r->pipeline, r->group, 6, frame.quad_count);
+    rhi::render_end(r->device);
+}
+
+}  // namespace zaro::render

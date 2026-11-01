@@ -57,9 +57,10 @@ MODULE_DEPS = {
     "rhi": {"core", "platform", "rhi"},
     "sim": {"core", "sim"},
     "render": {"core", "rhi", "render"},
+    "ui": {"core", "ui"},
     "scene": {"core", "scene"},
     "script": {"core", "scene", "script"},
-    "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "app"},
+    "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "ui", "app"},
     "cli": {"core", "app", "cli"},
 }
 # Third-party headers confined to the one module that wraps them.
@@ -72,6 +73,7 @@ THIRD_PARTY_OWNERS = {
     "lua.h": "src/script/",
     "lualib.h": "src/script/",
     "luacode.h": "src/script/",
+    "stb_truetype.h": "src/ui/font.cpp",
 }
 
 RULES = {

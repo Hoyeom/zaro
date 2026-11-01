@@ -117,6 +117,46 @@ foreach(t Luau.Common Luau.Ast Luau.Compiler Luau.VM)
   endif()
 endforeach()
 
+# --- stb_truetype 1.26 (public domain or MIT), font rasterizer for the ui module (D-019) ----------
+# One header, pinned by commit; src/ui/font.cpp holds the implementation.
+FetchContent_Declare(stb_truetype
+  URL https://raw.githubusercontent.com/nothings/stb/003501f6d7a8668ce8b6d875e34dd97ad0d5d5b5/stb_truetype.h
+  URL_HASH SHA256=ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab
+  DOWNLOAD_NO_EXTRACT TRUE SOURCE_SUBDIR _none)
+FetchContent_MakeAvailable(stb_truetype)
+add_library(zaro_stb_truetype INTERFACE)
+target_include_directories(zaro_stb_truetype SYSTEM INTERFACE ${stb_truetype_SOURCE_DIR})
+
+# --- Noto Sans KR (SIL OFL 1.1), the bundled default font (D-019) --------------------------------
+# Unmodified OTF files from notofonts/noto-cjk, pinned by commit. Copied to <bin>/fonts/.
+set(_noto_base https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans)
+FetchContent_Declare(noto_sans_kr_regular
+  URL ${_noto_base}/SubsetOTF/KR/NotoSansKR-Regular.otf
+  URL_HASH SHA256=69975a0ac8472717870aefeab0a4d52739308d90856b9955313b2ad5e0148d68
+  DOWNLOAD_NO_EXTRACT TRUE SOURCE_SUBDIR _none)
+FetchContent_Declare(noto_sans_kr_bold
+  URL ${_noto_base}/SubsetOTF/KR/NotoSansKR-Bold.otf
+  URL_HASH SHA256=5a6ceb287ed2fc6cfc6213144ebea68cbd94b20fc9eb873d8486493bf02d9bda
+  DOWNLOAD_NO_EXTRACT TRUE SOURCE_SUBDIR _none)
+FetchContent_Declare(noto_sans_kr_license
+  URL ${_noto_base}/LICENSE
+  URL_HASH SHA256=6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2
+  DOWNLOAD_NO_EXTRACT TRUE SOURCE_SUBDIR _none)
+FetchContent_MakeAvailable(noto_sans_kr_regular noto_sans_kr_bold noto_sans_kr_license)
+set(ZARO_FONT_FILES
+  ${noto_sans_kr_regular_SOURCE_DIR}/NotoSansKR-Regular.otf
+  ${noto_sans_kr_bold_SOURCE_DIR}/NotoSansKR-Bold.otf)
+set(ZARO_FONT_LICENSE ${noto_sans_kr_license_SOURCE_DIR}/LICENSE)
+
+# Copies the bundled fonts and their license to <bin>/fonts/ after `target` builds.
+function(zaro_add_fonts target)
+  add_custom_command(TARGET ${target} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/fonts
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ZARO_FONT_FILES} ${CMAKE_BINARY_DIR}/fonts
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ZARO_FONT_LICENSE} ${CMAKE_BINARY_DIR}/fonts/NotoSansKR-LICENSE.txt
+    VERBATIM)
+endfunction()
+
 # --- Tracy v0.14.1 (BSD-3), only with ZARO_TRACY ---------------------------------------------------
 if(ZARO_TRACY)
   set(TRACY_ENABLE ON CACHE BOOL "" FORCE)

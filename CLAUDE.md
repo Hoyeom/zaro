@@ -65,11 +65,13 @@ CMakeLists.txt follow the same graph.
 | `scene` | loads TOML scenes and prefabs into registered components; the only module that includes tomlc17 | core |
 | `script` | sandboxed Luau scripts acting on a scene through reflection; the only module that includes Luau | core, scene |
 | `render` | draws plain data (the view); never sees sim types | core, rhi |
-| `app` | owns the frame loop and wires sim to render | all of the above |
+| `ui` | game UI: fonts, text layout, glyph atlas, UI draw lists; no GPU | core |
+| `app` | owns the frame loop and wires sim and ui to render | all of the above |
 | `cli` | the `zaro` command | core, app |
 
 Third-party headers belong to one module only: `SDL3/` → platform, `webgpu/` → rhi,
-`TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` → scene, `lua.h`/`lualib.h`/`luacode.h` → script.
+`TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` → scene, `lua.h`/`lualib.h`/`luacode.h` → script,
+`stb_truetype.h` → `ui/font.cpp`.
 To add a feature, put the state and rules in `sim`, the drawing in `render`, and the
 connection in `app`. A new module needs an entry in `MODULE_DEPS` (tools/lint.py), in `SCOPES`
 (tools/git_rules.py) and in this table.
@@ -231,6 +233,22 @@ The run also prints `state_hash=<hex> ticks=<n>` on stdout.
 Hosted runners have no GPU, so `gpu`-labelled tests and GPU timings run only locally. Linux
 system packages are listed in `tools/ci/install-linux-deps.sh`, which CI and
 `tools/ci/linux-docker.sh` share. Actions are pinned by commit SHA.
+
+## Text and UI (D-019, D-020)
+
+The `ui` module builds the frame's UI as a `ui::DrawList` of screen-space quads (pixels, origin
+top-left). `render::UiRenderer` draws the list over the frame in one pass ("ui") and one draw call.
+`ui::Quad`, `render::UiQuad` and `struct Quad` in `shaders/ui.slang` are the same 80 bytes; change
+all three together.
+
+- Text is UTF-8. `ui::draw_text` lays out lines (breaks at `
+` and after spaces, long words
+  between characters) and rasterizes glyphs into the atlas on first use. Measuring needs no GPU and
+  never touches the atlas.
+- Call `ui::begin_frame` before drawing text each frame. A full atlas skips the glyphs that do not
+  fit for that frame, then is cleared and refilled on the next one.
+- The bundled font is Noto Sans KR (Regular, Bold; OFL 1.1). The build copies it to `<bin>/fonts/`.
+  Font errors are ZE0700.
 
 ## Shaders
 
