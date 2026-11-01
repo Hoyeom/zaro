@@ -65,6 +65,12 @@ if(WIN32)
     IMPORTED_IMPLIB ${wgpu_SOURCE_DIR}/lib/wgpu_native.dll.lib)
 elseif(APPLE)
   set_target_properties(zaro_wgpu PROPERTIES IMPORTED_LOCATION ${wgpu_SOURCE_DIR}/lib/libwgpu_native.dylib)
+elseif(ANDROID)
+  # The library has no SONAME. Linking it by name records NEEDED libwgpu_native.so instead of
+  # this machine's path, so the device's linker finds it next to libmain.so.
+  set_target_properties(zaro_wgpu PROPERTIES
+    IMPORTED_LOCATION ${wgpu_SOURCE_DIR}/lib/libwgpu_native.so
+    IMPORTED_NO_SONAME TRUE)
 else()
   set_target_properties(zaro_wgpu PROPERTIES IMPORTED_LOCATION ${wgpu_SOURCE_DIR}/lib/libwgpu_native.so)
 endif()

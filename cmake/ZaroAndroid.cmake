@@ -22,6 +22,8 @@ add_custom_target(zaro_android_runtime ALL
           ${_rt}/app/src/main/java/org/libsdl/app
   COMMAND ${CMAKE_COMMAND} -E make_directory ${_jni}
   COMMAND ${CMAKE_STRIP} --strip-unneeded -o ${_jni}/libmain.so $<TARGET_FILE:zaro>
+  COMMAND ${CMAKE_COMMAND} -DREADELF=${CMAKE_READELF} -DLIB=${_jni}/libmain.so
+          -P ${CMAKE_SOURCE_DIR}/cmake/ZaroCheckNeeded.cmake
   COMMAND ${CMAKE_STRIP} --strip-unneeded -o ${_jni}/libSDL3.so $<TARGET_FILE:SDL3::SDL3-shared>
   COMMAND ${CMAKE_STRIP} --strip-unneeded -o ${_jni}/libwgpu_native.so $<TARGET_FILE:zaro_wgpu>
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/shaders ${_rt}/app/src/main/assets/shaders

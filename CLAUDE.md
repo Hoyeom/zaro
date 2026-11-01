@@ -155,6 +155,8 @@ ticks without a GPU, with the scripted player and the scene's script. It then ch
   the report.
 - Touch is a virtual stick in `platform::poll_input`. In the background the app drops its GPU
   surface (`rhi::set_window(device, nullptr)`) and recreates it when `Input::window_changed` is set.
+- Export errors are ZE0800 (no runtime package, or a scene file outside the packed tree). The
+  build fails if `libmain.so` depends on a build-machine path (`cmake/ZaroCheckNeeded.cmake`).
 - CI builds the APK (`android apk` job); running it needs a device and stays local.
 
 ## Design principles (do not erode these)
