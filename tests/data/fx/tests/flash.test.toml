@@ -1,0 +1,13 @@
+# A Shape's hit flash falls on the tick clock without a GPU: the box starts at flash 1 and loses
+# flash_decay (1 per second) every tick, so after 30 ticks (half a second) it is at 0.5.
+# Run with: zaro test tests/data/fx
+[test]
+scene = "../shapes.toml"
+ticks = 30
+
+[[expect]]
+entity = "box"
+component = "Shape"
+field = "flash"
+min = 0.499
+max = 0.501

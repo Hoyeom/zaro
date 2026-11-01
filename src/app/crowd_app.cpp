@@ -1,6 +1,7 @@
 #include "app/crowd_app.h"
 
 #include "app/fx_layer.h"
+#include "app/shape_layer.h"
 #include "app/sprite_layer.h"
 #include "app/tools.h"
 #include "app/ui_layer.h"
@@ -38,6 +39,7 @@ struct Game {
     UiLayer* ui = nullptr;       // the scene's screens, when it has any
     SpriteLayer* sprites = nullptr;  // the scene's sprites, when it has any
     FxLayer* fx = nullptr;           // the scene's frame effects (HDR and bloom), when it has any
+    ShapeLayer* shapes = nullptr;    // the scene's glowing shapes and arena colours, when it has any
     DiagList* diags = nullptr;
 };
 
@@ -95,6 +97,9 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
         if (ndone && g.script && !g.script_paused) ok = script::finish_tweens(g.script, done, ndone, g.diags) && ok;
         scene::update_transforms(g.scene);
     }
+    float px, pz;
+    sim::player_position(g.crowd, 1.0f, &px, &pz);
+    step_shapes(g.shapes, sim::tick(g.crowd), px, pz);
     return step_sprites(g.sprites, sim::tick(g.crowd), g.diags) && ok;
 }
 
@@ -200,17 +205,15 @@ bool write_perf_json(const char* path, const RunOptions& o, const Stats& s, doub
 void shader_dir(char* out, size_t size) { snprintf(out, size, "%sshaders/", platform::base_path()); }
 
 uint64_t shader_mtime(const char* dir) {
-    char path[600];
-    snprintf(path, sizeof(path), "%scrowd_cull.wgsl", dir);
-    const uint64_t a = platform::file_mtime(path);
-    snprintf(path, sizeof(path), "%scrowd_draw.wgsl", dir);
-    const uint64_t b = platform::file_mtime(path);
-    snprintf(path, sizeof(path), "%ssprite.wgsl", dir);
-    const uint64_t c = platform::file_mtime(path);
-    snprintf(path, sizeof(path), "%spost.wgsl", dir);
-    const uint64_t d = platform::file_mtime(path);
-    const uint64_t ab = a > b ? a : b, cd = c > d ? c : d;
-    return ab > cd ? ab : cd;
+    static const char* const kShaders[] = {"crowd_cull", "crowd_draw", "sprite", "post", "shape"};
+    uint64_t newest = 0;
+    for (const char* name : kShaders) {
+        char path[600];
+        snprintf(path, sizeof(path), "%s%s.wgsl", dir, name);
+        const uint64_t m = platform::file_mtime(path);
+        if (m > newest) newest = m;
+    }
+    return newest;
 }
 
 render::CrowdScene make_scene(const Game& g, const float* instances, float alpha, float zoom) {
@@ -223,19 +226,22 @@ render::CrowdScene make_scene(const Game& g, const float* instances, float alpha
     scene.time_seconds = (float)sim::tick(crowd) * sim::kTickSeconds;
     scene.zoom = zoom;
     scene.keep_depth = has_world_sprites(g.sprites);
+    shape_crowd_scene(g.shapes, &scene);
     return scene;
 }
 
-// The frame's passes: the crowd and the scene's sprites in its view (into the HDR frame when the
-// scene has effects, then bloom and tonemap), then the UI over both.
+// The frame's passes: the crowd, the scene's shapes and sprites in its view (into the HDR frame
+// when the scene has effects, then bloom and tonemap), then the UI over all of them.
 void render_frame(Game& g, rhi::Device* device, render::CrowdRenderer* renderer, render::CrowdScene scene) {
     scene.target = fx_begin_frame(g.fx);
     render::render_crowd(renderer, scene);
-    if (g.sprites) {
+    if (g.shapes || g.sprites) {
         uint32_t w, h;
         rhi::target_size(device, &w, &h);
         float view_proj[16], right[3];
         render::crowd_camera(scene, w, h, view_proj, right);
+        render_shape_layer(g.shapes, view_proj, scene.target, scene.player_x, scene.player_z, scene.time_seconds,
+                           has_world_sprites(g.sprites));
         render_sprite_layer(g.sprites, view_proj, right, scene.target);
     }
     render_fx(g.fx);
@@ -257,11 +263,16 @@ render::CrowdRenderer* attach_renderers(Game& g, rhi::Device* device, const char
     const rhi::TextureFormat format = fx_scene_format(g.fx);
     const uint32_t* cells = nullptr;
     const uint32_t ncells = sim::obstacle_cells(g.crowd, &cells);
-    render::CrowdRenderer* renderer = render::create_crowd_renderer(
-        device, dir, sim::enemy_count(g.crowd), cells, ncells, look.frame_count ? &look : nullptr, format);
+    render::CrowdLook crowd_look;
+    crowd_look.sprites = look.frame_count ? &look : nullptr;
+    crowd_look.shapes = crowd_has_shapes(g.shapes);
+    crowd_look.format = format;
+    render::CrowdRenderer* renderer =
+        render::create_crowd_renderer(device, dir, sim::enemy_count(g.crowd), cells, ncells, crowd_look);
     free_crowd_sprites(&look);
     if (!renderer || (g.ui && !attach_gpu(g.ui, device, dir)) ||
-        (g.sprites && !attach_sprite_gpu(g.sprites, device, dir, format))) {
+        (g.sprites && !attach_sprite_gpu(g.sprites, device, dir, format)) ||
+        !attach_shape_gpu(g.shapes, device, dir, format)) {
         print_diags(g);
         render::destroy_crowd_renderer(renderer);
         return nullptr;
@@ -480,7 +491,7 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
                 shaders_mtime = m;
                 rhi::wait_idle(device);
                 const bool sprites = !g.sprites || reload_sprite_layer_shaders(g.sprites);
-                const bool fx = reload_fx_shaders(g.fx);
+                const bool fx = reload_fx_shaders(g.fx) && reload_shape_layer_shaders(g.shapes);
                 if (render::reload_shaders(renderer) && sprites && fx) log_info("shaders reloaded");
             }
             // Script hot reload: save the .luau file while this window runs.
@@ -545,8 +556,14 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         g.ui = create_ui_layer(g.scene, o.language, g.diags, &ui_failed);
         bool sprites_failed = false;
         if (!ui_failed) g.sprites = create_sprite_layer(g.scene, g.diags, &sprites_failed);
+        bool shapes_failed = false;
+        if (!ui_failed && !sprites_failed) g.shapes = create_shape_layer(g.scene, g.diags, &shapes_failed);
         g.fx = create_fx_layer(g.scene);
-        if (ui_failed || sprites_failed) {
+        if (ui_failed || sprites_failed || shapes_failed) {
+            destroy_sprite_layer(g.sprites);
+            g.sprites = nullptr;
+            destroy_fx_layer(g.fx);
+            g.fx = nullptr;
             destroy_ui_layer(g.ui);
             g.ui = nullptr;
             scene::free_scene(g.scene);
@@ -572,6 +589,8 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
             g.sprites = nullptr;
             destroy_fx_layer(g.fx);
             g.fx = nullptr;
+            destroy_shape_layer(g.shapes);
+            g.shapes = nullptr;
             scene::free_scene(g.scene);
             g.scene = nullptr;
             return false;
@@ -609,6 +628,7 @@ int run_crowd(const RunOptions& o) {
     destroy_ui_layer(g.ui);
     destroy_sprite_layer(g.sprites);
     destroy_fx_layer(g.fx);
+    destroy_shape_layer(g.shapes);
     scene::free_scene(g.scene);
     delete g.diags;
     jobs::shutdown();
@@ -657,6 +677,7 @@ bool simulate_scene(const RunOptions& o, uint32_t ticks, const scene::TestSpec* 
     script::destroy_script(g.script);
     destroy_sprite_layer(g.sprites);  // the Sprite components keep their last frame in the scene
     destroy_fx_layer(g.fx);
+    destroy_shape_layer(g.shapes);  // the Shape components keep their last flash in the scene
     jobs::shutdown();
     *scene_out = g.scene;
     *ui_out = g.ui;

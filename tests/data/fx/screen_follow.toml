@@ -1,0 +1,9 @@
+# A screen shape cannot follow the player (ZE1100 at its `follow` line).
+[scene]
+name = "screen_follow"
+
+[[entity]]
+name = "marker"
+[entity.Shape]
+space = "screen"
+follow = "player"

@@ -1,0 +1,15 @@
+# The crowd is given two looks, CrowdShape and CrowdSprite (ZE1100 at the CrowdShape's entity).
+[scene]
+name = "crowd_twice"
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 10
+[entity.CrowdSprite]
+sheet = "../sprites/blob.toml"
+
+[[entity]]
+name = "look"
+[entity.CrowdShape]
+kind = "circle"

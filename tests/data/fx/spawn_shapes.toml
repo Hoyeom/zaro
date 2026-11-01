@@ -1,0 +1,16 @@
+# Shapes that a script spawns and destroys (D-031): the shape layer follows the entities.
+#   zaro screenshot tests/data/fx/spawn_shapes.toml shapes.png --frames 20
+[scene]
+name = "shape-spawn"
+script = "spawn_shapes.luau"
+prefabs = ["orb.toml"]
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 0

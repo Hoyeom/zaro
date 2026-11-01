@@ -1,0 +1,4 @@
+# Spawned and destroyed shapes keep the run going (the shape layer re-syncs): 7 of 10 orbs remain.
+[test]
+scene = "../spawn_shapes.toml"
+ticks = 30
