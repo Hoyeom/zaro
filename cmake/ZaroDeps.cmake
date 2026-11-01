@@ -98,6 +98,25 @@ set_target_properties(zaro_tomlc17 PROPERTIES C_STANDARD 17)
 # The source contains UTF-8 characters; MSVC otherwise reads it in the ANSI code page (C4819).
 target_compile_options(zaro_tomlc17 PRIVATE $<$<C_COMPILER_ID:MSVC>:/utf-8>)
 
+# --- Luau 0.743 (MIT), sandboxed game scripts (D-009) ---------------------------------------------
+# Only the VM and the bytecode compiler; no CLI, tests, analysis or JIT.
+set(LUAU_BUILD_CLI OFF CACHE BOOL "" FORCE)
+set(LUAU_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+# EXCLUDE_FROM_ALL: only the targets ZARO links (VM, Compiler and their deps) are built.
+FetchContent_Declare(luau SYSTEM EXCLUDE_FROM_ALL
+  URL https://github.com/luau-lang/luau/archive/refs/tags/0.743.tar.gz
+  URL_HASH SHA256=be23707d541710a978f2c559c069e22ba9c7c449e07d60472fb4e074914bc91d)
+FetchContent_MakeAvailable(luau)
+# Script errors unwind with longjmp, never as C++ exceptions through ZARO's no-exception code.
+target_compile_definitions(Luau.VM PRIVATE LUA_USE_LONGJMP=1)
+# The compiler throws and catches internally (luau_compile never lets one escape), so the Luau
+# targets get exceptions back; CMakeLists.txt removes /EHsc globally for ZARO code.
+foreach(t Luau.Common Luau.Ast Luau.Compiler Luau.VM)
+  if(TARGET ${t})
+    target_compile_options(${t} PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/EHsc /utf-8>)
+  endif()
+endforeach()
+
 # --- Tracy v0.14.1 (BSD-3), only with ZARO_TRACY ---------------------------------------------------
 if(ZARO_TRACY)
   set(TRACY_ENABLE ON CACHE BOOL "" FORCE)

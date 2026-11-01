@@ -58,7 +58,8 @@ MODULE_DEPS = {
     "sim": {"core", "sim"},
     "render": {"core", "rhi", "render"},
     "scene": {"core", "scene"},
-    "app": {"core", "platform", "rhi", "sim", "render", "scene", "app"},
+    "script": {"core", "scene", "script"},
+    "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "app"},
     "cli": {"core", "app", "cli"},
 }
 # Third-party headers confined to the one module that wraps them.
@@ -68,6 +69,9 @@ THIRD_PARTY_OWNERS = {
     "TaskScheduler.h": "src/core/jobs.cpp",
     "tracy/": "src/core/profile.h",
     "tomlc17.h": "src/scene/",
+    "lua.h": "src/script/",
+    "lualib.h": "src/script/",
+    "luacode.h": "src/script/",
 }
 
 RULES = {

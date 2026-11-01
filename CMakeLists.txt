@@ -47,12 +47,16 @@ add_library(zaro_scene STATIC src/scene/scene.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
+add_library(zaro_script STATIC src/script/script.cpp)
+target_link_libraries(zaro_script PUBLIC zaro_scene PRIVATE Luau.VM Luau.Compiler)
+zaro_target_defaults(zaro_script)
+
 add_library(zaro_render STATIC src/render/crowd_renderer.cpp)
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
 add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp)
-target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_platform)
+target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_platform)
 zaro_target_defaults(zaro_app)
 
 # CLI. Everything an agent or the editor does goes through this binary.
@@ -89,6 +93,13 @@ if(ZARO_BUILD_TESTS)
   target_link_libraries(test_scene PRIVATE zaro_scene zaro_sim)
   zaro_target_defaults(test_scene)
   add_test(NAME scene_loading COMMAND test_scene WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+  # Luau scripts: hooks, zaro API, errors with lines, sandbox, time budget, seeded random, reload.
+  add_executable(test_script tests/test_script.cpp)
+  target_link_libraries(test_script PRIVATE zaro_script zaro_sim)
+  zaro_target_defaults(test_script)
+  add_test(NAME scripting COMMAND test_script ${CMAKE_CURRENT_BINARY_DIR}
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
   # The example scene stays valid, and `zaro schema` stays valid JSON.
   add_test(NAME example_crowd_scene COMMAND zaro check examples/crowd/scene.toml
