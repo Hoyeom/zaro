@@ -302,8 +302,8 @@ BackResult back(Navigator* nav, bool claimed) {
     if (claimed) return BackResult::kClaimed;
     const int top = topmost_live(nav);
     if (top < 0) {
-        push_event(nav, NavEventKind::kBackAtRoot, "");
-        return BackResult::kBackAtRoot;
+        push_event(nav, NavEventKind::kUnhandledBack, "");
+        return BackResult::kUnhandled;
     }
     Entry& e = nav->entries[top];
     switch (e.state) {
@@ -331,7 +331,7 @@ void home(Navigator* nav) {
     }
 }
 
-void abort_all(Navigator* nav) {
+void reset(Navigator* nav) {
     for (uint32_t i = nav->count; i-- > 0;) {
         if (!nav->entries[i].root) remove_entry(nav, i, NavEventKind::kClosed);
     }

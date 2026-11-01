@@ -355,7 +355,7 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
             } else if (g.diags->count) {
                 print_diags(g);
             }
-            if (back_at_root(g.ui)) break;  // back with nothing to close and nothing that took it quits
+            if (back_unhandled(g.ui)) break;  // back with nothing to close and nothing that took it quits
         } else if (input.nav_back) {
             break;
         }

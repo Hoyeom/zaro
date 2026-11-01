@@ -1,5 +1,5 @@
 // The navigation policy (D-021) without a GPU or fonts: lifecycle, back in every state, claims,
-// close, home, abort-all, reuse by key, and input blocking between stacked screens.
+// close, home, reset, reuse by key, and input blocking between stacked screens.
 // Run from the repository root (fixtures in tests/data/screens/nav/).
 #include "core/diag.h"
 #include "ui/context.h"
@@ -93,11 +93,11 @@ void test_lifecycle() {
     ui::clear_events(f.nav);
     expect(ui::back(f.nav, false) == ui::BackResult::kClosing && strcmp(f.state("popup"), "closing") == 0,
            "back closes an open dismissible screen");
-    expect(ui::back(f.nav, false) == ui::BackResult::kBackAtRoot, "a closing screen does not take back again");
+    expect(ui::back(f.nav, false) == ui::BackResult::kUnhandled, "a closing screen does not take back again");
     f.steps(7);
     expect(strcmp(f.state("popup"), "closed") == 0 && f.has_event(ui::NavEventKind::kClosed, "popup"),
            "the screen is gone after its exit");
-    expect(f.has_event(ui::NavEventKind::kBackAtRoot, ""), "back with nothing open reports back at root");
+    expect(f.has_event(ui::NavEventKind::kUnhandledBack, ""), "back with nothing open is reported as unhandled");
     expect(ui::entry_count(f.nav) == 1, "the root stays");
     DiagList* d = f.diags;
     expect(!f.open("popop") && d->count && strstr(d->items[d->count - 1].message, "did you mean 'popup'"),
@@ -144,8 +144,8 @@ void test_waiting_and_forced() {
     force_wait.force = true;
     f.open("toast", force_wait);
     expect(ui::back(f.nav, false) == ui::BackResult::kDropped, "back cannot cancel a forced screen that is opening");
-    ui::abort_all(f.nav);
-    expect(ui::entry_count(f.nav) == 1, "abort_all removes everything but the root, forced screens too");
+    ui::reset(f.nav);
+    expect(ui::entry_count(f.nav) == 1, "reset removes everything but the root, forced screens too");
 }
 
 void test_home_close_claim_and_keys() {
@@ -163,7 +163,7 @@ void test_home_close_claim_and_keys() {
            "close removes a named screen, forced or not");
     expect(ui::back(f.nav, true) == ui::BackResult::kClaimed && strcmp(f.state("popup"), "open") == 0,
            "a claimed back press closes nothing");
-    ui::abort_all(f.nav);
+    ui::reset(f.nav);
 
     ui::OpenOptions key;
     key.key = "sword";

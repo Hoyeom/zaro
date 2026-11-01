@@ -138,7 +138,7 @@ if(ZARO_BUILD_TESTS)
   zaro_target_defaults(test_ui_screen)
   add_dependencies(test_ui_screen zaro)
   add_test(NAME ui_screen COMMAND test_ui_screen ${CMAKE_BINARY_DIR}/fonts/)
-  # Navigation policy: lifecycle, back in every state, claims, close, home, abort-all, keys, input.
+  # Navigation policy: lifecycle, back in every state, claims, close, home, reset, keys, input.
   add_executable(test_ui_nav tests/test_ui_nav.cpp)
   target_link_libraries(test_ui_nav PRIVATE zaro_ui)
   zaro_target_defaults(test_ui_nav)

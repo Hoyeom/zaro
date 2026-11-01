@@ -1,5 +1,5 @@
 // UI navigation policy (D-021): a stack of screens over root screens, with back, close, home and
-// abort-all as separate operations, and a lifecycle per opened screen.
+// reset as separate operations, and a lifecycle per opened screen.
 //
 // Root screens (the HUD) sit at the bottom, are always shown and are never closed by navigation.
 // Catalog screens are opened by name; each open is a new instance unless the caller passes a key
@@ -16,10 +16,10 @@
 //   entering  forced: ignored; skippable: the transition jumps to its end, so the next back is a
 //             real back; otherwise the press is dropped (never queued)
 //   open      dismissible: closes; forced: the press is consumed and the screen stays
-//   none      nothing closes and kBackAtRoot is reported, for the game to decide
+//   none      nothing closes and the back is reported as unhandled, for the game to decide
 // A claim (the game taking the press for something inside the screen) comes before all of this.
 //
-// close() plays the exit transition; abort_all() removes every opened screen at once, forced ones
+// close() plays the exit transition; reset() removes every opened screen at once, forced ones
 // included (scene change, logout). home() closes down to the root and stops at a forced screen.
 #pragma once
 
@@ -44,7 +44,7 @@ enum class BackResult : uint8_t {
     kDropped,    // the press came during an unskippable entrance, or a forced screen was opening
     kClosing,    // the top screen started closing
     kConsumed,   // a forced screen kept the press
-    kBackAtRoot, // nothing to close
+    kUnhandled,  // nothing to close: the game decides
 };
 
 enum class NavEventKind : uint8_t {
@@ -52,7 +52,7 @@ enum class NavEventKind : uint8_t {
     kOpened,      // finished its entrance and takes input
     kClosed,      // gone (after its exit transition, or aborted)
     kCancelled,   // closed by back while it was still opening
-    kBackAtRoot,  // back with nothing to close
+    kUnhandledBack,  // back with nothing to close
 };
 
 struct NavEvent {
@@ -91,7 +91,7 @@ bool close(Navigator* nav, const char* name);
 bool close_screen(Navigator* nav, const Screen* screen);
 BackResult back(Navigator* nav, bool claimed);
 void home(Navigator* nav);
-void abort_all(Navigator* nav);
+void reset(Navigator* nav);
 
 // Advances transitions by dt, then lays every screen out and gives each the input it may have,
 // top first: screens that are not open get none, and an open modal hides the input from every

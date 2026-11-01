@@ -34,8 +34,8 @@ all three together.
   `ui::UiInput` from `platform::Input` (pointer, wheel, edge-triggered navigation).
 - Navigation (D-021, top of `src/ui/navigator.h`): `[scene] ui` screens are roots, `[scene] screens`
   can be opened. Buttons with `open:<screen>`, `close`, `back` or `home` navigate by themselves;
-  `app/ui_layer` runs the policy, the script hooks (`on_ui`, `on_back`, `on_screen`) and back at
-  root. Screen files declare `dismissible`, `transition` (`none`, `fade`, `pop`),
+  `app/ui_layer` runs the policy, the script hooks (`on_ui`, `on_back`, `on_screen`) and reports
+  an unhandled back (nothing to close) to the app. Screen files declare `dismissible`, `transition` (`none`, `fade`, `pop`),
   `transition_time` and `skippable`. A screen takes clicks only once its entrance is over.
 - Themes (D-023, top of `src/scene/theme.h`): `theme = "kit/theme.toml"` in `[screen]` lets colour
   and number fields of the screen and its prefabs say `"$name"` (ZE0409 if unknown).

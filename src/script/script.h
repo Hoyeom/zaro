@@ -17,13 +17,13 @@
 //   ui.language(code)        -- switch to one of the scene's languages
 //   ui.open(screen[, {key = "..", wait = true, force = true, unskippable = true}])
 //   ui.ready(screen)         -- an open with wait = true may start its entrance
-//   ui.close(screen), ui.back(), ui.home(), ui.abort_all()
+//   ui.close(screen), ui.back(), ui.home(), ui.reset()
 //   ui.state(screen)         -> "opening", "entering", "open", "closing" or "closed"
 //   function on_ui(action, screen, node)   -- hook: a button with that action was clicked
 //   function on_back(screen)               -- hook: back was pressed while `screen` had the input;
 //                                             return true to take the press (nothing closes)
 //   function on_screen(event, screen)      -- hook: "created" (a new instance, before its entrance),
-//                                             "opened", "closed", "cancelled", "back_at_root"
+//                                             "opened", "closed", "cancelled", "back_unhandled"
 // There is no os, io, loadstring or require, globals of the standard library are read-only, and
 // math.random is seeded from the scene so runs stay deterministic.
 #pragma once
@@ -53,7 +53,7 @@ struct UiHost {
     bool (*close)(void* user, const char* name);
     void (*back)(void* user);
     void (*home)(void* user);
-    void (*abort_all)(void* user);
+    void (*reset)(void* user);
     const char* (*state)(void* user, const char* name);  // "opening" ... "closed"
 };
 

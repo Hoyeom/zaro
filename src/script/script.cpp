@@ -312,9 +312,9 @@ int ui_home(lua_State* L) {
     return 0;
 }
 
-int ui_abort_all(lua_State* L) {
-    const UiHost* h = host_of(L, "ui.abort_all");
-    h->abort_all(h->user);
+int ui_reset(lua_State* L) {
+    const UiHost* h = host_of(L, "ui.reset");
+    h->reset(h->user);
     return 0;
 }
 
@@ -523,7 +523,7 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     static const luaL_Reg kUiApi[] = {
         {"set", ui_set},         {"get", ui_get},     {"get_field", ui_get_field}, {"set_field", ui_set_field},
         {"language", ui_language}, {"open", ui_open}, {"ready", ui_ready},         {"close", ui_close},
-        {"back", ui_back},       {"home", ui_home},   {"abort_all", ui_abort_all}, {"state", ui_state},
+        {"back", ui_back},       {"home", ui_home},   {"reset", ui_reset}, {"state", ui_state},
         {nullptr, nullptr}};
     lua_createtable(L, 0, 12);
     for (const luaL_Reg* r = kUiApi; r->name; ++r) {

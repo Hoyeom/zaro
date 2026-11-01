@@ -73,9 +73,9 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
     popup in both languages. With this the P2 "done when" check is met; steps 5 and 6 remain.
     Merged (#20).
   - Step 5 (navigation policy, D-021): `ui::Navigator` with root and openable screens, back,
-    close, home and abort-all, the opening/entering/open/closing lifecycle with fade and pop
+    close, home and reset, the opening/entering/open/closing lifecycle with fade and pop
     transitions, claims through `on_back`, keys for reuse; `open:<screen>`, `close`, `back` and
-    `home` button actions; `ui.open`/`close`/`back`/`home`/`abort_all`/`ready`/`state`, the
+    `home` button actions; `ui.open`/`close`/`back`/`home`/`reset`/`ready`/`state`, the
     `on_back` and `on_screen` hooks; `[[back]]` and `state` in scene tests; `zaro check` reports
     `open:` actions that name no screen. Test `ui_navigation`; hello's popup is now an openable
     screen. Merged (#22).
