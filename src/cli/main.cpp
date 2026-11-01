@@ -24,7 +24,8 @@ void print_usage() {
          "             [--frames N (default 60)] [--size WxH] [--lang LANG] [--click SCREEN/NODE]...\n"
          "  export     write a Gradle project for an Android APK: zaro export android <scene.toml>\n"
          "             [--out DIR (default build/android-project)] [--runtime DIR] [--package ID]\n"
-         "             [--portrait]  (runtime: python tools/build.py android; APK: tools/android.py apk)\n"
+         "             [--version-code N (default 1)] [--version-name S (default 1.0)] [--portrait]\n"
+         "             (runtime: python tools/build.py android; APK or AAB: tools/android.py apk|aab)\n"
          "  import-design  turn a Claude Design kit into a UI theme and prefab stubs:\n"
          "             zaro import-design <kit dir> <out dir> [--check]\n"
          "  help       print this message\n"
@@ -198,6 +199,8 @@ int cmd_export(int argc, char** argv) {
         if (strcmp(a, "--out") == 0) value = &o.out_dir;
         else if (strcmp(a, "--runtime") == 0) value = &o.runtime_dir;
         else if (strcmp(a, "--package") == 0) value = &o.package;
+        else if (strcmp(a, "--version-code") == 0) value = &o.version_code;
+        else if (strcmp(a, "--version-name") == 0) value = &o.version_name;
         if (value) {
             if (!next) return usage_error("missing value for", a);
             *value = next;

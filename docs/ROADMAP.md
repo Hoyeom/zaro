@@ -23,16 +23,26 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
 ### P1. Mobile builds: Android first, then iOS
 
 - **Status**: Android in progress since 2026-11-01 (toolchain and packaging: D-022). The APK
-  builds locally and in CI; the on-device check below is pending.
+  builds locally and in CI; the on-device check below is pending. Release bundles (D-025) build,
+  validate and sign with a game's upload key locally and in CI (with a throwaway key); installing
+  one on a device and the export hooks for plugins are pending.
 - **Scope**:
   - Android build of the engine and the `zaro` runtime: SDL3 Android backend, wgpu on Vulkan, the
     Slang to WGSL step at build time, and assets packed into the APK.
   - Touch input mapped to `platform::Input`.
   - A Gradle project export (`zaro export android <scene>`) that agents can drive from the CLI.
   - A CI job that builds the APK; running it needs a device and stays local.
+  - A Google Play release build (D-025): an AAB signed with the game's upload key from environment
+    variables, the version from the game, a native debug symbols file, 16 KB alignment checks, and
+    export hooks through which a plugin adds Gradle dependencies, manifest entries and Java or
+    Kotlin sources (P4c's billing bridge needs them).
   - iOS follows with Metal, an Xcode export and a CI build on macOS.
 - **Done when**: `examples/crowd/scene.toml` runs on a mid-range Android phone with its script at a
   stable 60 fps with at least 20,000 enemies, and the headless perf report can be pulled with `adb`.
+  For the release build: `python tools/android.py aab <scene> --release` produces an AAB signed with
+  a game-supplied upload key plus a `native-debug-symbols.zip` built from the unstripped `.so`
+  files, `bundletool validate` passes, every `.so` is 16 KB aligned, and the AAB installs on a
+  device through `bundletool build-apks` and `install-apks` (the device part waits for a phone).
 - **Waits for**: nothing.
 - **Runs beside**: P2, P4a.
 

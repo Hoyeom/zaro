@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-"""Android toolchain and APK workflow for ZARO (D-022).
+"""Android toolchain, APK and App Bundle workflow for ZARO (D-022, D-025).
 
 Usage:
   python tools/android.py setup [--accept-licenses]   install the pinned toolchain
   python tools/android.py doctor                      print what is installed and where
   python tools/android.py apk <scene.toml> [--out DIR] [--package ID] [--release]
+                              [--version-code N] [--version-name S]
                                                       native build + `zaro export android` + Gradle
+  python tools/android.py aab <scene.toml> [--release] [--version-code N] [--version-name S]
+                              [--out DIR] [--package ID]
+                                                      App Bundle for Google Play, checked with
+                                                      bundletool, plus native-debug-symbols.zip
+  python tools/android.py install-aab [--out DIR]     install the last AAB on the device (bundletool)
   python tools/android.py run [--out DIR] [-- zaro args...]
                                                       install the APK and start it (args optional)
   python tools/android.py perf [--out DIR] [--enemies N] [--frames N] [--warmup N] [--size WxH]
@@ -18,6 +24,11 @@ against a pinned hash. Installing SDK packages needs the Android SDK license: `s
 interactively, or accepts it with --accept-licenses.
 
 Commands that use a device need exactly one device in `adb devices` (or ANDROID_SERIAL set).
+
+`aab --release` signs with the game's upload key, read only from the environment:
+ZARO_UPLOAD_KEYSTORE (path to the keystore), ZARO_UPLOAD_KEYSTORE_PASSWORD, ZARO_UPLOAD_KEY_ALIAS
+and ZARO_UPLOAD_KEY_PASSWORD. It also needs --version-code. Without the variables it stops; other
+builds use the debug key. Keeping the key in a game's CI: docs/android-release.md.
 """
 
 from __future__ import annotations
@@ -61,6 +72,12 @@ JDK = {
 GRADLE_NAME = "gradle-9.8.2"    # Apache-2.0
 GRADLE = ("https://services.gradle.org/distributions/gradle-9.8.2-bin.zip",
           "sha256", "21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607")
+BUNDLETOOL = ("https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar",
+              "sha256", "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29")  # Apache-2.0
+
+# The game's upload key (D-025). Never stored in a project or in this repository.
+UPLOAD_KEY_ENV = ("ZARO_UPLOAD_KEYSTORE", "ZARO_UPLOAD_KEYSTORE_PASSWORD", "ZARO_UPLOAD_KEY_ALIAS",
+                  "ZARO_UPLOAD_KEY_PASSWORD")
 
 ACTIVITY = "dev.zaro.ZaroActivity"
 DEFAULT_OUT = ROOT / "build" / "android-project"
@@ -126,6 +143,10 @@ def gradle_exe() -> Path:
 
 def adb_exe() -> Path:
     return sdk_root() / "platform-tools" / f"adb{EXE}"
+
+
+def bundletool_jar() -> Path:
+    return tools_root() / "downloads" / BUNDLETOOL[0].rsplit("/", 1)[1]
 
 
 def tool_env() -> dict[str, str]:
@@ -203,6 +224,7 @@ def cmd_setup(args: list[str]) -> int:
         install_archive(JDK[h], "jdk", tools_root() / JDK_NAME)
     if not gradle_exe().exists():
         install_archive(GRADLE, "gradle", tools_root() / GRADLE_NAME)
+    download(*BUNDLETOOL, bundletool_jar())
     sdkmanager = sdk_root() / "cmdline-tools" / "latest" / "bin" / f"sdkmanager{BAT}"
     if not sdkmanager.exists():
         install_archive(CMDLINE_TOOLS[h], "cmdline-tools", sdk_root() / "cmdline-tools" / "latest")
@@ -227,6 +249,7 @@ def cmd_doctor(_: list[str]) -> int:
         ("adb", adb_exe(), adb_exe().exists()),
         ("JDK 17+", jh or tools_root() / JDK_NAME, jh is not None),
         (GRADLE_NAME, gradle_exe(), gradle_exe().exists()),
+        ("bundletool", bundletool_jar(), bundletool_jar().exists()),
     ]
     ok = True
     for name, path, found in rows:
@@ -258,26 +281,155 @@ def option(args: list[str], name: str, default: str | None = None) -> str | None
     return default
 
 
-def cmd_apk(args: list[str]) -> int:
+def build_project(command: str, args: list[str], task: str) -> Path:
+    """Native build, `zaro export android` and one Gradle task. Returns the project directory."""
     out = Path(option(args, "--out", str(DEFAULT_OUT)))
-    package = option(args, "--package")
-    release = "--release" in args
-    args = [a for a in args if a != "--release"]
+    export_options = []
+    for name in ("--package", "--version-code", "--version-name"):
+        value = option(args, name)
+        if value is not None:
+            export_options += [name, value]
     if len(args) != 1:
-        sys.exit("android.py: error: apk needs one scene path")
+        sys.exit(f"android.py: error: {command} needs one scene path, got {args}")
     if cmd_doctor([]) != 0:
-        return 1
+        sys.exit(1)
     run([sys.executable, ROOT / "tools" / "build.py", "android"])
-    export = [host_zaro(), "export", "android", args[0], "--out", out,
-              "--runtime", ROOT / "build" / "android" / "android-runtime"]
-    if package:
-        export += ["--package", package]
-    run(export)
-    task = "assembleRelease" if release else "assembleDebug"
+    run([host_zaro(), "export", "android", args[0], "--out", out,
+         "--runtime", ROOT / "build" / "android" / "android-runtime", *export_options])
     run([gradle_exe(), "-p", out, task, "--console=plain"])
+    return out
+
+
+def take_flag(args: list[str], name: str) -> bool:
+    found = name in args
+    while name in args:
+        args.remove(name)
+    return found
+
+
+def cmd_apk(args: list[str]) -> int:
+    release = take_flag(args, "--release")
+    out = build_project("apk", args, "assembleRelease" if release else "assembleDebug")
     apk = out / "app" / "build" / "outputs" / "apk" / ("release" if release else "debug")
     for f in sorted(apk.glob("*.apk")):
         print(f"apk={f}")
+    return 0
+
+
+def java_tool(name: str) -> Path:
+    jh = java_home()
+    if jh is None:
+        sys.exit("android.py: error: no JDK 17+; run `python tools/android.py setup`")
+    return jh / "bin" / f"{name}{EXE}"
+
+
+def bundletool(*args: str, capture: bool = False) -> str:
+    cmd = [java_tool("java"), "-jar", bundletool_jar(), *args]
+    r = run(cmd, stdout=subprocess.PIPE if capture else None, text=True)
+    return r.stdout or ""
+
+
+def check_upload_key(args: list[str]) -> None:
+    """A release bundle needs the upload key from the environment and a version code."""
+    missing = [v for v in UPLOAD_KEY_ENV if not os.environ.get(v)]
+    if missing:
+        sys.exit("android.py: error: aab --release signs with the game's upload key, but "
+                 f"{', '.join(missing)} {'is' if len(missing) == 1 else 'are'} not set "
+                 "(see docs/android-release.md); without --release the bundle is debug-signed")
+    if not Path(os.environ["ZARO_UPLOAD_KEYSTORE"]).is_file():
+        sys.exit(f"android.py: error: ZARO_UPLOAD_KEYSTORE={os.environ['ZARO_UPLOAD_KEYSTORE']} "
+                 "is not a file")
+    if "--version-code" not in args:
+        sys.exit("android.py: error: aab --release needs --version-code N (every upload to Google "
+                 "Play needs a higher one)")
+
+
+def zip_symbols(dest: Path) -> None:
+    """native-debug-symbols.zip: one directory per ABI with the unstripped libraries (D-025)."""
+    src = ROOT / "build" / "android" / "android-symbols"
+    libs = sorted(src.glob("*/*.so"))
+    if not libs:
+        sys.exit(f"android.py: error: no unstripped libraries in {src}")
+    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
+        for lib in libs:
+            z.write(lib, lib.relative_to(src).as_posix())
+
+
+def bundle_signer(aab: Path) -> str:
+    # English output whatever the system locale, so the fields can be read.
+    r = run([java_tool("keytool"), "-J-Duser.language=en", "-printcert", "-jarfile", aab],
+            stdout=subprocess.PIPE, text=True)
+    lines = [line.strip() for line in r.stdout.splitlines()]
+    owner = next((line.split(":", 1)[1].strip() for line in lines if line.startswith("Owner:")), "")
+    sha = next((line.split(":", 1)[1].strip() for line in lines if line.startswith("SHA256:")), "")
+    if not owner:
+        sys.exit(f"android.py: error: {aab} is not signed")
+    return f"{owner} (SHA-256 {sha})"
+
+
+def check_split_alignment(out: Path, aab: Path) -> None:
+    """Builds the device APKs from the bundle, as Google Play does, and checks that every native
+    library in them sits on a 16 KB zip boundary (`zipalign -c -P 16`, D-025)."""
+    apks = out / "app" / "build" / "outputs" / "alignment-check.apks"
+    bundletool("build-apks", f"--bundle={aab}", f"--output={apks}", "--overwrite", capture=True)
+    splits = out / "app" / "build" / "outputs" / "alignment-check"
+    shutil.rmtree(splits, ignore_errors=True)
+    with zipfile.ZipFile(apks) as z:
+        names = [n for n in z.namelist() if n.endswith(".apk")]
+        z.extractall(splits, names)
+    zipalign = sdk_root() / "build-tools" / BUILD_TOOLS / f"zipalign{EXE}"
+    checked = 0
+    for apk in sorted(splits.rglob("*.apk")):
+        with zipfile.ZipFile(apk) as z:
+            if not any(n.startswith("lib/") and n.endswith(".so") for n in z.namelist()):
+                continue
+        r = subprocess.run([str(zipalign), "-c", "-P", "16", "4", str(apk)], text=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if r.returncode != 0:
+            sys.exit(f"android.py: error: {apk.name} from {aab.name} has native libraries off a 16 KB "
+                     f"zip boundary (D-025):\n{r.stdout}")
+        checked += 1
+    if checked == 0:
+        sys.exit(f"android.py: error: no APK built from {aab} contains native libraries")
+    print(f"16 KB zip alignment: ok ({checked} APKs with native libraries)")
+
+
+def cmd_aab(args: list[str]) -> int:
+    release = take_flag(args, "--release")
+    if release:
+        check_upload_key(args)
+    variant = "release" if release else "debug"
+    out = build_project("aab", args, "bundleRelease" if release else "bundleDebug")
+    aab = out / "app" / "build" / "outputs" / "bundle" / variant / f"app-{variant}.aab"
+    bundletool("validate", f"--bundle={aab}", capture=True)  # prints every file; failures raise
+    config = bundletool("dump", "config", f"--bundle={aab}", capture=True)
+    if "PAGE_ALIGNMENT_16K" not in config:
+        sys.exit(f"android.py: error: {aab} does not request 16 KB zip alignment for native "
+                 "libraries (PAGE_ALIGNMENT_16K); Google Play needs it (D-025)")
+    check_split_alignment(out, aab)
+    signer = bundle_signer(aab)
+    if release and "CN=Android Debug" in signer:
+        sys.exit(f"android.py: error: {aab} is signed with the debug key")
+    symbols = out / "native-debug-symbols.zip"
+    zip_symbols(symbols)
+    print(f"signer={signer}")
+    print(f"aab={aab}")
+    print(f"symbols={symbols}")
+    return 0
+
+
+def cmd_install_aab(args: list[str]) -> int:
+    out = Path(option(args, "--out", str(DEFAULT_OUT)))
+    bundles = sorted((out / "app" / "build" / "outputs" / "bundle").glob("*/*.aab"),
+                     key=lambda p: p.stat().st_mtime)
+    if not bundles:
+        sys.exit(f"android.py: error: no AAB under {out}; run `python tools/android.py aab <scene>`")
+    apks = out / "app" / "build" / "outputs" / "device.apks"
+    # The APKs for this device are signed with the local debug key; Google Play signs its own.
+    bundletool("build-apks", f"--bundle={bundles[-1]}", f"--output={apks}", "--overwrite",
+               "--connected-device", f"--adb={adb_exe()}")
+    bundletool("install-apks", f"--apks={apks}", f"--adb={adb_exe()}")
+    print(f"installed {bundles[-1].name} ({project_package(out)})")
     return 0
 
 
@@ -360,7 +512,8 @@ def cmd_perf(args: list[str]) -> int:
     return 0
 
 
-COMMANDS = {"setup": cmd_setup, "doctor": cmd_doctor, "apk": cmd_apk, "run": cmd_run, "perf": cmd_perf}
+COMMANDS = {"setup": cmd_setup, "doctor": cmd_doctor, "apk": cmd_apk, "aab": cmd_aab,
+            "install-aab": cmd_install_aab, "run": cmd_run, "perf": cmd_perf}
 
 
 def main(argv: list[str]) -> int:

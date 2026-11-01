@@ -2,6 +2,19 @@ plugins {
     id 'com.android.application'
 }
 
+// Release signing (D-025): the game's upload key comes from the environment, never from a file in
+// this project. Without ZARO_UPLOAD_KEYSTORE a release build is signed with the debug key, which
+// is fine for local and CI builds and rejected by Google Play; `tools/android.py aab --release`
+// refuses to build that way.
+def uploadKeystore = System.getenv('ZARO_UPLOAD_KEYSTORE')
+if (uploadKeystore) {
+    ['ZARO_UPLOAD_KEYSTORE_PASSWORD', 'ZARO_UPLOAD_KEY_ALIAS', 'ZARO_UPLOAD_KEY_PASSWORD'].each { name ->
+        if (!System.getenv(name)) {
+            throw new GradleException("ZARO_UPLOAD_KEYSTORE is set but ${name} is not (docs/android-release.md)")
+        }
+    }
+}
+
 android {
     namespace = 'dev.zaro'
     compileSdk = 36
@@ -11,18 +24,28 @@ android {
         applicationId = '@ZARO_PACKAGE@'
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = '@ZARO_VERSION@'
+        versionCode = @ZARO_VERSION_CODE@
+        versionName = '@ZARO_VERSION_NAME@'
         ndk {
             abiFilters.add('arm64-v8a')
+        }
+    }
+
+    signingConfigs {
+        if (uploadKeystore) {
+            upload {
+                storeFile = file(uploadKeystore)
+                storePassword = System.getenv('ZARO_UPLOAD_KEYSTORE_PASSWORD')
+                keyAlias = System.getenv('ZARO_UPLOAD_KEY_ALIAS')
+                keyPassword = System.getenv('ZARO_UPLOAD_KEY_PASSWORD')
+            }
         }
     }
 
     buildTypes {
         release {
             minifyEnabled = false
-            // Local and CI builds sign release APKs with the debug key; store signing is per game.
-            signingConfig = signingConfigs.debug
+            signingConfig = uploadKeystore ? signingConfigs.upload : signingConfigs.debug
         }
     }
 
@@ -33,7 +56,8 @@ android {
 
     packaging {
         jniLibs {
-            // The libraries arrive stripped from the native build (cmake/ZaroAndroid.cmake).
+            // The libraries arrive stripped from the native build (cmake/ZaroAndroid.cmake); the
+            // unstripped copies go into native-debug-symbols.zip (tools/android.py aab).
             keepDebugSymbols.add('**/*.so')
         }
     }
