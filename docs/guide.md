@@ -170,6 +170,21 @@ wrote shot.png
 This renders 60 frames offscreen (`--frames N`, `--size WxH`) and saves the last one. It needs a
 GPU, unlike `zaro test`.
 
+## 8. Put it on an Android phone
+
+```
+$ python tools/android.py setup          # once: pinned NDK, SDK packages, JDK, Gradle
+$ python tools/android.py apk mygame/scene.toml
+apk=.../build/android-project/app/build/outputs/apk/debug/app-debug.apk
+$ python tools/android.py run            # install and start it on the connected phone
+```
+
+`apk` builds `libmain.so` for arm64 (`python tools/build.py android`), runs `zaro export android`,
+which packs the scene, its script and its prefabs, and builds the APK with Gradle. The phone needs
+USB debugging on. Drag a finger to move the player; the back button quits. The game's output is in
+`adb logcat -s zaro`. `python tools/android.py perf` runs it headless on the phone and pulls the perf
+report.
+
 ## Where to go next
 
 - `examples/hello/` uses every `zaro.*` function once; `examples/crowd/` uses waves and a prefab.
