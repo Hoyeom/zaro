@@ -77,6 +77,7 @@ THIRD_PARTY_OWNERS = {
     "luacode.h": "src/script/",
     "stb_truetype.h": "src/ui/font.cpp",
     "stb_image.h": "src/ui/image.cpp",
+    "cJSON.h": "src/app/design_import.cpp",
 }
 
 RULES = {

@@ -25,6 +25,8 @@ void print_usage() {
          "  export     write a Gradle project for an Android APK: zaro export android <scene.toml>\n"
          "             [--out DIR (default build/android-project)] [--runtime DIR] [--package ID]\n"
          "             [--portrait]  (runtime: python tools/build.py android; APK: tools/android.py apk)\n"
+         "  import-design  turn a Claude Design kit into a UI theme and prefab stubs:\n"
+         "             zaro import-design <kit dir> <out dir> [--check]\n"
          "  help       print this message\n"
          "\n"
          "run options:\n"
@@ -255,6 +257,19 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "screenshot") == 0) return cmd_screenshot(argc, argv);
     if (strcmp(argv[1], "export") == 0) return cmd_export(argc, argv);
+    if (strcmp(argv[1], "import-design") == 0) {
+        const char* dirs[2] = {nullptr, nullptr};
+        bool check = false;
+        for (int i = 2; i < argc; ++i) {
+            if (strcmp(argv[i], "--check") == 0) check = true;
+            else if (argv[i][0] == '-') return usage_error("unknown option", argv[i]);
+            else if (!dirs[0]) dirs[0] = argv[i];
+            else if (!dirs[1]) dirs[1] = argv[i];
+            else return usage_error("unexpected argument", argv[i]);
+        }
+        if (!dirs[1]) return usage_error("import-design needs <kit dir> <out dir>, got", dirs[0] ? dirs[0] : "");
+        return zaro::app::import_design(dirs[0], dirs[1], check);
+    }
     zaro::log_error(zaro::kErrCliUsage, "unknown command '%s' (try 'zaro help')", argv[1]);
     return 2;
 }

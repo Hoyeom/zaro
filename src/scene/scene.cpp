@@ -1,6 +1,7 @@
 #include "scene/scene.h"
 
 #include "core/path.h"
+#include "scene/theme.h"
 
 #include <tomlc17.h>
 
@@ -76,10 +77,51 @@ double number(const toml_datum_t& v) { return v.type == TOML_INT64 ? (double)v.u
 
 bool in_range(const FieldDesc& f, double x) { return f.min > f.max || (x >= f.min && x <= f.max); }
 
+bool is_token(const toml_datum_t& v) { return v.type == TOML_STRING && v.u.str.ptr[0] == '$'; }
+
+// Resolves a "$name" theme token (D-023) for a colour or number field. On success a number token
+// becomes a TOML number in *out (an integer when the value is whole); false after a diagnostic.
+bool resolve_token(const toml_datum_t& v, bool color, const Theme* theme, const ComponentDesc* comp,
+                   const FieldDesc& f, uint32_t* rgba, toml_datum_t* out, const char* file, DiagList* diags) {
+    const char* name = v.u.str.ptr + 1;
+    if (!theme) {
+        diag_add(diags, kErrSceneToken, file, v.lineno, v.colno,
+                 "%s.%s = \"%s\" is a theme token, but the file has no theme (theme = \"...\" in [screen])",
+                 comp->name, f.name, v.u.str.ptr);
+        return false;
+    }
+    double number = 0.0;
+    if (color ? theme_color(theme, name, rgba) : theme_number(theme, name, &number)) {
+        if (!color) {
+            *out = v;
+            const bool whole = number == (double)(int64_t)number;
+            out->type = whole ? TOML_INT64 : TOML_FP64;
+            if (whole) out->u.int64 = (int64_t)number;
+            else out->u.fp64 = number;
+        }
+        return true;
+    }
+    const char* hint = color ? suggest_color(theme, name) : suggest_number(theme, name);
+    diag_add(diags, kErrSceneToken, file, v.lineno, v.colno, "%s.%s: theme '%s' has no %s token '%s'%s%s%s", comp->name,
+             f.name, theme_name(theme), color ? "colour" : "number", name, hint ? " (did you mean '$" : "",
+             hint ? hint : "", hint ? "'?)" : "");
+    return false;
+}
+
 // Writes one TOML value into a component field. Returns false (with a diagnostic) on mismatch.
-bool assign_field(const ComponentDesc* comp, const FieldDesc& f, const toml_datum_t& v, void* data,
-                  const char* file, DiagList* diags) {
+bool assign_field(const ComponentDesc* comp, const FieldDesc& f, const toml_datum_t& in, void* data,
+                  const Theme* theme, const char* file, DiagList* diags) {
     uint8_t* dst = (uint8_t*)data + f.offset;
+    toml_datum_t v = in;
+    const bool numeric = f.type == FieldType::kI32 || f.type == FieldType::kU32 || f.type == FieldType::kU64 ||
+                         f.type == FieldType::kF32;
+    if (is_token(v) && f.type == FieldType::kColor) {
+        uint32_t rgba = 0;
+        if (!resolve_token(v, true, theme, comp, f, &rgba, nullptr, file, diags)) return false;
+        *(uint32_t*)dst = rgba;
+        return true;
+    }
+    if (is_token(v) && numeric && !resolve_token(in, false, theme, comp, f, nullptr, &v, file, diags)) return false;
     const char* tn = reflect::type_name(f.type);
     auto type_error = [&]() {
         diag_add(diags, kErrSceneType, file, v.lineno, v.colno, "%s.%s expects %s, got %s", comp->name, f.name, tn,
@@ -134,8 +176,12 @@ bool assign_field(const ComponentDesc* comp, const FieldDesc& f, const toml_datu
             }
             float tmp[4];
             for (int i = 0; i < n; ++i) {
-                if (!is_number(v.u.arr.elem[i])) return type_error();
-                tmp[i] = (float)number(v.u.arr.elem[i]);
+                toml_datum_t e = v.u.arr.elem[i];
+                if (is_token(e) && !resolve_token(v.u.arr.elem[i], false, theme, comp, f, nullptr, &e, file, diags)) {
+                    return false;
+                }
+                if (!is_number(e)) return type_error();
+                tmp[i] = (float)number(e);
             }
             memcpy(dst, tmp, sizeof(float) * (size_t)n);
             return true;
@@ -201,7 +247,7 @@ reflect::ComponentKind component_kind(DocKind kind) {
 
 // Applies one component table (`[Name]` or `[entity.Name]`) to a set.
 void apply_component_table(const char* comp_name, const toml_datum_t& table, ComponentSet* set, DocKind kind,
-                           const char* file, DiagList* diags) {
+                           const Theme* theme, const char* file, DiagList* diags) {
     const ComponentDesc* desc = reflect::find_component(comp_name);
     if (!desc) {
         const char* hint = reflect::suggest_component(comp_name);
@@ -234,7 +280,7 @@ void apply_component_table(const char* comp_name, const toml_datum_t& table, Com
                      hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
             continue;
         }
-        if (assign_field(desc, *f, v, c->data, file, diags)) c->field_lines[f - desc->fields] = v.lineno;
+        if (assign_field(desc, *f, v, c->data, theme, file, diags)) c->field_lines[f - desc->fields] = v.lineno;
     }
     c->line = table.lineno;
 }
@@ -249,6 +295,7 @@ struct Prefab {
 struct Loader {
     const char* scene_path;
     DocKind kind;
+    const Theme* theme = nullptr;  // screens: tokens for "$name" values, in the screen and its prefabs
     DiagList* diags;
     Prefab* prefabs[kMaxPrefabs];
     uint32_t prefab_count = 0;
@@ -282,7 +329,7 @@ struct Loader {
                              "unexpected top-level key '%s' in a prefab (expected [prefab] or a component table)", key);
                     continue;
                 }
-                apply_component_table(key, v, &p->set, kind, path, diags);
+                apply_component_table(key, v, &p->set, kind, theme, path, diags);
             }
             if (!has_header) diag_add(diags, kErrSceneStructure, path, 1, 1, "a prefab needs a [prefab] table");
         }
@@ -340,7 +387,7 @@ void load_entity(Loader& loader, const toml_datum_t& t, Entity* e, const char* f
         } else if (screen && strcmp(key, "parent") == 0) {
             copy_string(v, e->parent, sizeof(e->parent), "node parent", file, diags);
         } else if (v.type == TOML_TABLE) {
-            apply_component_table(key, v, &set, loader.kind, file, diags);
+            apply_component_table(key, v, &set, loader.kind, loader.theme, file, diags);
         } else {
             diag_add(diags, kErrSceneStructure, file, v.lineno, v.colno,
                      screen ? "unexpected node key '%s' (expected name, parent, prefab or a widget table)"
@@ -452,6 +499,12 @@ void load_screen_header(const toml_datum_t& header, Scene* s, const char* path, 
                          "transition expects one of none, fade, pop%s%s%s", hint ? " (did you mean '" : "",
                          hint ? hint : "", hint ? "'?)" : "");
             }
+        } else if (strcmp(key, "theme") == 0) {
+            char rel[kPathCapacity];
+            s->theme_line = v.lineno;
+            if (copy_string(v, rel, sizeof(rel), "screen theme", path, diags)) {
+                path_join_relative(path, rel, s->theme, sizeof(s->theme));
+            }
         } else if (strcmp(key, "transition_time") == 0) {
             if (is_number(v) && number(v) >= 0.0 && number(v) <= 10.0) s->transition_time = (float)number(v);
             else diag_add(diags, kErrSceneRange, path, v.lineno, v.colno, "transition_time must be 0 to 10 seconds");
@@ -468,7 +521,7 @@ void load_screen_header(const toml_datum_t& header, Scene* s, const char* path, 
             }
         } else {
             diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
-                     "unexpected key '%s' in [screen] (expected name, reference, navigable, dismissible, "
+                     "unexpected key '%s' in [screen] (expected name, theme, reference, navigable, dismissible, "
                      "transition, transition_time or skippable)",
                      key);
         }
@@ -553,6 +606,19 @@ Scene* load(const char* path, Want expect, DiagList* diags) {
         }
     }
 
+    // The screen's theme resolves "$name" values in its nodes and prefabs; it is not kept.
+    Theme* theme = nullptr;
+    if (s->theme[0]) {
+        const uint32_t before = diags->count;
+        theme = load_theme(s->theme, diags);
+        if (!theme && diags->count == before + 1 && diags->items[before].line == 0 &&
+            strcmp(diags->items[before].file, s->theme) == 0) {
+            // A missing theme file is reported where the screen names it.
+            diags->count = before;
+            diag_add(diags, kErrSceneStructure, path, s->theme_line, 1, "cannot open theme '%s'", s->theme);
+        }
+    }
+    loader.theme = theme;
     const toml_datum_t ents = toml_get(top, items_key);
     if (ents.type == TOML_ARRAY) {
         const uint32_t n = (uint32_t)ents.u.arr.size < kMaxEntities ? (uint32_t)ents.u.arr.size : kMaxEntities;
@@ -580,6 +646,7 @@ Scene* load(const char* path, Want expect, DiagList* diags) {
                  items_key, items_key);
     }
 
+    free_theme(theme);
     free_loaded(&l);
     if (diags->count != errors_before) {
         free_scene(s);

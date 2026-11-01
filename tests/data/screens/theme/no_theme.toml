@@ -1,0 +1,7 @@
+[screen]
+name = "no_theme"
+
+[[node]]
+name = "panel"
+[node.Panel]
+color = "$surface"

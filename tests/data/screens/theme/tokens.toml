@@ -1,0 +1,19 @@
+# Theme tokens: two good values, then each problem once (tests/test_scene.cpp).
+[screen]
+name = "tokens"
+theme = "theme.toml"
+
+[[node]]
+name = "panel"
+[node.Layout]
+padding = ["$space-4", 0, "$space-4", 0]
+[node.Panel]
+color = "$surfce"
+radius = "$surface"
+border = "$radius-lg"
+
+[[node]]
+name = "title"
+[node.Label]
+size = "$title.size"
+color = "$surface"

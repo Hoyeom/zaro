@@ -19,6 +19,7 @@
 //
 //   [screen]                         # required in a screen file
 //   name = "hud"
+//   theme = "theme.toml"             # optional: "$name" values come from this theme (scene/theme.h)
 //   reference = [1280, 720]          # optional design size; the screen scales to fit the target
 //   navigable = false                # optional: arrow keys and d-pad move the focus on this screen
 //   dismissible = true               # optional: back closes the screen when it was opened (D-021)
@@ -89,6 +90,8 @@ struct Scene {
     uint32_t language_count;
 
     // Screens only.
+    char theme[kPathCapacity];  // resolved theme path, or empty
+    int theme_line;
     bool navigable;
     float reference[2];  // design size; 1280 x 720 when not given
     bool dismissible;    // true when not given

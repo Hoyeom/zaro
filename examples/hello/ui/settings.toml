@@ -1,8 +1,11 @@
 # The settings popup: a modal panel with sound and language rows and a close button. The HUD's
-# button opens it (action "open:settings"); Close, Escape or Android back close it.
+# button opens it (action "open:settings"); Close, Escape or Android back close it. Colours, sizes
+# and spacing come from the design kit (kit/theme.toml, made by `zaro import-design`), and the
+# panel and buttons are the kit's components (kit/*.toml prefabs).
 #   zaro check examples/hello/ui/settings.toml
 [screen]
 name = "settings"
+theme = "kit/theme.toml"
 reference = [1280, 720]
 navigable = true
 transition = "pop"
@@ -10,20 +13,12 @@ transition = "pop"
 [[node]]
 name = "popup"
 [node.Modal]
-dim_color = "#000000a0"
+dim_color = "$dim"
 
 [[node]]
 name = "panel"
 parent = "popup"
-[node.Layout]
-width = 520
-anchor = [0.5, 0.5]
-direction = "column"
-padding = [32, 28, 32, 28]
-gap = 20
-[node.Panel]
-color = "#f7f5f0"
-radius = 20
+prefab = "kit/popup.toml"
 
 [[node]]
 name = "title"
@@ -33,8 +28,8 @@ fill_width = true
 [node.Label]
 text = "@settings.title"
 font = "bold"
-size = 32
-color = "#1e1e24"
+size = "$title.size"
+color = "$ink"
 align = "center"
 
 # One row per setting: a label that takes the free width, then the choices.
@@ -45,7 +40,7 @@ parent = "panel"
 fill_width = true
 direction = "row"
 align = "center"
-gap = 12
+gap = "$space-3"
 [[node]]
 name = "sound_label"
 parent = "sound_row"
@@ -53,29 +48,22 @@ parent = "sound_row"
 fill_width = true
 [node.Label]
 text = "@settings.sound"
-size = 24
-color = "#3c3c46"
+size = "$body.size"
+color = "$ink-soft"
 [[node]]
 name = "sound_on"
 parent = "sound_row"
-[node.Layout]
-width = 110
-height = 48
+prefab = "kit/choice_button.toml"
 [node.Button]
 text = "@settings.on"
 action = "sound_on"
-size = 20
 [[node]]
 name = "sound_off"
 parent = "sound_row"
-[node.Layout]
-width = 110
-height = 48
+prefab = "kit/choice_button.toml"
 [node.Button]
 text = "@settings.off"
 action = "sound_off"
-size = 20
-color = "#787c88"
 
 [[node]]
 name = "language_row"
@@ -84,7 +72,7 @@ parent = "panel"
 fill_width = true
 direction = "row"
 align = "center"
-gap = 12
+gap = "$space-3"
 [[node]]
 name = "language_label"
 parent = "language_row"
@@ -92,34 +80,27 @@ parent = "language_row"
 fill_width = true
 [node.Label]
 text = "@settings.language"
-size = 24
-color = "#3c3c46"
+size = "$body.size"
+color = "$ink-soft"
 [[node]]
 name = "korean"
 parent = "language_row"
-[node.Layout]
-width = 110
-height = 48
+prefab = "kit/choice_button.toml"
 [node.Button]
 text = "한국어"
 action = "language_ko"
-size = 20
-font = "regular"
 [[node]]
 name = "english"
 parent = "language_row"
-[node.Layout]
-width = 110
-height = 48
+prefab = "kit/choice_button.toml"
 [node.Button]
 text = "English"
 action = "language_en"
-size = 20
-font = "regular"
 
 [[node]]
 name = "close"
 parent = "panel"
+prefab = "kit/button.toml"
 [node.Layout]
 fill_width = true
 height = 56

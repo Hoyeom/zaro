@@ -28,6 +28,7 @@ Every architectural decision and its reasoning is in [docs/DECISIONS.md](docs/DE
 | Accept a changed simulation as the new golden | `build/debug/zaro test <paths> --update` |
 | Render a scene to PNG | `build/debug/zaro screenshot examples/crowd/scene.toml out.png [--frames N]` |
 | Render a scene's UI in another language | `build/debug/zaro screenshot examples/hello/scene.toml out.png --lang en` |
+| Turn a Claude Design kit into a UI theme | `build/debug/zaro import-design examples/hello/design examples/hello/ui/kit [--check]` |
 | All `run` options | `build/debug/zaro help` |
 | Install the pinned Android toolchain (once) | `python tools/android.py setup` (`doctor` shows what is found) |
 | Android native build (`libmain.so` + runtime package) | `python tools/build.py android` |
@@ -79,7 +80,7 @@ CMakeLists.txt follow the same graph.
 
 Third-party headers belong to one module only: `SDL3/`, `android/` and `jni.h` → platform, `webgpu/` → rhi,
 `TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` → scene, `lua.h`/`lualib.h`/`luacode.h` → script,
-`stb_truetype.h` → `ui/font.cpp`.
+`stb_truetype.h` → `ui/font.cpp`, `stb_image.h` → `ui/image.cpp`, `cJSON.h` → `app/design_import.cpp`.
 To add a feature, put the state and rules in `sim`, the drawing in `render`, and the
 connection in `app`. A new module needs an entry in `MODULE_DEPS` (tools/lint.py), in `SCOPES`
 (tools/git_rules.py) and in this table.
@@ -315,6 +316,11 @@ all three together.
   `app/ui_layer` runs the policy, the script hooks (`on_ui`, `on_back`, `on_screen`) and back at
   root. Screen files declare `dismissible`, `transition` (`none`, `fade`, `pop`),
   `transition_time` and `skippable`. A screen takes clicks only once its entrance is over.
+- Themes (D-023, top of `src/scene/theme.h`): `theme = "kit/theme.toml"` in `[screen]` lets colour
+  and number fields of the screen and its prefabs say `"$name"` (ZE0409 if unknown).
+  `zaro import-design` writes the theme from a Claude Design kit and a prefab stub per kit
+  component; fill stubs in with tokens. Do not edit a generated theme: change the kit and import
+  again (`--check` in CI fails otherwise).
 
 ## Shaders
 

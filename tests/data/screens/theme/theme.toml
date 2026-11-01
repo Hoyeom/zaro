@@ -1,0 +1,12 @@
+[theme]
+name = "test"
+
+[color]
+surface = "#f7f5f0"
+
+[length]
+space-4 = 16
+radius-lg = 20
+
+[type.title]
+size = 32
