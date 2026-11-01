@@ -99,7 +99,7 @@ uint32_t add_trail(const ShapeRecord& r, float x, float y, float z, render::Shap
             in.position[0] = (px + p[0]) * 0.5f;
             in.position[1] = y;
             in.position[2] = (pz + p[1]) * 0.5f;
-            in.rotation = atan2f(-dz, dx);  // from +x toward -z
+            in.rotation = atan2f(dz, dx);  // +x turns toward +z
             in.size[0] = len;
             in.size[1] = 0.0f;
             in.thickness = width * fade;
@@ -185,6 +185,14 @@ void step_shapes(ShapeLayer* l, uint64_t, float player_x, float player_z) {
         r.trail[r.trail_head][1] = s.position[2] + (follow ? player_z : 0.0f);
         r.trail_head = (r.trail_head + 1) % kMaxTrail;
         if (r.trail_count < kMaxTrail) r.trail_count++;
+    }
+}
+
+void flash_player_shapes(ShapeLayer* l, float amount) {
+    if (!l) return;
+    for (uint32_t i = 0; i < l->count; ++i) {
+        sim::Shape& s = *l->records[i].shape;
+        if (s.follow == sim::kShapeFollowPlayer && s.flash < amount) s.flash = amount > 1.0f ? 1.0f : amount;
     }
 }
 

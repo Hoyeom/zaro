@@ -56,6 +56,13 @@ struct Crowd {
     uint32_t* cell_of = nullptr;
     uint32_t* cell_start = nullptr;  // g*g + 1
     uint32_t* sorted = nullptr;
+
+    // Where enemies reached the player in the last step, for effects (not part of the state):
+    // per enemy a flag and the position, gathered in enemy order after the step.
+    uint8_t* hit_now = nullptr;
+    float* hit_at = nullptr;   // x, z per enemy
+    float* last_hits = nullptr;  // x, z pairs
+    uint32_t last_hit_count = 0;
 };
 
 namespace {
@@ -275,6 +282,9 @@ void integrate(uint32_t begin, uint32_t end, void* ctx) {
         if (is_blocked(c, x, nz)) vz = 0.0f; else z = nz;
         const float dx = c->px - x, dz = c->pz - z;
         if (dx * dx + dz * dz < hit_r * hit_r) {
+            c->hit_now[i] = 1;
+            c->hit_at[i * 2] = x;
+            c->hit_at[i * 2 + 1] = z;
             respawn_position(c, i, &x, &z);
             c->prev_x[i] = x;
             c->prev_z[i] = z;
@@ -340,6 +350,9 @@ Crowd* create_crowd(const CrowdConfig& cfg) {
     c->nvz = alloc<float>(n);
     c->cell_of = alloc<uint32_t>(n);
     c->sorted = alloc<uint32_t>(n);
+    c->hit_now = alloc<uint8_t>(n);
+    c->hit_at = alloc<float>(n * 2);
+    c->last_hits = alloc<float>(n * 2);
 
     Rng rng = rng_seed(cfg.seed, 1);
     build_arena(c, rng);
@@ -361,7 +374,8 @@ Crowd* create_crowd(const CrowdConfig& cfg) {
 void destroy_crowd(Crowd* c) {
     if (!c) return;
     void* arrays[] = {c->blocked, c->obstacles, c->dist, c->flow_x, c->flow_z, c->bfs_queue, c->cell_start,
-                      c->x, c->z, c->vx, c->vz, c->prev_x, c->prev_z, c->nvx, c->nvz, c->cell_of, c->sorted};
+                      c->x, c->z, c->vx, c->vz, c->prev_x, c->prev_z, c->nvx, c->nvz, c->cell_of, c->sorted,
+                      c->hit_now, c->hit_at, c->last_hits};
     for (void* p : arrays) free(p);
     delete c;
 }
@@ -391,10 +405,21 @@ void step(Crowd* c, const CrowdInput& input) {
         ZARO_ZONE("sim.steer");
         jobs::parallel_for(c->n, 1024, steer, c);
     }
+    const uint64_t hits_before = total_hits(c);
     {
         ZARO_ZONE("sim.integrate");
         IntegrateCtx ctx{c};
         jobs::parallel_for(c->n, 2048, integrate, &ctx);
+    }
+    c->last_hit_count = 0;
+    if (total_hits(c) != hits_before) {
+        for (uint32_t i = 0; i < c->n; ++i) {
+            if (!c->hit_now[i]) continue;
+            c->hit_now[i] = 0;
+            c->last_hits[c->last_hit_count * 2] = c->hit_at[i * 2];
+            c->last_hits[c->last_hit_count * 2 + 1] = c->hit_at[i * 2 + 1];
+            c->last_hit_count++;
+        }
     }
     c->tick++;
 }
@@ -407,6 +432,11 @@ void set_tuning(Crowd* c, float enemy_speed, float player_speed) {
 uint64_t tick(const Crowd* c) { return c->tick; }
 uint32_t enemy_count(const Crowd* c) { return c->n; }
 uint64_t total_hits(const Crowd* c) { return c->hits.load(std::memory_order_relaxed); }
+
+uint32_t last_hits(const Crowd* c, const float** xz) {
+    *xz = c->last_hits;
+    return c->last_hit_count;
+}
 
 uint64_t state_hash(const Crowd* c) {
     uint64_t h = fnv1a(&c->tick, sizeof(c->tick));
