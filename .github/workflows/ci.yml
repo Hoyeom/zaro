@@ -1,0 +1,87 @@
+# CI (D-013): repository rules, then build + tests on Windows, Linux and macOS.
+# Hosted runners have no GPU: tests labelled `gpu` are skipped and the perf report is
+# simulation-only. Actions are pinned by commit SHA (tag in the comment).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rules:
+    name: lint and repository rules
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Source lint (Z001-Z007)
+        run: python tools/lint.py
+      - name: PR title is a valid squash commit header (G001-G003)
+        if: github.event_name == 'pull_request'
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: python tools/git_rules.py pr-title "$TITLE"
+      - name: Every PR commit is formatted and signed off (G001-G004)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: python tools/git_rules.py commits "$BASE..$HEAD"
+
+  build:
+    name: build and test (${{ matrix.os }})
+    needs: rules
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: System packages (Linux)
+        if: runner.os == 'Linux'
+        run: sh tools/ci/install-linux-deps.sh
+      - name: System packages (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - name: Cache pinned dependency downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/deps/*-subbuild/*-populate-prefix/src
+          key: deps-${{ runner.os }}-${{ hashFiles('cmake/ZaroDeps.cmake') }}
+      - name: Build, engine build-time budget, tests
+        run: python tools/build.py release --test --no-gpu-tests --engine-budget=180
+      - name: Simulation benchmark (no GPU)
+        run: |
+          build/release/zaro run --sim-only --enemies 50000 --warmup 60 --frames 600 \
+            --perf perf-${{ matrix.os }}.json
+          python - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import json, glob
+          d = json.load(open(glob.glob("perf-*.json")[0]))
+          print(f"### Simulation benchmark ({d['threads']} threads)")
+          print(f"enemies {d['enemies']}, sim {d['cpu_ms']['sim']:.3f} ms/tick, "
+                f"frame avg {d['frame_ms']['avg']:.3f} ms, p99 {d['frame_ms']['p99']:.3f} ms, "
+                f"state_hash {d['state_hash']}")
+          EOF
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: perf-${{ matrix.os }}
+          path: perf-*.json
