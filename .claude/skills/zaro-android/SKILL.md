@@ -17,9 +17,11 @@ Commands are in the CLAUDE.md "Commands" table (`tools/android.py setup|doctor|a
   `src/platform/android/project`; `@ZARO_...@` placeholders are filled in by the export.
 - `zaro export android <scene>` copies the scene's directory (without `tests/` and `*.test.toml`)
   and every file the scene names outside it (script, prefabs, screens with their prefabs and
-  images, string tables) to `assets/game/`. On the device they are unpacked to
-  `/sdcard/Android/data/<package>/files`, which becomes the working directory. Output goes to
-  logcat: `adb logcat -s zaro`.
+  images, sprite sheets with their PNGs, string tables) to `assets/game/`. SVG sheets are cooked
+  first and pack their `.zaro-cache/<sheet>.png`, never the SVG files; the template's
+  `ignoreAssetsPatterns` keeps AAPT from dropping that dot directory. On the device they are
+  unpacked to `/sdcard/Android/data/<package>/files`, which becomes the working directory. Output
+  goes to logcat: `adb logcat -s zaro`.
 - Launch with other arguments: `adb shell am start -S -n <package>/dev.zaro.ZaroActivity --es args
   "'run game/scene.toml --headless --perf perf.json'"`. `tools/android.py perf` does this and pulls
   the report.

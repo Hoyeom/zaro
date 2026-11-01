@@ -480,7 +480,8 @@ Status of all entries below: **accepted, 2026-11-01**.
 
 ## D-024 SVG art: PlutoSVG on PlutoVG, in the zaro tool's cook step only
 
-- **Status**: accepted, 2026-11-02.
+- **Status**: accepted, 2026-11-02. **Superseded by D-025** (same day): PlutoSVG does not draw
+  `clipPath` or `<style>` sheets, contrary to the "Why" below.
 - **Decision**: SVG character art is rasterized into sprite atlases by PlutoSVG (MIT) drawing with
   PlutoVG (MIT), pinned at plutosvg v0.0.8 and plutovg v1.3.3 (the commit plutosvg v0.0.8 pins).
   Only the `zaro` tool's cook step links them. Games load the cooked atlases as PNG now and KTX2
@@ -512,6 +513,43 @@ Status of all entries below: **accepted, 2026-11-01**.
   - librsvg and cairo: LGPL, excluded by D-012.
 - **Not supported**: masks, text and filters (drop shadows, blurs). Artists convert text to
   outlines and bake effects into shapes before export. Revisit if the owner's art needs them.
+
+## D-025 SVG art: LunaSVG (with its PlutoVG), in the zaro tool's cook step only
+
+- **Status**: accepted, 2026-11-02. Supersedes D-024.
+- **Decision**: SVG character art is drawn into sprite atlases by LunaSVG 3.5.0 (MIT), with the
+  PlutoVG 1.3.1 (MIT) it bundles. Both come from one pinned tarball and are compiled without
+  exceptions and RTTI, like ZARO code. They live in the `cook` module, which is built only for the
+  desktop `zaro` tool, never for Android, so the Android runtime contains neither. A sprite sheet
+  lists SVG files as its frames (`scene/sprite_sheet.h`). `zaro cook` (and any run that needs the
+  pixels) draws them into `.zaro-cache/<sheet>.png` next to the sheet, keyed by a content hash of
+  the sheet, its SVG files and `cook::kCookVersion` (D-008). The Android export packs the cooked
+  PNG, not the SVG files. Before drawing, the cook scans each file and reports what it would leave
+  out as ZE0903 with file and line: text, filters and foreign content. `zaro check` runs the same
+  scan.
+- **Why D-024 was replaced**: D-024 was chosen for drawing `<style>` classes and `clipPath`. The
+  PlutoSVG v0.0.8 source shows it does neither: `clipPath` is parsed but marked TODO and never
+  applied, and `<style>` is an unknown element it skips. Illustrator, Figma and Inkscape exports
+  rely on both, so art would have rendered wrong without any warning.
+- **Why LunaSVG**:
+  - It draws CSS style sheets, `clipPath`, `mask`, `use`/`symbol`, gradients, `pattern` and
+    `marker`. Test `svg_cook` checks classes, a circular clip, a mask, two `<use>`s and a
+    gradient pixel by pixel.
+  - Its sources have no `throw`, `try`, `catch`, `dynamic_cast` or `typeid`. It builds with
+    `/EHs-c- /GR-` and `-fno-exceptions -fno-rtti`.
+  - It is the same author's library on the same PlutoVG, so the license duty below is D-024's,
+    unchanged. It is about 270 KB of C++17 plus PlutoVG.
+  - System fonts are never loaded (`LUNASVG_DISABLE_LOAD_SYSTEM_FONTS`), so a cook does not depend
+    on the machine. Text is therefore reported instead of drawn.
+- **License duty**: PlutoVG's scan converter and stroker are FreeType code under the FreeType
+  License. A binary distribution of the `zaro` tool must state that it is based in part on the
+  work of the FreeType Team. `THIRD_PARTY_NOTICES.md` holds that statement and every dependency's
+  license; lint rule Z009 fails when a dependency in `cmake/ZaroDeps.cmake` is missing there.
+- **Rejected**: PlutoSVG (above); nanosvg (zlib, but no `<style>`, `clipPath` or `use`, and
+  unmaintained); ThorVG (MIT, its rasterizer also FreeType-derived, about 900 KB of C++ with Lottie);
+  resvg (Apache-2.0, the most complete, but needs a Rust toolchain); librsvg and cairo (LGPL, D-012).
+- **Not supported**: text (convert it to outlines) and filters such as drop shadows and blurs (bake
+  them into shapes). Revisit with the owner's art if needed.
 
 ## M2 result (2026-11-01)
 

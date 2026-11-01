@@ -1,0 +1,7 @@
+[scene]
+name = "bad_svg"
+
+[[entity]]
+name = "sprite"
+[entity.Sprite]
+sheet = "bad_sheet.toml"

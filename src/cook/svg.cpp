@@ -1,5 +1,7 @@
 #include "cook/svg.h"
 
+#include "scene/sprite_sheet.h"
+
 #include <lunasvg.h>
 
 #include <stdio.h>
@@ -158,6 +160,52 @@ bool rasterize_svg(const char* path, uint32_t width, uint32_t height, uint8_t* r
         memcpy(rgba + (size_t)y * width * 4, bitmap.data() + (size_t)y * (size_t)bitmap.stride(), (size_t)width * 4);
     }
     return true;
+}
+
+bool check_svg_files(const scene::SpriteSheet* sheet, DiagList* d) {
+    bool ok = true;
+    for (uint32_t i = 0; i < sheet->svg_count; ++i) {
+        FILE* file = fopen(sheet->svg[i], "rb");
+        if (!file) {
+            diag_add(d, kErrSvg, sheet->path, sheet->svg_line, 1, "cannot open SVG file '%s'", sheet->svg[i]);
+            ok = false;
+            continue;
+        }
+        fclose(file);
+        ok = check_svg(sheet->svg[i], d) && ok;
+    }
+    return ok;
+}
+
+uint8_t* cook_svg_sheet(const scene::SpriteSheet* sheet, DiagList* d) {
+    const uint32_t w = sheet->image_width, h = sheet->image_height;
+    const uint32_t fw = sheet->frame_size[0], fh = sheet->frame_size[1];
+    uint8_t* atlas = (uint8_t*)calloc((size_t)w * h, 4);
+    uint8_t* frame = (uint8_t*)malloc((size_t)fw * fh * 4);
+    bool ok = true;
+    for (uint32_t i = 0; i < sheet->svg_count; ++i) {
+        FILE* file = fopen(sheet->svg[i], "rb");
+        if (!file) {
+            diag_add(d, kErrSvg, sheet->path, sheet->svg_line, 1, "cannot open SVG file '%s'", sheet->svg[i]);
+            ok = false;
+            continue;
+        }
+        fclose(file);
+        if (!rasterize_svg(sheet->svg[i], fw, fh, frame, d)) {
+            ok = false;
+            continue;
+        }
+        const scene::SheetFrame& f = sheet->frames[i];
+        for (uint32_t y = 0; y < fh; ++y) {
+            memcpy(atlas + ((size_t)(f.y + y) * w + f.x) * 4, frame + (size_t)y * fw * 4, (size_t)fw * 4);
+        }
+    }
+    free(frame);
+    if (!ok) {
+        free(atlas);
+        return nullptr;
+    }
+    return atlas;
 }
 
 }  // namespace zaro::cook

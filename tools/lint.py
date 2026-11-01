@@ -48,6 +48,12 @@ BANNED_HEADERS = {
 
 MAX_INCLUDES_PER_HEADER = 12
 
+# Dependency notices (Z009): every "# --- <Name> <version> (<license>)" header in the dependency file
+# names a dependency that THIRD_PARTY_NOTICES.md lists (D-012).
+DEPS_FILE = "cmake/ZaroDeps.cmake"
+NOTICES_FILE = "THIRD_PARTY_NOTICES.md"
+DEP_HEADER_RE = re.compile(r"^# --- (\S+)")
+
 # Agent guidance (Z008): every skill has front matter naming its directory and a description,
 # and the "Skills" list in CLAUDE.md names exactly the skills that exist.
 AGENT_GUIDE = "CLAUDE.md"
@@ -100,6 +106,7 @@ RULES = {
     "Z006": "public header is missing an extern \"C\" guard",
     "Z007": "module layering: include of an engine module or third-party header this module may not use",
     "Z008": "skill front matter is malformed, or CLAUDE.md 'Skills' and .claude/skills/ disagree",
+    "Z009": "a dependency in cmake/ZaroDeps.cmake has no entry in THIRD_PARTY_NOTICES.md",
 }
 
 BANNED_KEYWORDS = re.compile(r"\b(throw|try|catch|dynamic_cast|typeid)\b")
@@ -239,10 +246,28 @@ def lint_agent_doc(path: Path, r: str) -> list[Diag]:
     return diags
 
 
+def lint_notices() -> list[Diag]:
+    try:
+        deps = (ROOT / DEPS_FILE).read_text(encoding="utf-8").splitlines()
+        notices = (ROOT / NOTICES_FILE).read_text(encoding="utf-8")
+    except OSError as e:
+        return [Diag(NOTICES_FILE, 1, 1, "Z009", f"cannot read: {e}")]
+    rows = [line for line in notices.splitlines() if line.startswith("| ")]
+    diags = []
+    for i, line in enumerate(deps):
+        m = DEP_HEADER_RE.match(line)
+        if m and not any(m.group(1) in row for row in rows):
+            diags.append(Diag(DEPS_FILE, i + 1, 1, "Z009",
+                              f"'{m.group(1)}' has no row in {NOTICES_FILE}; add its license and use"))
+    return diags
+
+
 def lint_file(path: Path) -> list[Diag]:
     r = rel(path)
     if r == AGENT_GUIDE or SKILL_FILE_RE.match(r):
         return lint_agent_doc(path, r)
+    if r in (DEPS_FILE, NOTICES_FILE):
+        return lint_notices()
     parts = set(Path(r).parts)
     if parts & SKIP_PARTS or path.suffix not in SOURCE_EXTS:
         return []
@@ -312,6 +337,7 @@ def repo_files() -> list[Path]:
             if p.is_file() and p.suffix in SOURCE_EXTS:
                 files.append(p)
     files.append(ROOT / AGENT_GUIDE)
+    files.append(ROOT / NOTICES_FILE)
     files.extend((ROOT / SKILLS_DIR).glob("*/SKILL.md"))
     return sorted(files)
 

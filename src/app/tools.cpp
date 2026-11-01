@@ -6,12 +6,14 @@
 #include "core/reflect.h"
 #include "platform/platform.h"
 #include "scene/scene.h"
+#include "scene/sprite_sheet.h"
 #include "script/script.h"
 #include "sim/crowd_components.h"
 #include "sim/sprite_components.h"
 #include "ui/widgets.h"
 
 #include <stdio.h>
+#include <string.h>
 
 namespace zaro::app {
 
@@ -42,7 +44,9 @@ int check_scene(const char* path, bool json) {
     // Its sprite sheets, their frames and the animations the sprites name.
     if (s && !screen) {
         bool failed = false;
-        destroy_sprite_layer(create_sprite_layer(s, diags, &failed));
+        SpriteLayer* sprites = create_sprite_layer(s, diags, &failed);
+        failed = !check_sprite_art(sprites, diags) || failed;
+        destroy_sprite_layer(sprites);
         if (failed) {
             scene::free_scene(s);
             s = nullptr;
@@ -79,6 +83,66 @@ int check_scene(const char* path, bool json) {
     scene::free_scene(s);
     delete diags;
     return code;
+}
+
+namespace {
+
+struct CookRun {
+    bool force;
+    DiagList* diags;
+    bool failed;
+    uint32_t cooked, current;
+};
+
+void cook_one(CookRun& run, const scene::SpriteSheet* sheet) {
+    if (!sheet->svg_count) return;
+    bool drew = false;
+    if (!ensure_sheet_art(sheet, run.force, run.diags, &drew)) {
+        run.failed = true;
+    } else if (drew) {
+        printf("cooked %s (%u frames)\n", sheet->image, sheet->frame_count);
+        ++run.cooked;
+    } else {
+        ++run.current;
+    }
+}
+
+// A sheet file has a line starting with [sheet]; anything else is read as a scene.
+bool is_sheet_file(const char* path) {
+    FILE* f = fopen(path, "rb");
+    if (!f) return false;
+    char line[256];
+    bool sheet = false;
+    while (!sheet && fgets(line, sizeof(line), f)) sheet = strncmp(line, "[sheet]", 7) == 0;
+    fclose(f);
+    return sheet;
+}
+
+}  // namespace
+
+int cook_art(const char* path, bool force) {
+    register_all_components();
+    CookRun run{force, new DiagList(), false, 0, 0};
+    scene::Scene* s = nullptr;
+    scene::SpriteSheet* single = nullptr;
+    SpriteLayer* layer = nullptr;
+    if (is_sheet_file(path)) {
+        single = scene::load_sprite_sheet(path, run.diags);
+        run.failed = !single;
+        if (single) cook_one(run, single);
+    } else {
+        s = scene::load_scene(path, run.diags);
+        run.failed = !s;
+        if (s) layer = create_sprite_layer(s, run.diags, &run.failed);
+        for (uint32_t i = 0; i < sprite_sheet_count(layer); ++i) cook_one(run, sprite_sheet_at(layer, i));
+    }
+    if (run.failed) diag_print_text(run.diags, stderr);
+    else printf("%s: %u sheet(s) cooked, %u up to date\n", path, run.cooked, run.current);
+    destroy_sprite_layer(layer);
+    scene::free_sprite_sheet(single);
+    scene::free_scene(s);
+    delete run.diags;
+    return run.failed ? 1 : 0;
 }
 
 }  // namespace zaro::app

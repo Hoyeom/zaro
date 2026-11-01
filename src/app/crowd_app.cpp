@@ -228,7 +228,8 @@ int run_headless(const RunOptions& o, Game& g, float* instances) {
         shader_dir(dir, sizeof(dir));
         renderer = render::create_crowd_renderer(device, dir, sim::enemy_count(crowd), cells, ncells);
         if (!renderer || (g.ui && !attach_gpu(g.ui, device, dir)) ||
-            (g.sprites && !attach_sprite_gpu(g.sprites, device, dir))) {
+            (g.sprites && (!prepare_sprite_art(g.sprites, g.diags) || !attach_sprite_gpu(g.sprites, device, dir)))) {
+            print_diags(g);
             render::destroy_crowd_renderer(renderer);
             rhi::destroy_device(device);
             return 1;
@@ -331,7 +332,8 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
     shader_dir(dir, sizeof(dir));
     render::CrowdRenderer* renderer = render::create_crowd_renderer(device, dir, sim::enemy_count(crowd), cells, ncells);
     if (!renderer || (g.ui && !attach_gpu(g.ui, device, dir)) ||
-        (g.sprites && !attach_sprite_gpu(g.sprites, device, dir))) {
+        (g.sprites && (!prepare_sprite_art(g.sprites, g.diags) || !attach_sprite_gpu(g.sprites, device, dir)))) {
+        print_diags(g);
         render::destroy_crowd_renderer(renderer);
         rhi::destroy_device(device);
         platform::destroy_window(window);

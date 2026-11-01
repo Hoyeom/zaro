@@ -1,6 +1,7 @@
 #include "app/sprite_layer.h"
 
 #include "core/path.h"
+#include "platform/platform.h"
 #include "core/png.h"
 #include "core/profile.h"
 #include "render/sprite_renderer.h"
@@ -8,6 +9,9 @@
 #include "scene/sprite_sheet.h"
 #include "sim/crowd.h"
 #include "sim/sprite_components.h"
+#if ZARO_HAS_COOK
+#include "cook/svg.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -167,6 +171,75 @@ bool step_sprites(SpriteLayer* l, uint64_t tick, DiagList* diags) {
         const uint32_t frames = l->sheets[r.sheet]->frame_count;
         if (r.sprite->frame >= frames) r.sprite->frame = frames - 1;  // a script set it past the end
     }
+    return ok;
+}
+
+bool ensure_sheet_art(const scene::SpriteSheet* sheet, bool force, DiagList* diags, bool* cooked) {
+    *cooked = false;
+    if (!sheet->svg_count) return true;
+#if ZARO_HAS_COOK
+    char hash[17];
+    if (!scene::svg_art_hash(sheet, cook::kCookVersion, hash)) {
+        cook::check_svg_files(sheet, diags);  // says which file is missing
+        return false;
+    }
+    char stored[17] = {};
+    if (FILE* f = fopen(sheet->hash_path, "rb")) {
+        const size_t n = fread(stored, 1, 16, f);
+        stored[n] = 0;
+        fclose(f);
+    }
+    if (!force && strcmp(stored, hash) == 0 && platform::file_mtime(sheet->image)) return true;
+    uint8_t* atlas = cook::cook_svg_sheet(sheet, diags);
+    if (!atlas) return false;
+    char dir[260];
+    snprintf(dir, sizeof(dir), "%s", sheet->image);
+    if (char* slash = strrchr(dir, '/')) *slash = 0;
+    bool ok = platform::create_directories(dir) &&
+              write_png_rgba8(sheet->image, sheet->image_width, sheet->image_height, atlas);
+    free(atlas);
+    FILE* f = ok ? fopen(sheet->hash_path, "wb") : nullptr;
+    ok = f && fwrite(hash, 1, 16, f) == 16;
+    if (f) ok = fclose(f) == 0 && ok;
+    if (!ok) {
+        diag_add(diags, kErrIo, sheet->image, 0, 0, "cannot write the cooked sprite sheet");
+        return false;
+    }
+    *cooked = true;
+    return true;
+#else
+    (void)force;
+    if (platform::file_mtime(sheet->image)) return true;
+    diag_add(diags, kErrSpriteImage, sheet->path, sheet->svg_line, 1,
+             "the SVG art is not cooked (%s is missing); cook it with the zaro tool: zaro cook %s", sheet->image,
+             sheet->path);
+    return false;
+#endif
+}
+
+bool prepare_sprite_art(SpriteLayer* l, DiagList* diags) {
+    bool ok = true;
+    for (uint32_t i = 0; l && i < l->sheet_count; ++i) {
+        bool cooked = false;
+        ok = ensure_sheet_art(l->sheets[i], false, diags, &cooked) && ok;
+        if (cooked) log_info("cooked %s (%u frames)", l->sheets[i]->image, l->sheets[i]->frame_count);
+    }
+    return ok;
+}
+
+uint32_t sprite_sheet_count(const SpriteLayer* l) { return l ? l->sheet_count : 0; }
+const scene::SpriteSheet* sprite_sheet_at(const SpriteLayer* l, uint32_t i) { return l->sheets[i]; }
+
+bool check_sprite_art(const SpriteLayer* l, DiagList* diags) {
+    bool ok = true;
+#if ZARO_HAS_COOK
+    for (uint32_t i = 0; l && i < l->sheet_count; ++i) {
+        if (l->sheets[i]->svg_count) ok = cook::check_svg_files(l->sheets[i], diags) && ok;
+    }
+#else
+    (void)l;
+    (void)diags;
+#endif
     return ok;
 }
 

@@ -171,7 +171,35 @@ wrote shot.png
 This renders 60 frames offscreen (`--frames N`, `--size WxH`) and saves the last one. It needs a
 GPU, unlike `zaro test`.
 
-## 8. Put a UI on it
+## 8. Add sprites
+
+A `Sprite` shows a frame of a sprite sheet, standing in the 3D view or drawn on the screen:
+
+```toml
+[[entity]]
+name = "nabi"
+[entity.Sprite]
+sheet = "cat.toml"
+animation = "walk"
+position = [26.0, 0.0, 30.0]
+```
+
+A sheet is a TOML file with one PNG and its frames and animations, or a list of SVG files, one per
+frame (the format is at the top of `src/scene/sprite_sheet.h`). The `zaro` tool cooks SVG art into
+a PNG atlas under `.zaro-cache/` the first time a run needs it, and again whenever the art
+changes. To cook ahead of time:
+
+```
+$ zaro cook examples/cats/scene.toml
+cooked examples/cats/.zaro-cache/cat.png (8 frames)
+examples/cats/scene.toml: 1 sheet(s) cooked, 0 up to date
+```
+
+Text and filters in SVG files are not drawn; `zaro check` reports them with their lines (ZE0903).
+The animation sets `Sprite.frame` on every tick, so a scene test can expect a frame without a
+GPU. `examples/cats` has a walking cat moved by its script, an idle one, and one on the screen.
+
+## 9. Put a UI on it
 
 A scene lists its screens, string tables and languages in `[scene]`:
 
@@ -229,7 +257,7 @@ state = "entering"
 shows the popup. If your team keeps a Claude Design kit, `zaro import-design <kit> ui/kit` turns
 its tokens into `ui/kit/theme.toml`. `examples/hello` has all of this.
 
-## 9. Put it on an Android phone
+## 10. Put it on an Android phone
 
 ```
 $ python tools/android.py setup          # once: pinned NDK, SDK packages, JDK, Gradle

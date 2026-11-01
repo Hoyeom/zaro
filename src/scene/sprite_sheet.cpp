@@ -1,5 +1,6 @@
 #include "scene/sprite_sheet.h"
 
+#include "core/hash.h"
 #include "core/path.h"
 #include "core/png.h"
 #include "core/reflect.h"
@@ -45,6 +46,54 @@ bool read_pivot(const toml_datum_t& v, float* pivot, const char* file, DiagList*
     return true;
 }
 
+void load_svg_list(SpriteSheet* s, const toml_datum_t& v, DiagList* d) {
+    if (v.type != TOML_ARRAY || v.u.arr.size < 1 || (uint32_t)v.u.arr.size > kMaxSvgFrames) {
+        diag_add(d, kErrSpriteSheet, s->path, v.lineno, v.colno, "svg must be an array of 1 to %u SVG paths",
+                 kMaxSvgFrames);
+        return;
+    }
+    s->svg_line = v.lineno;
+    for (int32_t i = 0; i < v.u.arr.size; ++i) {
+        const toml_datum_t& e = v.u.arr.elem[i];
+        if (e.type != TOML_STRING || !e.u.str.ptr[0]) {
+            diag_add(d, kErrSpriteSheet, s->path, v.lineno, v.colno, "svg[%d] must be a path", i);
+            continue;
+        }
+        path_join_relative(s->path, e.u.str.ptr, s->svg[s->svg_count++], sizeof(s->svg[0]));
+    }
+}
+
+// SVG sheets: the cooked image's place and size, and one frame per SVG file in a padded grid.
+void layout_svg_frames(SpriteSheet* s) {
+    char dir[260];
+    snprintf(dir, sizeof(dir), "%s", s->path);
+    char* slash = strrchr(dir, '/');
+    const char* file = slash ? slash + 1 : dir;
+    char stem[128];
+    snprintf(stem, sizeof(stem), "%s", file);
+    if (char* dot = strstr(stem, ".toml")) *dot = 0;
+    if (slash) slash[1] = 0;
+    else dir[0] = 0;
+    snprintf(s->image, sizeof(s->image), "%s.zaro-cache/%s.png", dir, stem);
+    snprintf(s->hash_path, sizeof(s->hash_path), "%s.zaro-cache/%s.hash", dir, stem);
+    // One transparent pixel around each frame, so filtering never reads a neighbour.
+    const uint32_t cw = s->frame_size[0] + 2, ch = s->frame_size[1] + 2;
+    uint32_t cols = 1;
+    while (cols * cols < s->svg_count) ++cols;
+    const uint32_t rows = (s->svg_count + cols - 1) / cols;
+    s->image_width = cols * cw;
+    s->image_height = rows * ch;
+    for (uint32_t i = 0; i < s->svg_count; ++i) {
+        SheetFrame& f = s->frames[s->frame_count++];
+        f.x = (i % cols) * cw + 1;
+        f.y = (i / cols) * ch + 1;
+        f.w = s->frame_size[0];
+        f.h = s->frame_size[1];
+        f.pivot[0] = s->pivot[0];
+        f.pivot[1] = s->pivot[1];
+    }
+}
+
 void load_header(SpriteSheet* s, const toml_datum_t& h, double* cell, int* cell_line, int* image_line, DiagList* d) {
     for (int32_t i = 0; i < h.u.tab.size; ++i) {
         const char* key = h.u.tab.key[i];
@@ -66,9 +115,21 @@ void load_header(SpriteSheet* s, const toml_datum_t& h, double* cell, int* cell_
             read_pivot(v, s->pivot, s->path, d);
         } else if (strcmp(key, "cell") == 0) {
             if (read_numbers(v, 2, 1.0, cell, "cell", s->path, d)) *cell_line = v.lineno;
+        } else if (strcmp(key, "svg") == 0) {
+            load_svg_list(s, v, d);
+        } else if (strcmp(key, "size") == 0) {
+            double size[2];
+            if (!read_numbers(v, 2, 1.0, size, "size", s->path, d)) continue;
+            if (size[0] > 2048.0 || size[1] > 2048.0) {
+                diag_add(d, kErrSpriteSheet, s->path, v.lineno, v.colno, "size must be at most 2048 x 2048 pixels");
+                continue;
+            }
+            s->frame_size[0] = (uint32_t)size[0];
+            s->frame_size[1] = (uint32_t)size[1];
         } else {
             diag_add(d, kErrSpriteSheet, s->path, v.lineno, v.colno,
-                     "unexpected key '%s' in [sheet] (expected image, pixels_per_unit, pivot or cell)", key);
+                     "unexpected key '%s' in [sheet] (expected image or svg, pixels_per_unit, pivot, cell, size)",
+                     key);
         }
     }
 }
@@ -220,7 +281,16 @@ SpriteSheet* load_sprite_sheet(const char* path, DiagList* d) {
             diag_add(d, kErrSpriteSheet, path, 1, 1, "a sprite sheet needs a [sheet] table");
         } else {
             load_header(s, header, cell, &cell_line, &image_line, d);
-            if (!s->image[0]) {
+            if (s->svg_count || s->svg_line) {
+                if (s->image[0] || cell_line || toml_get(top, "frame").type == TOML_ARRAY) {
+                    diag_add(d, kErrSpriteSheet, path, s->svg_line, 1,
+                             "an SVG sheet takes its frames from svg; it has no image, cell or [[frame]]");
+                } else if (!s->frame_size[0]) {
+                    diag_add(d, kErrSpriteSheet, path, s->svg_line, 1, "an SVG sheet needs size = [width, height]");
+                } else {
+                    layout_svg_frames(s);
+                }
+            } else if (!s->image[0]) {
                 diag_add(d, kErrSpriteSheet, path, header.lineno, header.colno, "[sheet] needs image = \"<file>.png\"");
             } else if (!png_size(s->image, &s->image_width, &s->image_height)) {
                 diag_add(d, kErrSpriteImage, path, image_line, 1, "cannot open image '%s' (missing, or not a PNG file)",
@@ -228,7 +298,9 @@ SpriteSheet* load_sprite_sheet(const char* path, DiagList* d) {
             }
         }
         const toml_datum_t frames = toml_get(top, "frame");
-        if (cell_line && frames.type == TOML_ARRAY) {
+        if (s->svg_count) {
+            // Frames come from the SVG files (layout_svg_frames).
+        } else if (cell_line && frames.type == TOML_ARRAY) {
             diag_add(d, kErrSpriteSheet, path, cell_line, 1, "a sheet has either cell or [[frame]] tables, not both");
         } else if (cell_line && s->image_width) {
             // Grid: every whole cell of the image, row by row.
@@ -248,7 +320,7 @@ SpriteSheet* load_sprite_sheet(const char* path, DiagList* d) {
             }
         } else if (frames.type == TOML_ARRAY) {
             load_frames(s, frames, d);
-        } else if (!cell_line && header.type == TOML_TABLE) {
+        } else if (!cell_line && header.type == TOML_TABLE && !s->svg_line) {
             diag_add(d, kErrSpriteSheet, path, header.lineno, header.colno,
                      "a sheet needs cell = [w, h] in [sheet] or [[frame]] tables");
         }
@@ -277,6 +349,21 @@ const char* suggest_animation(const SpriteSheet* s, const char* name) {
     const char* names[kMaxSheetAnimations];
     for (uint32_t i = 0; i < s->animation_count; ++i) names[i] = s->animations[i].name;
     return reflect::suggest_name(name, names, s->animation_count);
+}
+
+bool svg_art_hash(const SpriteSheet* s, uint32_t cook_version, char out[17]) {
+    uint64_t h = fnv1a(&cook_version, sizeof(cook_version));
+    for (uint32_t i = 0; i <= s->svg_count; ++i) {
+        FILE* f = fopen(i == 0 ? s->path : s->svg[i - 1], "rb");
+        if (!f) return false;
+        char buf[4096];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), f)) > 0) h = fnv1a(buf, n, h);
+        fclose(f);
+        h = fnv1a(&i, sizeof(i), h);  // file boundaries count
+    }
+    snprintf(out, 17, "%016llx", (unsigned long long)h);
+    return true;
 }
 
 uint32_t animation_frame(const SheetAnimation& a, double seconds, float speed) {

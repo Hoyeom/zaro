@@ -1,0 +1,45 @@
+# Cats from SVG art (P3): the sheet cat.toml lists SVG frames, which the zaro tool cooks into a PNG
+# atlas on the first run (or with `zaro cook examples/cats/scene.toml`). Two cats stand in the 3D
+# view and a third is drawn on the screen.
+#   zaro run examples/cats/scene.toml      zaro screenshot examples/cats/scene.toml cats.png
+
+[scene]
+name = "cats"
+script = "cats.luau"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+seed = 3
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 0
+
+[[entity]]
+name = "nabi"
+[entity.Sprite]
+sheet = "cat.toml"
+animation = "walk"
+position = [26.0, 0.0, 30.0]
+scale = 2.0
+
+[[entity]]
+name = "momo"
+[entity.Sprite]
+sheet = "cat.toml"
+animation = "idle"
+position = [37.0, 0.0, 26.0]
+scale = 1.6
+color = "#b8c0cc"
+flip_x = true
+
+[[entity]]
+name = "portrait"
+[entity.Sprite]
+sheet = "cat.toml"
+animation = "idle"
+space = "screen"
+position = [90.0, 150.0, 0.0]

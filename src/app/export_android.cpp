@@ -1,4 +1,5 @@
 // `zaro export android`: turns a scene into a Gradle project around the Android runtime (D-022).
+#include "app/sprite_layer.h"
 #include "app/tools.h"
 
 #include "core/diag.h"
@@ -175,15 +176,22 @@ void copy_runtime_file(const char* path, void* user) {
     if (starts_with(rel, kAssets) && !add_unique(e.assets, rel + sizeof(kAssets) - 1)) e.ok = false;
 }
 
-// A sprite sheet and its image.
+// A sprite sheet and its image. An SVG sheet is cooked first (D-025) and packs the cooked PNG; the
+// APK never holds the SVG files.
 void add_sheet_files(PathList& files, const char* doc_path, const char* sheet_rel, bool* ok) {
     char path[kPath];
     path_join_relative(doc_path, sheet_rel, path, sizeof(path));
     *ok &= add_unique(files, path);
     DiagList* diags = new DiagList();
     if (scene::SpriteSheet* sheet = scene::load_sprite_sheet(path, diags)) {
-        path_join_relative("", sheet->image, path, sizeof(path));
-        *ok &= add_unique(files, path);
+        bool cooked = false;
+        if (ensure_sheet_art(sheet, false, diags, &cooked)) {
+            path_join_relative("", sheet->image, path, sizeof(path));
+            *ok &= add_unique(files, path);
+        } else {
+            diag_print_text(diags, stderr);
+            *ok = false;
+        }
         scene::free_sprite_sheet(sheet);
     }
     delete diags;
@@ -221,6 +229,8 @@ void add_scanned_file(const char* found, void* user) {
     char path[kPath];
     path_join_relative("", found, path, sizeof(path));
     if (ends_with(path, ".test.toml") || starts_with(path, "tests/") || strstr(path, "/tests/")) return;
+    // SVG art and the cook's cache: the sheets that use them pack their cooked PNGs (add_sheet_files).
+    if (ends_with(path, ".svg") || starts_with(path, ".zaro-cache/") || strstr(path, "/.zaro-cache/")) return;
     scan.ok &= add_unique(*scan.files, path);
 }
 

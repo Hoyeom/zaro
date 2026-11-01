@@ -81,6 +81,10 @@ add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scen
   src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp)
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform
   PRIVATE zaro_cjson)
+if(TARGET zaro_cook)
+  target_link_libraries(zaro_app PRIVATE zaro_cook)
+  target_compile_definitions(zaro_app PRIVATE ZARO_HAS_COOK=1)
+endif()
 zaro_target_defaults(zaro_app)
 
 # CLI. Everything an agent or the editor does goes through this binary.
@@ -198,7 +202,23 @@ if(ZARO_BUILD_TESTS)
     target_link_libraries(test_svg PRIVATE zaro_cook)
     zaro_target_defaults(test_svg)
     add_test(NAME svg_cook COMMAND test_svg ${CMAKE_BINARY_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    # The cats' SVG art cooks into its atlas (no GPU), and art the cook cannot draw fails `zaro check`.
+    add_test(NAME example_cats_cook COMMAND zaro cook examples/cats/scene.toml --force
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(example_cats_cook PROPERTIES
+      PASS_REGULAR_EXPRESSION "cooked examples/cats/.zaro-cache/cat.png \\(8 frames\\)")
+    add_test(NAME check_svg_art COMMAND zaro check tests/data/svg/bad_scene.toml
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(check_svg_art PROPERTIES
+      PASS_REGULAR_EXPRESSION "unsupported.svg:7:1: error\\[ZE0903\\]: <text> is not drawn by the SVG cook")
   endif()
+  # The cats scene with SVG sprites stays valid; it renders in the 3D view and on the screen.
+  add_test(NAME example_cats_scene COMMAND zaro check examples/cats/scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME screenshot_cats
+           COMMAND zaro screenshot examples/cats/scene.toml ${CMAKE_BINARY_DIR}/cats.png --frames 30 --size 960x540
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_cats PROPERTIES LABELS gpu)
 
   # The example scene stays valid, and `zaro schema` stays valid JSON.
   add_test(NAME example_crowd_scene COMMAND zaro check examples/crowd/scene.toml
