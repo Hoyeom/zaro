@@ -1,0 +1,9 @@
+# A scene with one build extension (D-026); tests/test_android_export.py exports it.
+[scene]
+name = "extended"
+build_extensions = ["plugin/build_extension.toml"]
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 32

@@ -24,8 +24,9 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
 
 - **Status**: Android in progress since 2026-11-01 (toolchain and packaging: D-022). The APK
   builds locally and in CI; the on-device check below is pending. Release bundles (D-025) build,
-  validate and sign with a game's upload key locally and in CI (with a throwaway key); installing
-  one on a device and the export hooks for plugins are pending.
+  validate and sign with a game's upload key locally and in CI (with a throwaway key). Plugins
+  add Gradle dependencies, manifest entries and sources through build extensions (D-026).
+  Installing a bundle on a device is pending.
 - **Scope**:
   - Android build of the engine and the `zaro` runtime: SDL3 Android backend, wgpu on Vulkan, the
     Slang to WGSL step at build time, and assets packed into the APK.

@@ -62,3 +62,7 @@ android {
         }
     }
 }
+
+// From the scene's build extensions (D-026), one `implementation` line each.
+dependencies {
+@ZARO_GRADLE_DEPENDENCIES@}
