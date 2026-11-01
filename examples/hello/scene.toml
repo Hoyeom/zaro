@@ -1,9 +1,13 @@
-# The smallest scene with a script: a small horde, a player, and hello.luau.
+# The smallest scene with a script: a small horde, a player, and hello.luau, with a HUD and a
+# settings popup in Korean and English (ui/, strings/).
 #   zaro check examples/hello/scene.toml
-#   zaro run examples/hello/scene.toml
+#   zaro run examples/hello/scene.toml [--lang en]
 [scene]
 name = "hello"
 script = "hello.luau"
+ui = ["ui/hud.toml", "ui/settings.toml"]
+strings = "strings"
+languages = ["ko", "en"]
 
 [[entity]]
 name = "arena"

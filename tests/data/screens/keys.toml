@@ -1,0 +1,22 @@
+[screen]
+name = "keys"
+
+[[node]]
+name = "title"
+[node.Label]
+text = "@a.titel"
+
+[[node]]
+name = "body"
+[node.Label]
+text = "@a.body"
+
+[[node]]
+name = "plain"
+[node.Label]
+text = "no key here"
+
+[[node]]
+name = "icon"
+[node.Image]
+path = "missing.png"

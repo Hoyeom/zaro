@@ -23,9 +23,11 @@ Every architectural decision and its reasoning is in [docs/DECISIONS.md](docs/DE
 | Simulation only, no GPU | `build/debug/zaro run examples/crowd/scene.toml --sim-only --frames 300` |
 | List components (fields, types, defaults, ranges) as JSON | `build/debug/zaro schema` |
 | Validate a scene without running it | `build/debug/zaro check examples/crowd/scene.toml [--json]` |
+| Validate a scene's screens and strings, or one screen | `build/debug/zaro check examples/hello/scene.toml`, `... check examples/hello/ui/hud.toml` |
 | Run scene tests (no GPU) | `build/debug/zaro test examples/crowd/tests [--json]` |
 | Accept a changed simulation as the new golden | `build/debug/zaro test <paths> --update` |
 | Render a scene to PNG | `build/debug/zaro screenshot examples/crowd/scene.toml out.png [--frames N]` |
+| Render a scene's UI in another language | `build/debug/zaro screenshot examples/hello/scene.toml out.png --lang en` |
 | All `run` options | `build/debug/zaro help` |
 | Enable the pre-commit hook (once per clone) | `git config core.hooksPath tools/githooks` |
 
@@ -66,7 +68,7 @@ CMakeLists.txt follow the same graph.
 | `scene` | loads TOML scenes and prefabs into registered components; the only module that includes tomlc17 | core |
 | `script` | sandboxed Luau scripts acting on a scene through reflection; the only module that includes Luau | core, scene |
 | `render` | draws plain data (the view); never sees sim types | core, rhi |
-| `ui` | game UI: fonts, text layout, glyph atlas, UI draw lists; no GPU | core |
+| `ui` | game UI: fonts, text layout, glyph atlas, screens, widgets; no GPU | core, scene |
 | `app` | owns the frame loop and wires sim and ui to render | all of the above |
 | `cli` | the `zaro` command | core, app |
 
@@ -250,6 +252,14 @@ all three together.
   never touches the atlas.
 - Call `ui::begin_frame` before drawing text each frame. A full atlas skips the glyphs that do not
   fit for that frame, then is cleared and refilled on the next one.
+- Screen files (`[screen]` + `[[node]]`, format at the top of `src/scene/scene.h`) load through the
+  scene loader; widgets are UI components (`ZARO_UI_COMPONENT`, `"kind": "ui"` in `zaro schema`)
+  and cannot go on scene entities, nor scene components on nodes (ZE0401). A node's `parent` must be
+  an earlier node (ZE0408). `[scene] ui = [...]` lists the screens drawn over the scene.
+- Texts starting with `@` are keys into `strings/<language>.toml` (`src/scene/strings.h`), chosen by
+  `[scene] strings`, `languages` (first is the default) and `--lang`. `zaro check` on a scene reports
+  keys missing from any language (ZE0702, with a hint), tables that disagree (ZE0703), and missing
+  images (ZE0701).
 - The bundled font is Noto Sans KR (Regular, Bold; OFL 1.1). The build copies it to `<bin>/fonts/`.
   Font errors are ZE0700. PNG images go into a second, RGBA atlas (`ui::load_image`, ZE0701).
 - `ui::Context` holds the named fonts (`regular`, `bold`) and both atlases. A `ui::Screen` is a tree

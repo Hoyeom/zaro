@@ -74,13 +74,13 @@ const reflect::FieldDesc kModalFields[] = {
 
 }  // namespace
 
-ZARO_COMPONENT(Layout, "Size, placement in the parent, and how children are arranged", kLayoutFields);
-ZARO_COMPONENT(Panel, "Filled rectangle with optional rounded corners and border", kPanelFields);
-ZARO_COMPONENT(Label, "Text", kLabelFields);
-ZARO_COMPONENT(Image, "PNG image", kImageFields);
-ZARO_COMPONENT(Button, "Pressable button with a caption; a click sends its action", kButtonFields);
-ZARO_COMPONENT(ScrollList, "Clips and scrolls its children, stacked in a column or row", kScrollListFields);
-ZARO_COMPONENT(Modal, "Full-screen layer that dims what is behind it and takes all input", kModalFields);
+ZARO_UI_COMPONENT(Layout, "Size, placement in the parent, and how children are arranged", kLayoutFields);
+ZARO_UI_COMPONENT(Panel, "Filled rectangle with optional rounded corners and border", kPanelFields);
+ZARO_UI_COMPONENT(Label, "Text", kLabelFields);
+ZARO_UI_COMPONENT(Image, "PNG image", kImageFields);
+ZARO_UI_COMPONENT(Button, "Pressable button with a caption; a click sends its action", kButtonFields);
+ZARO_UI_COMPONENT(ScrollList, "Clips and scrolls its children, stacked in a column or row", kScrollListFields);
+ZARO_UI_COMPONENT(Modal, "Full-screen layer that dims what is behind it and takes all input", kModalFields);
 
 namespace {
 

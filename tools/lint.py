@@ -57,7 +57,7 @@ MODULE_DEPS = {
     "rhi": {"core", "platform", "rhi"},
     "sim": {"core", "sim"},
     "render": {"core", "rhi", "render"},
-    "ui": {"core", "ui"},
+    "ui": {"core", "scene", "ui"},
     "scene": {"core", "scene"},
     "script": {"core", "scene", "script"},
     "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "ui", "app"},

@@ -14,6 +14,7 @@
 #pragma once
 
 #include "core/reflect.h"
+#include "scene/scene.h"
 #include "ui/context.h"
 #include "ui/draw.h"
 #include "ui/widgets.h"
@@ -55,6 +56,10 @@ struct Event {
 };
 
 Screen* create_screen(Context* context, const char* name);
+// Builds a screen from a loaded screen file. The screen uses the document's widget data in place
+// (so scripts that change it change the screen); the document must outlive the screen. Image paths
+// resolve against the file's directory.
+Screen* build_screen(Context* context, scene::Scene* document);
 void destroy_screen(Screen* screen);
 const char* screen_name(const Screen* screen);
 Context* screen_context(Screen* screen);
@@ -78,6 +83,10 @@ void* get_widget(const Screen* screen, int node, const reflect::ComponentDesc* d
 void set_base_dir(Screen* screen, const char* dir);
 // Lets navigation input move the focus on the whole screen, not only inside an open modal.
 void set_navigable(Screen* screen, bool navigable);
+// Design size the screen was made for (1280 x 720 by default). screen_scale is the largest scale
+// at which it fits a width x height target.
+void set_reference(Screen* screen, float width, float height);
+float screen_scale(const Screen* screen, float width, float height);
 
 // Applies the input, then lays the screen out for a width x height pixel target where one design
 // unit is `scale` pixels. dt is the frame time in seconds (for fling). Events stay until the next
