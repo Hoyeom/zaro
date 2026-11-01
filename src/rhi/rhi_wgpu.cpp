@@ -43,6 +43,10 @@ constexpr uint32_t kQueriesPerSlot = kMaxTimedPasses * 2;
 constexpr uint64_t kResolveStride = 256;
 static_assert(kQueriesPerSlot * 8 <= kResolveStride, "slot timestamps must fit one stride");
 
+}  // namespace
+
+// Not in the anonymous namespace: Device (external linkage) holds an array of these, and GCC
+// rejects that with -Wsubobject-linkage.
 struct FrameSlot {
     WGPUBuffer readback = nullptr;  // resolved timestamps, MapRead
     WGPUSubmissionIndex submission = 0;
@@ -53,6 +57,8 @@ struct FrameSlot {
     uint32_t pass_count = 0;
     const char* names[kMaxTimedPasses] = {};
 };
+
+namespace {
 
 WGPUStringView sv(const char* s) { return WGPUStringView{s, WGPU_STRLEN}; }
 
