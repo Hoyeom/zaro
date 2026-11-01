@@ -60,7 +60,7 @@ target_link_libraries(zaro_script PUBLIC zaro_scene PRIVATE Luau.VM Luau.Compile
 zaro_target_defaults(zaro_script)
 
 add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_renderer.cpp src/render/sprite_renderer.cpp
-            src/render/post_renderer.cpp src/render/shape_renderer.cpp)
+            src/render/post_renderer.cpp src/render/shape_renderer.cpp src/render/particle_renderer.cpp)
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
@@ -108,7 +108,7 @@ endif()
 target_link_libraries(zaro PRIVATE zaro_app)
 zaro_target_defaults(zaro)
 zaro_add_shaders(zaro shaders/crowd_cull.slang shaders/crowd_draw.slang shaders/ui.slang shaders/sprite.slang
-                 shaders/post.slang shaders/shape.slang)
+                 shaders/post.slang shaders/shape.slang shaders/particles_sim.slang shaders/particles_draw.slang)
 zaro_add_fonts(zaro)
 add_custom_command(TARGET zaro POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:zaro_wgpu> $<TARGET_FILE_DIR:zaro>
@@ -208,6 +208,14 @@ if(ZARO_BUILD_TESTS)
   add_dependencies(test_shape_render zaro)  # the shaders are built with zaro
   add_test(NAME shape_render_gpu COMMAND test_shape_render ${CMAKE_BINARY_DIR}/ ${CMAKE_BINARY_DIR}/shape_render_test.png)
   set_tests_properties(shape_render_gpu PROPERTIES LABELS gpu)
+  # Particles: a burst emitted on the GPU, then moved by a frame's time.
+  add_executable(test_particle_render tests/test_particle_render.cpp)
+  target_link_libraries(test_particle_render PRIVATE zaro_render)
+  zaro_target_defaults(test_particle_render)
+  add_dependencies(test_particle_render zaro)  # the shaders are built with zaro
+  add_test(NAME particle_render_gpu COMMAND test_particle_render ${CMAKE_BINARY_DIR}/
+           ${CMAKE_BINARY_DIR}/particle_render_test.png)
+  set_tests_properties(particle_render_gpu PROPERTIES LABELS gpu)
   # A scene with sprites stays valid; a misspelt animation is reported at its line.
   add_test(NAME check_sprite_scene COMMAND zaro check tests/data/sprites/scene.toml
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -264,6 +272,13 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro screenshot tests/data/fx/shapes.toml ${CMAKE_BINARY_DIR}/shapes.png --frames 30 --size 640x360
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(screenshot_shapes PROPERTIES LABELS gpu)
+  # Particles, shake and flash: sparks from hits and emitters through the HDR frame.
+  add_test(NAME check_sparks_scene COMMAND zaro check tests/data/fx/sparks.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME screenshot_sparks
+           COMMAND zaro screenshot tests/data/fx/sparks.toml ${CMAKE_BINARY_DIR}/sparks.png --frames 30 --size 640x360
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_sparks PROPERTIES LABELS gpu)
 
   # SVG cook: classes, clip paths, masks, <use> and gradients drawn; text and filters reported.
   if(TARGET zaro_cook)

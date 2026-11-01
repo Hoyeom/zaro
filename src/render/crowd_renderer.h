@@ -40,6 +40,7 @@ struct CrowdScene {
     float arena_size = 256.0f;
     float time_seconds = 0.0f;
     float zoom = 1.0f;  // >1 pulls the camera back
+    float camera_offset[2] = {0.0f, 0.0f};  // x, z metres added to the camera (screen shake)
     bool keep_depth = false;  // keep the depth buffer for a later pass (sprites in the 3D view)
     rhi::Texture* target = nullptr;  // nullptr draws into the frame; else an HDR target (PostRenderer)
     bool draw_player = true;  // false when something else (a Shape following it) draws the player
@@ -50,6 +51,8 @@ struct CrowdScene {
 // The camera render_crowd uses for this scene and target size: view-projection (column-major,
 // clip = view_proj * world) and the camera's right vector, for sprites drawn into the same view.
 void crowd_camera(const CrowdScene& scene, uint32_t width, uint32_t height, float view_proj[16], float right[3]);
+// The direction that camera looks in (unit length), for effects facing it.
+void crowd_camera_forward(const CrowdScene& scene, float forward[3]);
 
 // Enemies drawn as upright, camera-facing sprites instead of cubes: one sheet's atlas and the frames
 // of one animation in play order. Each enemy plays it from its own phase and faces the way it walks;

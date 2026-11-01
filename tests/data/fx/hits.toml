@@ -1,0 +1,21 @@
+# Every enemy that reaches the player adds CrowdFx.shake to ScreenFx.shake, which never falls here.
+[scene]
+name = "hits"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 1200
+speed = 5.0
+[entity.CrowdFx]
+shake = 0.01
+
+[[entity]]
+name = "screen"
+[entity.ScreenFx]
+shake_decay = 0.0
