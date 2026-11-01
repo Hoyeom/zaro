@@ -260,6 +260,9 @@ if(ZARO_BUILD_TESTS)
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME scene_tests_fx COMMAND zaro test tests/data/fx
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # Scripts and the crowd (D-031): zaro.crowd_kill, crowd_hit events, the player's Transform.
+  add_test(NAME scene_tests_gameplay COMMAND zaro test tests/data/gameplay
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   add_test(NAME check_crowd_two_looks COMMAND zaro check tests/data/fx/crowd_twice.toml
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(check_crowd_two_looks PROPERTIES

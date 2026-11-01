@@ -33,6 +33,7 @@ namespace {
 // What one run owns: the simulation, and optionally the scene it came from and its script.
 struct Game {
     sim::Crowd* crowd = nullptr;
+    script::CrowdHost crowd_host = {};  // zaro.crowd_kill on `crowd`
     scene::Scene* scene = nullptr;
     script::Script* script = nullptr;
     bool script_paused = false;  // windowed: a failing script waits for the next reload
@@ -72,6 +73,8 @@ bool click_path(Game& g, const char* path, const char* file, int line) {
     return false;
 }
 
+void after_step(Game& g);
+
 // One fixed tick: the script's on_tick, then the values it may have changed, then the sim.
 // Returns false if the script failed.
 bool game_tick(Game& g, const sim::CrowdInput& input) {
@@ -87,6 +90,7 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
                         player ? player->speed : sim::PlayerController{}.speed);
     }
     sim::step(g.crowd, input);
+    after_step(g);
     if (g.scene) {
         scene::flush_entities(g.scene);  // what scripts destroyed this tick (D-031)
         // Tweens after the simulation: they change only what is drawn.
@@ -102,6 +106,35 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
     step_shapes(g.shapes, sim::tick(g.crowd), px, pz);
     step_fx(g.fx, g.crowd, g.shapes);
     return step_sprites(g.sprites, sim::tick(g.crowd), g.diags) && ok;
+}
+
+// After a step: the player entity's Transform takes the simulated player's position (D-031), and
+// the script hears about enemies that reached the player.
+void after_step(Game& g) {
+    if (!g.scene) return;
+    float px, pz;
+    sim::player_position(g.crowd, 1.0f, &px, &pz);
+    for (uint32_t i = 0; i < g.scene->entity_count; ++i) {
+        scene::Entity& e = g.scene->entities[i];
+        if (e.destroyed || !scene::get_component(&e, &sim::kPlayerControllerDesc)) continue;
+        if (auto* t = (scene::Transform*)scene::get_component(&e, &scene::kTransformDesc)) {
+            t->position[0] = px;
+            t->position[2] = pz;
+        }
+        break;
+    }
+    const float* xz = nullptr;
+    const uint32_t hits = sim::last_hits(g.crowd, &xz);
+    if (hits && g.script) {
+        const char* keys[] = {"count", "x", "z"};
+        const double values[] = {(double)hits, xz[0], xz[1]};
+        script::emit_event(g.script, "crowd_hit", keys, values, 3);
+    }
+}
+
+uint32_t crowd_kill(void* user, float x, float z, float radius, uint32_t max) {
+    Game* g = (Game*)user;
+    return g->crowd ? sim::kill_enemies(g->crowd, x, z, radius, max) : 0;
 }
 
 // The run's state: the crowd and the scene's gameplay data (scene::world_hash).
@@ -585,6 +618,8 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         sd.seed = cfg->seed;
         sd.ui = ui_state(g.ui);
         sd.host = ui_host(g.ui);
+        g.crowd_host = {&g, crowd_kill};
+        sd.crowd = &g.crowd_host;
         g.script = script::load_script(sd, g.diags);
         if (g.ui && g.script) set_script(g.ui, g.script);
         if (!g.script || !script::call_start(g.script, g.diags)) {

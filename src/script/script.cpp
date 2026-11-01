@@ -55,6 +55,7 @@ struct Script {
     scene::Scene* scene = nullptr;
     scene::UiState* ui = nullptr;
     const UiHost* host = nullptr;
+    const CrowdHost* crowd = nullptr;
     uint64_t tick = 0;
     double max_call_seconds = 1.0;
     Clock::time_point deadline;
@@ -838,6 +839,17 @@ int zaro_tween(lua_State* L) {
     return 1;
 }
 
+// zaro.crowd_kill(x, z, radius[, max]) -> count
+int zaro_crowd_kill(lua_State* L) {
+    const CrowdHost* c = self(L)->crowd;
+    const double x = luaL_checknumber(L, 1), z = luaL_checknumber(L, 2), r = luaL_checknumber(L, 3);
+    const double max = luaL_optnumber(L, 4, 0.0);
+    if (!(r >= 0.0)) luaL_error(L, "zaro.crowd_kill: radius must be 0 or more, got %g", r);
+    if (max < 0 || floor(max) != max) luaL_error(L, "zaro.crowd_kill: max must be a whole number, 0 or more");
+    lua_pushnumber(L, c ? (double)c->kill(c->user, (float)x, (float)z, (float)r, (uint32_t)max) : 0.0);
+    return 1;
+}
+
 int zaro_tick(lua_State* L) {
     lua_pushnumber(L, (double)self(L)->tick);
     return 1;
@@ -1051,6 +1063,7 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     s->scene = desc.scene;
     s->ui = desc.ui;
     s->host = desc.host;
+    s->crowd = desc.crowd;
     s->max_call_seconds = desc.max_call_seconds;
 
     lua_State* L = luaL_newstate();
@@ -1078,8 +1091,8 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
         {"find", zaro_find},     {"name", zaro_name},   {"id", zaro_id},       {"query", zaro_query},
         {"count", zaro_count},   {"after", zaro_after}, {"every", zaro_every}, {"on", zaro_on},
         {"emit", zaro_emit},     {"cancel", zaro_cancel}, {"parent", zaro_parent}, {"set_parent", zaro_set_parent},
-        {"children", zaro_children}, {"world", zaro_world}, {"tween", zaro_tween}, {nullptr, nullptr}};
-    lua_createtable(L, 0, 24);
+        {"children", zaro_children}, {"world", zaro_world}, {"tween", zaro_tween}, {"crowd_kill", zaro_crowd_kill}, {nullptr, nullptr}};
+    lua_createtable(L, 0, 25);
     for (const luaL_Reg* r = kApi; r->name; ++r) {
         lua_pushcfunction(L, r->func, r->name);
         lua_setfield(L, -2, r->name);
