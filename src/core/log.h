@@ -49,6 +49,7 @@ enum ErrorId {
     kErrShape = 1100,         // ZE1100 a shape component is invalid: CrowdShape beside CrowdSprite, or a
                               //        screen shape that follows the player
     kErrSpawnPrefab = 1200,   // ZE1200 a [scene] prefabs entry has no [prefab] name, or two share one (D-031)
+    kErrEventLimit = 1201,    // ZE1201 more script events in one tick than script::kMaxEventsPerTick (handlers in a loop)
 };
 
 void log_error(ErrorId id, const char* fmt, ...);
