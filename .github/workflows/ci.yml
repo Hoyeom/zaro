@@ -86,7 +86,7 @@ jobs:
           name: perf-${{ matrix.os }}
           path: perf-*.json
 
-  # Android APK of the crowd example (D-021). Running it needs a device, so that stays local:
+  # Android APK of the crowd example (D-022). Running it needs a device, so that stays local:
   # python tools/android.py perf
   android:
     name: android apk

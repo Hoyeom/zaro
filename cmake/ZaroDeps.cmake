@@ -11,7 +11,7 @@ set(FETCHCONTENT_QUIET OFF)
 set(_ZARO_DEP_BIN ${CMAKE_BINARY_DIR}/_deps)
 
 # Host: the machine that builds (Slang runs here). Target: where zaro runs (wgpu-native, SDL).
-# They differ only when cross-compiling for Android (D-021).
+# They differ only when cross-compiling for Android (D-022).
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64")
   set(_zaro_host windows-x86_64)
 elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
@@ -93,7 +93,7 @@ FetchContent_MakeAvailable(slang)
 find_program(ZARO_SLANGC slangc PATHS ${slang_SOURCE_DIR}/bin NO_DEFAULT_PATH REQUIRED)
 
 # --- SDL 3.4.18 (zlib), only the subsystems ZARO uses -------------------------------------------
-# Static on desktop. Android uses libSDL3.so, which SDLActivity loads before libmain.so (D-021).
+# Static on desktop. Android uses libSDL3.so, which SDLActivity loads before libmain.so (D-022).
 if(ANDROID)
   set(SDL_SHARED ON CACHE BOOL "" FORCE)
   set(SDL_STATIC OFF CACHE BOOL "" FORCE)

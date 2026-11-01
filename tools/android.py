@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Android toolchain and APK workflow for ZARO (D-021).
+"""Android toolchain and APK workflow for ZARO (D-022).
 
 Usage:
   python tools/android.py setup [--accept-licenses]   install the pinned toolchain
@@ -35,7 +35,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# --- Pinned toolchain (D-021) ------------------------------------------------------------------
+# --- Pinned toolchain (D-022) ------------------------------------------------------------------
 NDK_VERSION = "29.0.14206865"   # r29
 PLATFORM = "android-36"         # compileSdk / targetSdk
 BUILD_TOOLS = "36.0.0"

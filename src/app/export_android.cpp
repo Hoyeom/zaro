@@ -1,4 +1,4 @@
-// `zaro export android`: turns a scene into a Gradle project around the Android runtime (D-021).
+// `zaro export android`: turns a scene into a Gradle project around the Android runtime (D-022).
 #include "app/tools.h"
 
 #include "core/diag.h"
@@ -242,11 +242,13 @@ int export_android(const ExportOptions& o) {
         listed &= add_unique(files, path);
     }
     add_document_files(files, s, &listed);
-    for (uint32_t i = 0; i < s->ui_count; ++i) {
-        path_join_relative("", s->ui[i], path, sizeof(path));
+    // Root screens, then the screens the scene can open by name.
+    for (uint32_t i = 0; i < s->ui_count + s->screen_count; ++i) {
+        const char* screen_path = i < s->ui_count ? s->ui[i] : s->screens[i - s->ui_count];
+        path_join_relative("", screen_path, path, sizeof(path));
         listed &= add_unique(files, path);
         DiagList* screen_diags = new DiagList();
-        if (scene::Scene* screen = scene::load_screen(s->ui[i], screen_diags)) {
+        if (scene::Scene* screen = scene::load_screen(screen_path, screen_diags)) {
             add_document_files(files, screen, &listed);
             scene::free_scene(screen);
         }

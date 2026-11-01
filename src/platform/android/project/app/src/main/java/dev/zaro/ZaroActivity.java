@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 import org.libsdl.app.SDLActivity;
 
 /**
- * Runs the zaro command line from libmain.so (D-021).
+ * Runs the zaro command line from libmain.so (D-022).
  *
  * The arguments come from the launch intent's "args" extra, or else from assets/zaro_args.txt,
  * which `zaro export android` writes (by default "run game/scene.toml"). For example:

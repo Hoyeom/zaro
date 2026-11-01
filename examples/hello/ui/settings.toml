@@ -1,15 +1,14 @@
-# The settings popup: a modal panel with sound and language rows and a close button.
-# Hidden until something opens it (the popup node's Layout.visible).
+# The settings popup: a modal panel with sound and language rows and a close button. The HUD's
+# button opens it (action "open:settings"); Close, Escape or Android back close it.
 #   zaro check examples/hello/ui/settings.toml
 [screen]
 name = "settings"
 reference = [1280, 720]
 navigable = true
+transition = "pop"
 
 [[node]]
 name = "popup"
-[node.Layout]
-visible = false
 [node.Modal]
 dim_color = "#000000a0"
 

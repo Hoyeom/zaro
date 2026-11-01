@@ -1,4 +1,4 @@
-# Android runtime package (D-021): everything `zaro export android` needs besides the scene.
+# Android runtime package (D-022): everything `zaro export android` needs besides the scene.
 #
 #   <build>/android-runtime/
 #     app/build.gradle, AndroidManifest.xml, ...   Gradle project template (src/platform/android/project)

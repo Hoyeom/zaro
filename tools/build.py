@@ -132,7 +132,7 @@ def main(argv: list[str]) -> int:
             return 1
         env = msvc_env(vs)
     if preset == "android":
-        # Cross build with the pinned NDK (tools/android.py, D-021). Tests run on the host only.
+        # Cross build with the pinned NDK (tools/android.py, D-022). Tests run on the host only.
         sys.path.insert(0, str(ROOT / "tools"))
         import android
         if not (android.ndk_dir() / "build" / "cmake" / "android.toolchain.cmake").exists():

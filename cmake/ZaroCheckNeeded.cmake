@@ -2,7 +2,7 @@
 #
 # Fails when a shared library records a build-machine path as a dependency (a NEEDED entry with a
 # '/'). That happens when a prebuilt library without SONAME is linked by path, and the device's
-# dynamic linker then cannot load the app (D-021).
+# dynamic linker then cannot load the app (D-022).
 execute_process(COMMAND ${READELF} -d ${LIB} OUTPUT_VARIABLE out RESULT_VARIABLE rc)
 if(NOT rc EQUAL 0)
   message(FATAL_ERROR "zaro: ${READELF} -d ${LIB} failed")

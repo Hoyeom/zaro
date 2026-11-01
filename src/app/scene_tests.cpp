@@ -34,14 +34,10 @@ void collect(const char* path, void* user) {
 
 int compare_paths(const void* a, const void* b) { return strcmp(*(char* const*)a, *(char* const*)b); }
 
-// The scene, or for a screen expectation the screen file, that the expectation names.
+// The scene, or for a screen expectation the shown screen's file, that the expectation names.
 const scene::Scene* expect_document(const scene::Scene* s, UiLayer* ui, const scene::Expect& e) {
     if (!e.screen[0]) return s;
-    scene::Scene* const* docs = ui ? screen_documents(ui) : nullptr;
-    for (uint32_t i = 0; i < screen_count(ui); ++i) {
-        if (strcmp(docs[i]->name, e.screen) == 0) return docs[i];
-    }
-    return nullptr;
+    return ui ? find_document(ui, e.screen) : nullptr;
 }
 
 // Reads a field after the run as a number (booleans as 0/1) or a string.
@@ -74,6 +70,14 @@ bool nearly_equal(double a, double b) { return fabs(a - b) <= 1e-6 * (fabs(a) > 
 void check_expects(const scene::TestSpec& spec, const scene::Scene* s, UiLayer* ui, DiagList* d) {
     for (uint32_t i = 0; i < spec.expect_count; ++i) {
         const scene::Expect& e = spec.expects[i];
+        if (e.has_state) {
+            const char* got = ui ? screen_state(ui, e.screen) : "closed";
+            if (strcmp(got, e.state) != 0) {
+                diag_add(d, kErrTestExpect, spec.path, e.line, 1, "screen '%s' is %s, expected %s", e.screen, got,
+                         e.state);
+            }
+            continue;
+        }
         if (e.has_text) {
             char shown[1024];
             const char* got = ui ? node_text(ui, e.screen, e.entity, shown, sizeof(shown)) : nullptr;

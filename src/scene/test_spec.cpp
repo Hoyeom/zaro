@@ -57,6 +57,17 @@ void load_expect(const toml_datum_t& t, Expect* e, const char* file, DiagList* d
     char component[64] = {}, field[64] = {};
     // A screen node is named with `node`, a scene entity with `entity`.
     const bool on_screen = get_string(t, "screen", e->screen, sizeof(e->screen), file, d, false);
+    if (on_screen && get_string(t, "state", e->state, sizeof(e->state), file, d, false)) {
+        static const char* const kStates[] = {"opening", "entering", "open", "closing", "closed"};
+        bool known = false;
+        for (const char* s : kStates) known = known || strcmp(s, e->state) == 0;
+        if (!known) {
+            diag_add(d, kErrTestSpec, file, toml_get(t, "state").lineno, 1,
+                     "state must be opening, entering, open, closing or closed");
+        }
+        e->has_state = true;
+        return;
+    }
     if (on_screen && get_string(t, "text", e->text, sizeof(e->text), file, d, false)) {
         e->has_text = true;
         get_string(t, "node", e->entity, sizeof(e->entity), file, d, true);
@@ -188,6 +199,17 @@ bool load_test_spec(const char* path, TestSpec* spec, DiagList* d) {
     if (clicks.type == TOML_ARRAY) {
         for (int32_t i = 0; i < clicks.u.arr.size && spec->click_count < TestSpec::kMaxClicks; ++i) {
             load_click(clicks.u.arr.elem[i], &spec->clicks[spec->click_count++], path, d);
+        }
+    }
+    const toml_datum_t backs = toml_get(top, "back");
+    if (backs.type == TOML_ARRAY) {
+        for (int32_t i = 0; i < backs.u.arr.size && spec->click_count < TestSpec::kMaxClicks; ++i) {
+            const toml_datum_t& b = backs.u.arr.elem[i];
+            Click& c = spec->clicks[spec->click_count++];
+            c.back = true;
+            c.line = b.lineno;
+            uint64_t tick = 0;
+            if (get_uint(b, "tick", &tick, path, d, true)) c.tick = (uint32_t)tick;
         }
     }
     const toml_datum_t ex = toml_get(top, "expect");

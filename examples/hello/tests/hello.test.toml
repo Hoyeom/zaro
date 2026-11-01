@@ -18,7 +18,4 @@ text = "속도 7.5 m/s"
 
 [[expect]]
 screen = "settings"
-node = "popup"
-component = "Layout"
-field = "visible"
-equals = false
+state = "closed"
