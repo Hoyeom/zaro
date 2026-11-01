@@ -32,6 +32,7 @@ struct SpriteSheetGpu {
 struct SpriteRenderer {
     rhi::Device* device = nullptr;
     char shader_dir[512] = {};
+    rhi::TextureFormat format = rhi::TextureFormat::kFrame;
     uint32_t capacity = 0;  // instances the buffer holds
 
     rhi::Buffer* view = nullptr;
@@ -77,9 +78,11 @@ bool reload_sprite_shaders(SpriteRenderer* r) {
     rhi::destroy_render_pipeline(r->screen);
     rhi::RenderPipelineDesc d{"sprites", shader, "vs_world", "fs_cutout", r->layout};
     d.cull_back = false;
+    d.format = r->format;
     r->world = rhi::create_render_pipeline(r->device, d);
-    d = {"screen sprites", shader, "vs_screen", "fs_blend", r->layout};
-    d.cull_back = false;
+    d.label = "screen sprites";
+    d.vertex_entry = "vs_screen";
+    d.fragment_entry = "fs_blend";
     d.depth = false;
     d.alpha_blend = true;
     r->screen = rhi::create_render_pipeline(r->device, d);
@@ -87,9 +90,10 @@ bool reload_sprite_shaders(SpriteRenderer* r) {
     return true;
 }
 
-SpriteRenderer* create_sprite_renderer(rhi::Device* device, const char* shader_dir) {
+SpriteRenderer* create_sprite_renderer(rhi::Device* device, const char* shader_dir, rhi::TextureFormat format) {
     SpriteRenderer* r = new SpriteRenderer();
     r->device = device;
+    r->format = format;
     snprintf(r->shader_dir, sizeof(r->shader_dir), "%s", shader_dir);
     r->view = rhi::create_buffer(device, sizeof(ViewConstants), rhi::kBufUniform, "sprite view");
     r->sampler = rhi::create_sampler(device, true);
@@ -159,7 +163,7 @@ void render_sprites(SpriteRenderer* r, const SpriteDraw& draw) {
         rhi::write_buffer(r->device, r->instances, 0, draw.instances,
                           (uint64_t)draw.instance_count * sizeof(SpriteInstance));
     }
-    rhi::render_begin(r->device, "sprites", nullptr, rhi::kDepthLoad);
+    rhi::render_begin(r->device, "sprites", nullptr, rhi::kDepthLoad, draw.target);
     for (int pass = 0; pass < 2; ++pass) {
         for (uint32_t i = 0; i < draw.batch_count; ++i) {
             const SpriteBatch& b = draw.batches[i];

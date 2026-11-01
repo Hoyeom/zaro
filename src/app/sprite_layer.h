@@ -51,14 +51,16 @@ bool load_crowd_sprites(const SpriteLayer* layer, render::CrowdSprites* out);
 void free_crowd_sprites(render::CrowdSprites* sprites);
 
 // Creates the GPU side: decodes each sheet's image and uploads it. False if a shader or an image
-// is missing.
-bool attach_sprite_gpu(SpriteLayer* layer, rhi::Device* device, const char* shader_dir);
+// is missing. `format` is the format of the target render_sprite_layer draws into.
+bool attach_sprite_gpu(SpriteLayer* layer, rhi::Device* device, const char* shader_dir,
+                       rhi::TextureFormat format = rhi::TextureFormat::kFrame);
 bool reload_sprite_layer_shaders(SpriteLayer* layer);
 // True if there are sprites to draw in the 3D view (its pass must then keep its depth).
 bool has_world_sprites(const SpriteLayer* layer);
 
-// Records the "sprites" pass with the 3D view's camera (render::crowd_camera). Call after the
-// scene's passes and before the UI.
-void render_sprite_layer(SpriteLayer* layer, const float view_proj[16], const float right[3]);
+// Records the "sprites" pass with the 3D view's camera (render::crowd_camera) into `target` (nullptr:
+// the frame). Call after the scene's passes and before the UI.
+void render_sprite_layer(SpriteLayer* layer, const float view_proj[16], const float right[3],
+                         rhi::Texture* target = nullptr);
 
 }  // namespace zaro::app

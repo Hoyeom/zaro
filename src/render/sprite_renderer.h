@@ -45,12 +45,14 @@ struct SpriteDraw {
     uint32_t batch_count = 0;
     float view_proj[16] = {};  // the 3D view's camera (render::crowd_camera)
     float right[3] = {1.0f, 0.0f, 0.0f};
+    rhi::Texture* target = nullptr;  // nullptr draws into the frame; else the 3D view's HDR target
 };
 
 struct SpriteRenderer;
 
-// shader_dir holds sprite.wgsl.
-SpriteRenderer* create_sprite_renderer(rhi::Device* device, const char* shader_dir);
+// shader_dir holds sprite.wgsl. `format` is the format of SpriteDraw::target.
+SpriteRenderer* create_sprite_renderer(rhi::Device* device, const char* shader_dir,
+                                       rhi::TextureFormat format = rhi::TextureFormat::kFrame);
 void destroy_sprite_renderer(SpriteRenderer* renderer);
 bool reload_sprite_shaders(SpriteRenderer* renderer);
 

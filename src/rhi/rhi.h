@@ -28,7 +28,11 @@ enum BufferUsage : uint32_t {
 enum class BindingType : uint8_t { kUniform, kStorageRead, kStorageReadWrite, kTexture, kSampler };
 
 // kR8 is one linear channel (masks, glyph coverage); kRGBA8Srgb holds colour images.
-enum class TextureFormat : uint8_t { kR8, kRGBA8Srgb };
+// kRGBA16Float and kRG11B10Float are linear HDR render targets that hold values above 1 (D-030);
+// kRG11B10Float has no alpha and is renderable only where supports_format says so. kFrame is the
+// format of the frame begin_frame renders into (the window's, or the headless target); only
+// pipelines take it.
+enum class TextureFormat : uint8_t { kR8, kRGBA8Srgb, kRGBA16Float, kRG11B10Float, kFrame };
 
 enum Stage : uint32_t { kStageVertex = 1u << 0, kStageFragment = 1u << 1, kStageCompute = 1u << 2 };
 
@@ -71,10 +75,14 @@ struct RenderPipelineDesc {
     BindLayout* layout;
     bool cull_back = true;
     bool depth = true;        // false: no depth test or write (overlays such as UI)
-    bool alpha_blend = false; // premultiplied alpha: src + dst * (1 - src.a)
+    bool alpha_blend = false; // premultiplied alpha: src + dst * (1 - src.a); alpha 0 adds light
+    TextureFormat format = TextureFormat::kFrame;  // the colour target it draws into
+    bool depth_write = true;  // with depth: false tests against the depth buffer without writing it
+    bool depth_buffer = true; // false: for passes without one (render_begin with kDepthNone)
 };
 
-constexpr uint32_t kMaxTimedPasses = 8;
+// Distinct pass names in GpuTimings; passes with the same name are summed.
+constexpr uint32_t kMaxTimedPasses = 12;
 
 struct GpuTimings {
     bool valid = false;
@@ -108,6 +116,11 @@ Texture* create_texture(Device* device, uint32_t width, uint32_t height, Texture
 void destroy_texture(Texture* texture);
 void write_texture(Device* device, Texture* texture, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
                    const void* data, uint32_t bytes_per_row);
+// A texture that passes render into (render_begin's target) and later passes sample.
+Texture* create_render_texture(Device* device, uint32_t width, uint32_t height, TextureFormat format,
+                               const char* label);
+// Whether the device can render into (and blend on) textures of this format.
+bool supports_format(const Device* device, TextureFormat format);
 // Clamp-to-edge sampler; linear or nearest filtering.
 Sampler* create_sampler(Device* device, bool linear);
 void destroy_sampler(Sampler* sampler);
@@ -132,11 +145,14 @@ bool begin_frame(Device* device);
 void compute_begin(Device* device, const char* name);
 void compute_dispatch(Device* device, ComputePipeline* pipeline, BindGroup* group, uint32_t groups_x);
 void compute_end(Device* device);
-// clear_rgba nullptr keeps the colour target's contents (a pass drawn over an earlier one).
-// Depth is cleared and dropped at the end of the pass unless `depth` says otherwise: kDepthStore
-// keeps it for a later pass, which starts from it with kDepthLoad (sprites over the 3D view).
-enum DepthOps : uint32_t { kDepthClear = 0, kDepthStore = 1u << 0, kDepthLoad = 1u << 1 };
-void render_begin(Device* device, const char* name, const float clear_rgba[4], uint32_t depth = kDepthClear);
+// The pass draws into `target`, or into the frame when it is nullptr. clear_rgba nullptr keeps the
+// target's contents (a pass drawn over an earlier one). Depth is cleared and dropped at the end of
+// the pass unless `depth` says otherwise: kDepthStore keeps it for a later pass, which starts from
+// it with kDepthLoad (sprites over the 3D view). The depth buffer has the frame's size; a target of
+// another size takes kDepthNone, and its pipelines set depth_buffer = false.
+enum DepthOps : uint32_t { kDepthClear = 0, kDepthStore = 1u << 0, kDepthLoad = 1u << 1, kDepthNone = 1u << 2 };
+void render_begin(Device* device, const char* name, const float clear_rgba[4], uint32_t depth = kDepthClear,
+                  Texture* target = nullptr);
 // first_instance offsets SV_InstanceID, so one instance buffer can hold several batches.
 void draw(Device* device, RenderPipeline* pipeline, BindGroup* group, uint32_t vertices, uint32_t instances,
           uint32_t first_instance = 0);

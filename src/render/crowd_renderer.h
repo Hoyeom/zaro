@@ -18,6 +18,7 @@ struct CrowdScene {
     float time_seconds = 0.0f;
     float zoom = 1.0f;  // >1 pulls the camera back
     bool keep_depth = false;  // keep the depth buffer for a later pass (sprites in the 3D view)
+    rhi::Texture* target = nullptr;  // nullptr draws into the frame; else an HDR target (PostRenderer)
 };
 
 // The camera render_crowd uses for this scene and target size: view-projection (column-major,
@@ -39,10 +40,11 @@ struct CrowdSprites {
 struct CrowdRenderer;
 
 // shader_dir holds crowd_cull.wgsl and crowd_draw.wgsl (built from shaders/*.slang). sprites
-// nullptr draws the enemies as cubes.
+// nullptr draws the enemies as cubes. `format` is the format of CrowdScene::target.
 CrowdRenderer* create_crowd_renderer(rhi::Device* device, const char* shader_dir, uint32_t max_enemies,
                                      const uint32_t* obstacle_cells_xz, uint32_t obstacle_count,
-                                     const CrowdSprites* sprites = nullptr);
+                                     const CrowdSprites* sprites = nullptr,
+                                     rhi::TextureFormat format = rhi::TextureFormat::kFrame);
 void destroy_crowd_renderer(CrowdRenderer* renderer);
 
 // Rebuilds pipelines from the shader files. Keeps the old pipelines if a file is missing.
