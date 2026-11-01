@@ -49,7 +49,8 @@ target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
 add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
-  src/scene/theme.cpp src/scene/sprite_sheet.cpp src/scene/build_extension.cpp)
+  src/scene/theme.cpp src/scene/sprite_sheet.cpp src/scene/build_extension.cpp
+  src/scene/build_spec.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
@@ -78,7 +79,7 @@ set_source_files_properties(src/ui/font.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSIO
 zaro_target_defaults(zaro_ui)
 
 add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp src/app/ui_layer.cpp
-  src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp)
+  src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp src/app/pipeline.cpp)
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform
   PRIVATE zaro_cjson)
 if(TARGET zaro_cook)
@@ -86,6 +87,12 @@ if(TARGET zaro_cook)
   target_compile_definitions(zaro_app PRIVATE ZARO_HAS_COOK=1)
 endif()
 zaro_target_defaults(zaro_app)
+# zaro build's target stages run this checkout's tools/build.py and tools/android.py (D-027).
+if(NOT ANDROID)
+  find_package(Python3 COMPONENTS Interpreter)
+  target_compile_definitions(zaro_app PRIVATE ZARO_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+                                              ZARO_PYTHON="${Python3_EXECUTABLE}")
+endif()
 
 # CLI. Everything an agent or the editor does goes through this binary.
 if(ANDROID)
@@ -211,6 +218,11 @@ if(ZARO_BUILD_TESTS)
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     set_tests_properties(example_cats_cook PROPERTIES
       PASS_REGULAR_EXPRESSION "cooked examples/cats/.zaro-cache/cat.png \\(8 frames\\)")
+    # The build pipeline's cook-svg step cooks the game's SVG sheets in the pre stage (D-027, D-028).
+    add_test(NAME example_cats_build COMMAND zaro build examples/cats/build.toml --out ${CMAKE_BINARY_DIR}/zaro-build/cats
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(example_cats_build PROPERTIES DEPENDS example_cats_cook
+      PASS_REGULAR_EXPRESSION "examples/cats/scene.toml: [0-9]+ sheet\\(s\\) cooked, [0-9]+ up to date")
     add_test(NAME check_svg_art COMMAND zaro check tests/data/svg/bad_scene.toml
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     set_tests_properties(check_svg_art PROPERTIES
@@ -294,6 +306,10 @@ if(ZARO_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)
     add_test(NAME lint COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint.py)
+    # zaro build without a target: stages, step order, stamping, file:line errors (D-027).
+    add_test(NAME build_pipeline
+             COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_build_pipeline.py $<TARGET_FILE:zaro>
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     # The Android export (version, build extensions, their errors) without an Android build.
     add_test(NAME android_export
              COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_android_export.py $<TARGET_FILE:zaro>

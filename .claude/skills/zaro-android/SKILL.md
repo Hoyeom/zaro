@@ -33,15 +33,21 @@ Commands are in the CLAUDE.md "Commands" table (`tools/android.py setup|doctor|a
 
 ## Google Play release builds (D-025)
 
-- `python tools/android.py aab <scene> [--release] [--version-code N] [--version-name S]` builds an
-  App Bundle. It runs `bundletool validate`, checks `PAGE_ALIGNMENT_16K`, builds the device APKs
-  and runs `zipalign -c -P 16` on them, prints the signer, and writes
-  `<out>/native-debug-symbols.zip` from `build/android/android-symbols/<abi>/` (the unstripped
-  libraries). `install-aab` installs the last bundle on the connected device through bundletool.
+- `python tools/android.py aab <build.toml> [--env NAME] [--release] [--version-code N]` runs
+  `zaro build <build.toml> --target android --package aab` (D-027, zaro-build). That pipeline calls
+  back `android.py stage-post`, `stage-package` and `stage-sign`:
+  - post writes `native-debug-symbols.zip` from `build/android/android-symbols/<abi>/` (the
+    unstripped libraries) and `size_report.json`.
+  - package runs Gradle, `bundletool validate`, the `PAGE_ALIGNMENT_16K` check, and
+    `zipalign -c -P 16` on the device APKs built from the bundle.
+  - sign prints the signer and refuses a debug-signed release.
+- The project is `build/zaro-build/<game>-<env>/android-project`. `apk <build.toml>` is the same
+  pipeline with an APK, and `apk <scene.toml>` stays the quick path for a scene without a build
+  file. `install-aab`, `run` and `perf` use the newest package (or `--out PROJECT`).
 - **Signing boundary**: ZARO never holds a game's keys or produces store-signed artifacts. The
   upload key comes only from `ZARO_UPLOAD_KEYSTORE`, `ZARO_UPLOAD_KEYSTORE_PASSWORD`,
-  `ZARO_UPLOAD_KEY_ALIAS` and `ZARO_UPLOAD_KEY_PASSWORD`. `--release` stops when any is missing or
-  when `--version-code` is missing; the Gradle template throws when only some are set. Without
+  `ZARO_UPLOAD_KEY_ALIAS` and `ZARO_UPLOAD_KEY_PASSWORD`. `zaro build --release` stops (ZE1003)
+  when any is missing, when there is no version code or when the environment is not a release one; the Gradle template throws when only some are set. Without
   them, builds use the debug key. Never add a keystore, a password or a `signingConfig` with a
   literal path to the template or to a project.
 - The version comes from the game: `zaro export android --version-code N --version-name S`
@@ -66,5 +72,6 @@ Commands are in the CLAUDE.md "Commands" table (`tools/android.py setup|doctor|a
   A source that would replace a runtime or another extension's file is ZE0800 at the extension's
   `sources` line.
 - Never edit the template for one game or plugin; add a build extension instead.
+- A build extension may also declare `[[step]]`s for `zaro build` (D-027, zaro-build).
 - `tests/test_android_export.py` (ctest `android_export`) exports `tests/data/build_extensions/`
   against a stand-in runtime, so the export is tested without an Android build.

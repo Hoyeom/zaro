@@ -17,13 +17,28 @@ are in D-022.
 
 ## Building a release bundle
 
-```
-python tools/android.py setup                      # once: pinned NDK, SDK, JDK, Gradle, bundletool
-python tools/android.py aab game/scene.toml --release --version-code 12 --version-name 1.4.0
+A release goes through the game's build pipeline (D-027). The game has a build file with its
+version and a release environment (format at the top of `src/scene/build_spec.h`), for example:
+
+```toml
+[game]
+name = "mygame"
+scene = "scene.toml"
+version = "1.4.0"
+
+[environment.production]
+release = true
 ```
 
-`--release` reads the upload key from the environment only, and stops with an error naming each
-missing variable:
+```
+python tools/android.py setup                      # once: pinned NDK, SDK, JDK, Gradle, bundletool
+python tools/android.py aab game/build.toml --env production --release --version-code 12
+```
+
+This runs `zaro build game/build.toml --target android --release`, which checks everything below
+before it builds anything. `--release` needs a release environment (`release = true`, which can
+never enable debug tools) and a version code. It reads the upload key from the environment only,
+and stops with an error (ZE1003) naming each missing variable:
 
 | Variable | Value |
 |---|---|
@@ -32,10 +47,10 @@ missing variable:
 | `ZARO_UPLOAD_KEY_ALIAS` | the alias of the upload key in it |
 | `ZARO_UPLOAD_KEY_PASSWORD` | the key's password |
 
-`--version-code` is required for a release. Every upload needs a higher one, up to 2100000000.
-`--version-name` is what players see.
+The version code comes from `--version-code` or `version_code` in `[game]`. Every upload needs a
+higher one, up to 2100000000. `version` in `[game]` is what players see.
 
-The command checks the result before it reports success:
+The pipeline checks the result before it reports success:
 
 - `bundletool validate` passes.
 - The bundle requests 16 KB zip alignment for native libraries (`PAGE_ALIGNMENT_16K`).
@@ -43,13 +58,16 @@ The command checks the result before it reports success:
 - It is signed, and not with the debug key.
 
 The native build has already failed if a library has a LOAD segment below 16 KB or links a
-build-machine path (`cmake/ZaroCheckElf.cmake`). The output lines are:
+build-machine path (`cmake/ZaroCheckElf.cmake`). The output includes, under
+`build/zaro-build/<game>-<environment>/android-project`:
 
 ```
+symbols=.../native-debug-symbols.zip
+aab=.../app/build/outputs/bundle/release/app-release.aab (12.0 MB)
 signer=CN=... (SHA-256 ...)
-aab=build/android-project/app/build/outputs/bundle/release/app-release.aab
-symbols=build/android-project/native-debug-symbols.zip
 ```
+
+`size_report.json` next to the symbols lists the native libraries and the largest assets.
 
 Upload the AAB, and upload `native-debug-symbols.zip` for the same version in Play Console
 (App bundle explorer, Downloads, Assets) so native crashes show function names and lines.
@@ -116,22 +134,23 @@ jobs:
           ZARO_UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
           ZARO_UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
         run: >
-          python zaro/tools/android.py aab game/scene.toml --release
-          --version-code ${{ github.run_number }} --version-name 1.4.0
+          python zaro/tools/android.py aab game/build.toml --env production --release
+          --version-code ${{ github.run_number }}
       - if: always()
         run: rm -f "$RUNNER_TEMP/upload.jks"
       - uses: actions/attest@<sha>
         with:
           subject-path: |
-            build/android-project/app/build/outputs/bundle/release/app-release.aab
-            build/android-project/native-debug-symbols.zip
+            build/zaro-build/mygame-production/android-project/app/build/outputs/bundle/release/app-release.aab
+            build/zaro-build/mygame-production/android-project/native-debug-symbols.zip
       - uses: actions/upload-artifact@<sha>
         with:
           name: play-release
           path: |
-            build/android-project/app/build/outputs/bundle/release/app-release.aab
-            build/android-project/native-debug-symbols.zip
+            build/zaro-build/mygame-production/android-project/app/build/outputs/bundle/release/app-release.aab
+            build/zaro-build/mygame-production/android-project/native-debug-symbols.zip
 ```
 
-ZARO's own CI runs the same `aab --release` path with a throwaway key it generates for each run,
+ZARO's own CI runs the same `aab --release` path (`examples/crowd/build.toml`, environment
+`production`) with a throwaway key it generates for each run,
 so the signing path is tested without any real key.
