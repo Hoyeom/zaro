@@ -13,6 +13,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+// The checkout and Python that the target stages use (CMakeLists.txt). Android builds of zaro have
+// no target stages.
+#if !defined(ZARO_SOURCE_DIR)
+#define ZARO_SOURCE_DIR ""
+#define ZARO_PYTHON ""
+#endif
+
 namespace zaro::app {
 
 namespace {
@@ -53,6 +60,7 @@ const BuiltinStep* find_builtin(const char* name) {
 constexpr size_t kArgCapacity = 1024;
 
 struct Pipeline {
+    const BuildOptions* options = nullptr;
     scene::BuildSpec* spec = nullptr;
     const scene::BuildEnvironment* env = nullptr;
     uint32_t version_code = 0;
@@ -60,6 +68,9 @@ struct Pipeline {
     char out[512] = {};
     scene::BuildExtension* extensions[scene::kMaxBuildExtensions] = {};
     uint32_t extension_count = 0;
+    char build_info[600] = {};
+    char project[600] = {};  // the target's exported project
+    char runtime[600] = {};  // android: the runtime package of the native build
 };
 
 // The steps of one stage in the order they run: plugins first, in scene order, then the game's.
@@ -183,8 +194,7 @@ void game_commit(const Pipeline& p, char* out, size_t size) {
 }
 
 bool write_build_info(const Pipeline& p) {
-    char path[600];
-    snprintf(path, sizeof(path), "%s/build_info.toml", p.out);
+    const char* path = p.build_info;
     FILE* f = fopen(path, "w");
     if (!f) {
         log_error(kErrIo, "%s: cannot write", path);
@@ -270,6 +280,39 @@ int validate(const BuildOptions& o, Pipeline& p) {
     uint32_t n = stage_steps(p, scene::BuildStage::kPre, all, sizeof(all) / sizeof(all[0]));
     n += stage_steps(p, scene::BuildStage::kPost, all + n, sizeof(all) / sizeof(all[0]) - n);
     int code = 0;
+    if (o.target && strcmp(o.target, "android") != 0) {
+        log_error(kErrCliUsage, "unknown target '%s' (targets: android)", o.target);
+        return 2;
+    }
+    if (o.target && strcmp(o.package, "aab") != 0 && strcmp(o.package, "apk") != 0) {
+        log_error(kErrCliUsage, "--package must be aab or apk, got '%s'", o.package);
+        return 2;
+    }
+    if (o.release && !o.target) {
+        log_error(kErrCliUsage, "--release signs a target's package; add --target android");
+        return 2;
+    }
+    if (o.release) {
+        if (!p.env->release) {
+            log_error(kErrBuildTarget, "%s:%d: --release needs a release environment; '%s' does not set release = true",
+                      p.spec->path, p.env->line, p.env->name);
+            code = 1;
+        }
+        if (!p.version_code) {
+            log_error(kErrBuildTarget, "%s: a release build needs a version code ([game] version_code or "
+                      "--version-code)", p.spec->path);
+            code = 1;
+        }
+        const char* const keys[] = {"ZARO_UPLOAD_KEYSTORE", "ZARO_UPLOAD_KEYSTORE_PASSWORD", "ZARO_UPLOAD_KEY_ALIAS",
+                                    "ZARO_UPLOAD_KEY_PASSWORD"};
+        for (const char* key : keys) {
+            const char* value = platform::env_var(key);
+            if (!value || !value[0]) {
+                log_error(kErrBuildTarget, "release signing needs the upload key in %s (docs/android-release.md)", key);
+                code = 1;
+            }
+        }
+    }
     for (uint32_t i = 0; i < n; ++i) {
         if (all[i]->uses[0] && !find_builtin(all[i]->uses)) {
             char names[128] = {};
@@ -292,6 +335,85 @@ int validate(const BuildOptions& o, Pipeline& p) {
     return code;
 }
 
+// --- The android target -----------------------------------------------------------------------------
+
+int run_tool(const char* stage, const char* script, const char* const* args, uint32_t count) {
+    if (!ZARO_PYTHON[0] || !ZARO_SOURCE_DIR[0]) {
+        log_error(kErrBuildTarget, "%s: this zaro was configured without Python, so it cannot run target stages", stage);
+        return 1;
+    }
+    char path[600];
+    snprintf(path, sizeof(path), "%s/tools/%s", ZARO_SOURCE_DIR, script);
+    const char* argv[16] = {ZARO_PYTHON, path};
+    for (uint32_t i = 0; i < count && i + 3 < 16; ++i) argv[2 + i] = args[i];
+    fflush(stdout);
+    const int code = platform::run_process(argv, nullptr, nullptr, 0);
+    if (code != 0) log_error(kErrBuildTarget, "%s stage failed (%s, exit code %d)", stage, script, code);
+    return code ? 1 : 0;
+}
+
+int android_native(Pipeline&) {
+    const char* args[] = {"android"};
+    return run_tool("native", "build.py", args, 1);
+}
+
+int android_export(Pipeline& p) {
+    ExportOptions e;
+    e.scene_path = p.spec->scene;
+    e.out_dir = p.project;
+    e.runtime_dir = p.runtime;
+    e.version_code = p.version_code ? p.version_code_text : nullptr;
+    e.version_name = p.spec->version;
+    e.build_info = p.build_info;
+    e.build_file = p.spec->path;
+    e.defer_extensions = true;
+    return export_android(e) ? 1 : 0;
+}
+
+int android_post(Pipeline& p) {
+    const char* args[] = {"stage-post", p.project};
+    return run_tool("post", "android.py", args, 2);
+}
+
+int android_package(Pipeline& p) {
+    const char* args[] = {"stage-package", p.project, "--kind", p.options->package, "--release"};
+    return run_tool("package", "android.py", args, p.options->release ? 5 : 4);
+}
+
+int android_sign(Pipeline& p) {
+    const char* args[] = {"stage-sign", p.project, "--kind", p.options->package, "--release"};
+    return run_tool("sign", "android.py", args, p.options->release ? 5 : 4);
+}
+
+void stage_header(const char* stage) {
+    printf("zaro build: -- %s\n", stage);
+    fflush(stdout);
+}
+
+int run_steps(const Pipeline& p, scene::BuildStage stage) {
+    const scene::BuildStep* steps[scene::kMaxBuildSteps * (scene::kMaxBuildExtensions + 1)];
+    const uint32_t n = stage_steps(p, stage, steps, sizeof(steps) / sizeof(steps[0]));
+    for (uint32_t i = 0; i < n; ++i) {
+        if (run_step(p, *steps[i]) != 0) return 1;
+    }
+    return 0;
+}
+
+int run_target(Pipeline& p) {
+    stage_header("native");
+    if (android_native(p)) return 1;
+    stage_header("export");
+    if (android_export(p)) return 1;
+    stage_header("post");
+    if (apply_android_extensions(p.project, p.spec->scene, p.runtime)) return 1;
+    if (run_steps(p, scene::BuildStage::kPost)) return 1;
+    if (android_post(p)) return 1;
+    stage_header("package");
+    if (android_package(p)) return 1;
+    stage_header("sign");
+    return android_sign(p);
+}
+
 void print_plan(const Pipeline& p) {
     printf("zaro build: %s %s (%s), environment %s%s%s\n", p.spec->name, p.spec->version,
            p.version_code ? p.version_code_text : "no version code", p.env->name, p.env->release ? ", release" : "",
@@ -306,9 +428,20 @@ void print_plan(const Pipeline& p) {
             const uint32_t n = stage_steps(p, stage[1] == 'r' ? scene::BuildStage::kPre : scene::BuildStage::kPost,
                                            steps, sizeof(steps) / sizeof(steps[0]));
             for (uint32_t i = 0; i < n; ++i) print_step(*steps[i]);
-            if (strcmp(stage, "post") == 0 && n) printf("  (runs only for a target)\n");
-        } else {
+            if (strcmp(stage, "post") == 0 && !p.options->target && n) printf("  (runs only for a target)\n");
+            if (strcmp(stage, "post") == 0 && p.options->target) {
+                printf("  build extensions into %s, then the steps above, then symbols and size report\n", p.project);
+            }
+        } else if (!p.options->target) {
             printf("  (no target)\n");
+        } else if (strcmp(stage, "native") == 0) {
+            printf("  python tools/build.py android -> %s\n", p.runtime);
+        } else if (strcmp(stage, "export") == 0) {
+            printf("  zaro export android %s -> %s\n", p.spec->scene, p.project);
+        } else if (strcmp(stage, "package") == 0) {
+            printf("  Gradle %s%s\n", p.options->package, p.options->release ? ", release" : ", debug key");
+        } else {
+            printf("  %s\n", p.options->release ? "upload key signature" : "debug key signature");
         }
     }
 }
@@ -323,7 +456,13 @@ const BuiltinStep* builtin_steps(uint32_t* count) {
 int build_game(const BuildOptions& o) {
     register_all_components();
     Pipeline p;
+    p.options = &o;
     int code = validate(o, p);
+    if (p.spec) {
+        snprintf(p.build_info, sizeof(p.build_info), "%s/build_info.toml", p.out);
+        snprintf(p.project, sizeof(p.project), "%s/%s-project", p.out, o.target ? o.target : "none");
+        snprintf(p.runtime, sizeof(p.runtime), "%s/build/android/android-runtime", ZARO_SOURCE_DIR);
+    }
     if (code == 0 && o.plan) {
         print_plan(p);
     } else if (code == 0) {
@@ -333,10 +472,13 @@ int build_game(const BuildOptions& o) {
             code = 1;
         }
         if (code == 0 && !write_build_info(p)) code = 1;
-        const scene::BuildStep* steps[scene::kMaxBuildSteps * (scene::kMaxBuildExtensions + 1)];
-        const uint32_t n = stage_steps(p, scene::BuildStage::kPre, steps, sizeof(steps) / sizeof(steps[0]));
-        for (uint32_t i = 0; i < n && code == 0; ++i) code = run_step(p, *steps[i]) ? 1 : 0;
-        if (code == 0) printf("zaro build: done (native, export, post, package and sign need a target)\n");
+        if (code == 0) {
+            stage_header("pre");
+            code = run_steps(p, scene::BuildStage::kPre);
+        }
+        if (code == 0 && o.target) code = run_target(p);
+        if (code == 0 && o.target) printf("zaro build: done (%s, %s)\n", o.target, p.project);
+        if (code == 0 && !o.target) printf("zaro build: done (native, export, post, package and sign need a target)\n");
     }
     for (uint32_t i = 0; i < p.extension_count; ++i) scene::free_build_extension(p.extensions[i]);
     scene::free_build_spec(p.spec);

@@ -75,6 +75,12 @@ add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scen
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform
   PRIVATE zaro_cjson)
 zaro_target_defaults(zaro_app)
+# zaro build's target stages run this checkout's tools/build.py and tools/android.py (D-027).
+if(NOT ANDROID)
+  find_package(Python3 COMPONENTS Interpreter)
+  target_compile_definitions(zaro_app PRIVATE ZARO_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+                                              ZARO_PYTHON="${Python3_EXECUTABLE}")
+endif()
 
 # CLI. Everything an agent or the editor does goes through this binary.
 if(ANDROID)

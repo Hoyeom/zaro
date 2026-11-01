@@ -63,6 +63,19 @@ def main() -> int:
         check(r.returncode == 1 and re.search(r"unknown_builtin\.toml:8: step 'cook' uses 'cook-svg'", r.text)
               is not None, "unknown built-in step", r.text)
 
+        # Target checks happen in validate, before anything is built (no Android toolchain needed).
+        r = zaro("build", f"{DATA}/game/build.toml", "--target", "ios", "--plan")
+        check(r.returncode == 2 and "unknown target 'ios'" in r.text, "unknown target", r.text)
+        r = zaro("build", f"{DATA}/game/build.toml", "--release", "--plan")
+        check(r.returncode == 2 and "add --target android" in r.text, "--release without a target", r.text)
+        r = zaro("build", f"{DATA}/game/build.toml", "--target", "android", "--release", "--plan")
+        check(r.returncode == 1 and re.search(r"ZE1003\]: tests/data/pipeline/game/build\.toml:8: --release needs a "
+                                              r"release environment; 'staging'", r.text) is not None,
+              "release build in a non-release environment", r.text)
+        r = zaro("build", f"{DATA}/game/build.toml", "--target", "android", "--plan")
+        check(r.returncode == 0 and "python tools/build.py android" in r.stdout and "Gradle aab, debug key" in r.stdout,
+              "android plan", r.text)
+
         r = zaro("build", f"{DATA}/bad.toml", "--plan")
         check(r.returncode == 1, "bad build file fails", r.text)
         for pattern in (r"bad\.toml:4:\d+: error\[ZE1000\]: unexpected key 'versoin' .*did you mean 'version'",

@@ -337,6 +337,7 @@ void add_document_files(PathList& files, const scene::Scene* doc, bool* ok) {
 struct DirScan {
     PathList* files;
     const scene::Scene* scene;
+    const char* build_file;  // the game build file (D-027), not a game asset; may be nullptr
     bool ok;
 };
 
@@ -349,6 +350,11 @@ void add_scanned_file(const char* found, void* user) {
     path_join_relative("", found, path, sizeof(path));
     if (ends_with(path, ".test.toml") || starts_with(path, "tests/") || strstr(path, "/tests/")) return;
     if (ends_with(path, ".java") || ends_with(path, ".kt")) return;
+    if (scan.build_file) {
+        char build_file[kPath];
+        path_join_relative("", scan.build_file, build_file, sizeof(build_file));
+        if (strcmp(path, build_file) == 0) return;
+    }
     for (uint32_t i = 0; i < scan.scene->build_extension_count; ++i) {
         char extension[kPath];
         path_join_relative("", scan.scene->build_extensions[i], extension, sizeof(extension));
@@ -385,7 +391,7 @@ int export_android(const ExportOptions& o) {
     add_unique(files, path);
     char scene_dir[kPath];
     snprintf(scene_dir, sizeof(scene_dir), "%.*s", (int)dir_length(path), path);
-    DirScan scan{&files, s, true};
+    DirScan scan{&files, s, o.build_file, true};
     platform::find_files(scene_dir[0] ? scene_dir : ".", "", add_scanned_file, &scan);
     listed &= scan.ok;
     if (s->script[0]) {
@@ -473,13 +479,9 @@ int export_android(const ExportOptions& o) {
         code = 2;
     }
     const char* orientation = o.portrait ? "sensorPortrait" : "sensorLandscape";
-    ExtensionText extensions;
-    if (!gather_extensions(s, &extensions) && code == 0) code = 1;
     const Substitution subs[] = {
         {"@ZARO_NAME@", name}, {"@ZARO_PACKAGE@", package}, {"@ZARO_VERSION_CODE@", version_code},
         {"@ZARO_VERSION_NAME@", version_name}, {"@ZARO_ORIENTATION@", orientation},
-        {"@ZARO_GRADLE_DEPENDENCIES@", extensions.dependencies}, {"@ZARO_MANIFEST_EXTRA@", extensions.manifest},
-        {"@ZARO_APPLICATION_EXTRA@", extensions.application},
     };
 
     Export e;
@@ -494,7 +496,6 @@ int export_android(const ExportOptions& o) {
             log_error(kErrIo, "%s: cannot create the project", out);
             e.ok = false;
         }
-        if (e.ok) copy_extension_sources(e, extensions);
         for (uint32_t i = 0; i < files.count && e.ok; ++i) {
             char rel[kPath + 8], to[kLongPath];
             snprintf(rel, sizeof(rel), "game/%s", files.items[i] + root);
@@ -504,6 +505,14 @@ int export_android(const ExportOptions& o) {
                 e.ok = false;
             }
             add_unique(e.assets, rel);
+        }
+        if (e.ok && o.build_info) {
+            snprintf(file, sizeof(file), "%s/app/src/main/assets/build_info.toml", out);
+            if (!make_parent(file) || !platform::copy_file(o.build_info, file)) {
+                log_error(kErrIo, "%s: cannot copy to %s", o.build_info, file);
+                e.ok = false;
+            }
+            add_unique(e.assets, "build_info.toml");
         }
         // The runtime unpacks the files listed here and runs the command line in zaro_args.txt.
         const size_t list_size = (size_t)kMaxFiles * kPath;
@@ -527,15 +536,74 @@ int export_android(const ExportOptions& o) {
         }
         if (!e.ok) code = 1;
     }
+    if (code == 0 && !o.defer_extensions) code = apply_android_extensions(out, o.scene_path, runtime);
     if (code == 0) {
-        printf("exported %s to %s (package %s, %u game files, %u build extensions)\n", s->path, out, package,
-               files.count, extensions.count);
-        printf("build the APK: gradle -p %s assembleDebug   (python tools/android.py apk does every step)\n", out);
+        printf("exported %s to %s (package %s, %u game files)\n", s->path, out, package, files.count);
+        if (!o.defer_extensions) {
+            printf("build the APK: gradle -p %s assembleDebug   (python tools/android.py apk does every step)\n", out);
+        }
     }
-    free_extensions(&extensions);
     delete[] e.java.items;
     delete[] e.assets.items;
     delete[] files.items;
+    scene::free_scene(s);
+    return code;
+}
+
+namespace {
+
+void add_runtime_java(const char* path, void* user) {
+    Export& e = *(Export*)user;
+    const char* rel = path + strlen(e.runtime) + 1;
+    if (starts_with(rel, kJavaRoot) && !add_unique(e.java, rel)) e.ok = false;
+}
+
+}  // namespace
+
+int apply_android_extensions(const char* project, const char* scene_path, const char* runtime_dir) {
+    register_all_components();
+    DiagList* diags = new DiagList();
+    scene::Scene* s = scene::load_scene(scene_path, diags);
+    diag_print_text(diags, stderr);
+    delete diags;
+    if (!s) return 1;
+    ExtensionText extensions;
+    int code = gather_extensions(s, &extensions) ? 0 : 1;
+    const Substitution subs[] = {
+        {"@ZARO_GRADLE_DEPENDENCIES@", extensions.dependencies},
+        {"@ZARO_MANIFEST_EXTRA@", extensions.manifest},
+        {"@ZARO_APPLICATION_EXTRA@", extensions.application},
+    };
+    char runtime[kPath], out[kPath], file[kLongPath];
+    path_join_relative("", runtime_dir, runtime, sizeof(runtime));
+    strip_trailing_slash(runtime);
+    path_join_relative("", project, out, sizeof(out));
+    strip_trailing_slash(out);
+    Export e;
+    e.runtime = runtime;
+    e.out = out;
+    e.subs = subs;
+    e.sub_count = sizeof(subs) / sizeof(subs[0]);
+    e.assets.items = new char[kMaxFiles][kPath];
+    e.java.items = new char[kMaxFiles][kPath];
+    if (code == 0) {
+        // Sources may not replace the runtime's own Java files (or another extension's).
+        platform::find_files(runtime, ".java", add_runtime_java, &e);
+        const char* targets[] = {"app/build.gradle", "app/src/main/AndroidManifest.xml"};
+        for (const char* target : targets) {
+            snprintf(file, sizeof(file), "%s/%s", out, target);
+            if (!copy_with_substitutions(e, file, file)) {
+                log_error(kErrIo, "%s: cannot update", file);
+                e.ok = false;
+            }
+        }
+        if (e.ok) copy_extension_sources(e, extensions);
+        if (!e.ok) code = 1;
+    }
+    if (code == 0) printf("applied %u build extension(s) to %s\n", extensions.count, out);
+    free_extensions(&extensions);
+    delete[] e.java.items;
+    delete[] e.assets.items;
     scene::free_scene(s);
     return code;
 }

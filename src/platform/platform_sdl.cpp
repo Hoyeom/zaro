@@ -416,6 +416,8 @@ bool create_directories(const char* path) { return SDL_CreateDirectory(path); }
 
 bool copy_file(const char* from, const char* to) { return SDL_CopyFile(from, to); }
 
+const char* env_var(const char* name) { return SDL_getenv(name); }
+
 int run_process(const char* const* argv, const char* cwd, char* output, uint32_t output_size) {
     const SDL_PropertiesID props = SDL_CreateProperties();
     SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void*)argv);

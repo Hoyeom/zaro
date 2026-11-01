@@ -82,6 +82,8 @@ bool copy_file(const char* from, const char* to);
 // stderr. Its stdout is shared too, or, when `output` is given, collected there (at most
 // output_size - 1 bytes, NUL-terminated). Returns the exit code, or -1 if it could not start.
 int run_process(const char* const* argv, const char* cwd, char* output, uint32_t output_size);
+// The value of an environment variable, or nullptr when it is unset.
+const char* env_var(const char* name);
 
 using FileFn = void (*)(const char* path, void* user);
 // Calls fn for `path` if it is a file ending in `suffix`, or for every such file below it if it is
