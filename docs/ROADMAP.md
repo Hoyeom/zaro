@@ -48,7 +48,12 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
   - Importing a Claude Design kit (tokens, components) into the UI theme.
 - **Done when**: `examples/hello` gets a HUD and a settings popup built only from text files. The
   screens render in Korean and English, and `zaro screenshot` plus a scene test cover them.
-- **Waits for**: nothing (fonts need decision D-019 on the rasterizer; see Open decisions).
+- **Decisions**: D-019 (stb_truetype, dynamic glyph atlas, Noto Sans KR) and D-020 (screens are
+  TOML node lists with reflected widget components).
+- **Status**: started 2026-11-01. Steps, one PR each: 1 text and glyph atlas, 2 layout, widgets
+  and input focus, 3 screen files and `zaro check`, 4 Luau view-model binding, 5 navigation
+  policy, 6 design kit import.
+- **Waits for**: nothing.
 - **Runs beside**: P1, P4a. P3 shares the texture atlas work, so P3 starts after P2's atlas lands.
 
 ### P3. 2D: sprites and the cat art pipeline
@@ -101,8 +106,4 @@ Steamworks, consoles through private porting layers, the Luau type checker, and 
 
 ## Open decisions
 
-- **D-019, font rasterizer for P2**: stb_truetype (public domain or MIT, small, no hinting) or
-  FreeType (FreeType License, BSD-style with an attribution clause; hinting and wider format
-  support). The license check from D-012 applies.
 - **SVG rasterizer for P3**: it must also pass D-012.
-- **UI file format for P2**: TOML (like scenes) or a dedicated markup.
