@@ -1,11 +1,15 @@
 # examples/neon: a small arena where the player sweeps a few thousand glowing enemies (P6, D-029).
 # This file holds its look (zaro-fx): the neon arena, the enemies as glowing triangles, the player
-# as a ring with a trail, sparks, shake and flash on every hit, and bloom over all of it. Gameplay,
-# audio and the saved best score join it from the other P6 tracks.
+# as a ring with a trail, sparks, shake and flash on every hit, and bloom over all of it. Its
+# gameplay is neon.luau (D-031): blades on a rotor orbit the player and sweep the horde away, and
+# waves of golden elites come every 8 seconds. Audio and the saved best score join it from the
+# other P6 tracks.
 #   zaro run examples/neon/scene.toml
 #   zaro screenshot examples/neon/scene.toml neon.png --frames 120
 [scene]
 name = "neon"
+script = "neon.luau"
+prefabs = ["prefabs/blade.toml", "prefabs/elite.toml", "prefabs/shock.toml"]
 
 [[entity]]
 name = "arena"
@@ -62,6 +66,8 @@ player_flash = 1.0
 name = "player"
 [entity.PlayerController]
 speed = 8.0
+# The app keeps it at the simulated player's position, so the rotor and its blades follow.
+[entity.Transform]
 [entity.Shape]
 kind = "ring"
 follow = "player"
@@ -74,6 +80,12 @@ glow = 0.35
 trail = 0.35
 trail_width = 0.3
 flash_decay = 3.0
+
+# The blades turn on this (neon.luau spawns them on it and turns it every tick).
+[[entity]]
+name = "rotor"
+parent = "player"
+[entity.Transform]
 
 # A small spinning core inside the ring.
 [[entity]]
