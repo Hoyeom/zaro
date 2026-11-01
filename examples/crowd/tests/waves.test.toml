@@ -1,0 +1,20 @@
+# The wave script must have raised the horde speed twice after 1300 ticks (21.7 s).
+# Run with: zaro test examples/crowd/tests   (refresh the golden hash with --update)
+[test]
+state_hash = "26825e868a8f266b"
+scene = "../scene.toml"
+ticks = 1300
+enemies = 2000
+
+[[expect]]
+entity = "horde"
+component = "CrowdSpawner"
+field = "speed"
+equals = 5.0
+
+[[expect]]
+entity = "player"
+component = "PlayerController"
+field = "speed"
+min = 1.0
+max = 20.0

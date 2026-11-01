@@ -14,4 +14,9 @@ int print_schema();
 // 1 when the scene has errors (printed as text, or as a JSON array with json = true).
 int check_scene(const char* path, bool json);
 
+// `zaro test [paths...] [--update] [--json]`: runs every *.test.toml found in the paths (files or
+// directories, default "tests") without a GPU. --update writes each run's state hash as the new
+// golden. Returns 0 when all tests pass, 1 on a failure or when no test was found, 2 on bad paths.
+int run_scene_tests(const char* const* paths, int count, bool update, bool json);
+
 }  // namespace zaro::app

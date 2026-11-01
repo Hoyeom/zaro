@@ -23,6 +23,9 @@ Every architectural decision and its reasoning is in [docs/DECISIONS.md](docs/DE
 | Simulation only, no GPU | `build/debug/zaro run examples/crowd/scene.toml --sim-only --frames 300` |
 | List components (fields, types, defaults, ranges) as JSON | `build/debug/zaro schema` |
 | Validate a scene without running it | `build/debug/zaro check examples/crowd/scene.toml [--json]` |
+| Run scene tests (no GPU) | `build/debug/zaro test examples/crowd/tests [--json]` |
+| Accept a changed simulation as the new golden | `build/debug/zaro test <paths> --update` |
+| Render a scene to PNG | `build/debug/zaro screenshot examples/crowd/scene.toml out.png [--frames N]` |
 | All `run` options | `build/debug/zaro help` |
 | Enable the pre-commit hook (once per clone) | `git config core.hooksPath tools/githooks` |
 
@@ -112,6 +115,20 @@ the file is saved.
 - The Luau VM is built with `LUA_USE_LONGJMP=1`, so script errors never cross ZARO code as C++
   exceptions. A `zaro.*` binding raises with `luaL_error`, which does not return. Bindings must
   therefore hold no objects with destructors.
+
+## Scene tests
+
+`zaro test` runs `*.test.toml` files (format at the top of `src/scene/test_spec.h`). It looks in the
+given files or directories, or in `tests/` when none are given. Each test runs its scene for N
+ticks without a GPU, with the scripted player and the scene's script. It then checks the
+`[[expect]]` values (`equals`, `min`, `max`) and the optional golden `state_hash`.
+
+- Failures are `file:line` diagnostics: ZE0600 invalid test file, ZE0601 expectation not met,
+  ZE0602 state hash differs. A script error fails the test as well.
+- `--update` writes the current hash into each file. Use it only when a behaviour change is
+  intended, and say so in the commit.
+- CI runs the tests on Windows, Linux and macOS (ARM). The same golden hash must hold on all
+  three. A ZE0602 on only one OS means float results diverged on that platform (D-005).
 
 ## Design principles (do not erode these)
 

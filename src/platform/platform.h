@@ -42,4 +42,10 @@ const char* base_path();
 // Modification time of a file in nanoseconds, or 0 if it does not exist.
 uint64_t file_mtime(const char* path);
 
+using FileFn = void (*)(const char* path, void* user);
+// Calls fn for `path` if it is a file ending in `suffix`, or for every such file below it if it is
+// a directory (recursively; hidden entries and directories named "build" are skipped).
+// Returns false if `path` does not exist.
+bool find_files(const char* path, const char* suffix, FileFn fn, void* user);
+
 }  // namespace zaro::platform

@@ -359,57 +359,69 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
 
 }  // namespace
 
-int run_crowd(const RunOptions& o) {
-    const bool headless = o.headless || o.sim_only;
-    Game g;
-    g.diags = new DiagList();
-    sim::CrowdConfig cfg;
+namespace {
+
+// Loads the scene (if any), derives the simulation config, then loads the script and runs its
+// on_start. Errors stay in g.diags. On failure everything already loaded is released.
+bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
     if (o.scene_path) {
         register_all_components();
         g.scene = scene::load_scene(o.scene_path, g.diags);
-        if (!g.scene) {
-            diag_print_text(g.diags, stderr);
-            delete g.diags;
-            return 1;
-        }
+        if (!g.scene) return false;
         if (const auto* a = (const sim::CrowdArena*)scene::first_component(g.scene, &sim::kCrowdArenaDesc, nullptr)) {
-            cfg.grid_size = a->grid_size;
-            cfg.seed = a->seed;
+            cfg->grid_size = a->grid_size;
+            cfg->seed = a->seed;
         }
         if (const auto* sp = (const sim::CrowdSpawner*)scene::first_component(g.scene, &sim::kCrowdSpawnerDesc, nullptr)) {
-            cfg.enemy_count = sp->count;
-            cfg.enemy_speed = sp->speed;
-            cfg.enemy_radius = sp->radius;
+            cfg->enemy_count = sp->count;
+            cfg->enemy_speed = sp->speed;
+            cfg->enemy_radius = sp->radius;
         }
         if (const auto* p =
                 (const sim::PlayerController*)scene::first_component(g.scene, &sim::kPlayerControllerDesc, nullptr)) {
-            cfg.player_speed = p->speed;
+            cfg->player_speed = p->speed;
         }
     }
-    if (!o.scene_path || o.enemies_set) cfg.enemy_count = o.enemies;
-    if (!o.scene_path || o.seed_set) cfg.seed = o.seed;
-    // Keep the scene's spawner in step with a CLI override, so scripts read the real count.
+    if (!o.scene_path || o.enemies_set) cfg->enemy_count = o.enemies;
+    if (!o.scene_path || o.seed_set) cfg->seed = o.seed;
+    // Keep the scene in step with CLI overrides, so scripts read the values actually used.
     if (g.scene && o.enemies_set) {
         if (auto* sp = (sim::CrowdSpawner*)scene::first_component_mut(g.scene, &sim::kCrowdSpawnerDesc)) {
             sp->count = o.enemies;
         }
     }
-
+    if (g.scene && o.seed_set) {
+        if (auto* a = (sim::CrowdArena*)scene::first_component_mut(g.scene, &sim::kCrowdArenaDesc)) a->seed = o.seed;
+    }
     if (g.scene && g.scene->script[0]) {
         script::ScriptDesc sd;
         sd.path = g.scene->script;
         sd.scene = g.scene;
-        sd.seed = cfg.seed;
+        sd.seed = cfg->seed;
         g.script = script::load_script(sd, g.diags);
         if (!g.script || !script::call_start(g.script, g.diags)) {
-            diag_print_text(g.diags, stderr);
             script::destroy_script(g.script);
+            g.script = nullptr;
             scene::free_scene(g.scene);
-            delete g.diags;
-            return 1;
+            g.scene = nullptr;
+            return false;
         }
     }
+    return true;
+}
 
+}  // namespace
+
+int run_crowd(const RunOptions& o) {
+    const bool headless = o.headless || o.sim_only;
+    Game g;
+    g.diags = new DiagList();
+    sim::CrowdConfig cfg;
+    if (!setup_game(o, g, &cfg)) {
+        diag_print_text(g.diags, stderr);
+        delete g.diags;
+        return 1;
+    }
     if (!platform::init(headless)) return 1;
     jobs::init(o.threads);
     g.crowd = sim::create_crowd(cfg);
@@ -428,6 +440,26 @@ int run_crowd(const RunOptions& o) {
     jobs::shutdown();
     platform::shutdown();
     return code;
+}
+
+bool simulate_scene(const RunOptions& o, uint32_t ticks, DiagList* diags, scene::Scene** scene_out,
+                    SimulateResult* out) {
+    Game g;
+    g.diags = diags;
+    sim::CrowdConfig cfg;
+    *scene_out = nullptr;
+    if (!setup_game(o, g, &cfg)) return false;
+    jobs::init(o.threads);
+    g.crowd = sim::create_crowd(cfg);
+    bool ok = true;
+    for (uint32_t t = 0; t < ticks && ok; ++t) ok = game_tick(g, sim::scripted_input(sim::tick(g.crowd)));
+    out->state_hash = sim::state_hash(g.crowd);
+    out->ticks = sim::tick(g.crowd);
+    sim::destroy_crowd(g.crowd);
+    script::destroy_script(g.script);
+    jobs::shutdown();
+    *scene_out = g.scene;
+    return ok;
 }
 
 }  // namespace zaro::app
