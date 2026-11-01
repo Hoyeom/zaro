@@ -64,18 +64,17 @@ void load_svg_list(SpriteSheet* s, const toml_datum_t& v, DiagList* d) {
 }
 
 // SVG sheets: the cooked image's place and size, and one frame per SVG file in a padded grid.
-void layout_svg_frames(SpriteSheet* s) {
-    char dir[260];
-    snprintf(dir, sizeof(dir), "%s", s->path);
-    char* slash = strrchr(dir, '/');
-    const char* file = slash ? slash + 1 : dir;
-    char stem[128];
-    snprintf(stem, sizeof(stem), "%s", file);
-    if (char* dot = strstr(stem, ".toml")) *dot = 0;
-    if (slash) slash[1] = 0;
-    else dir[0] = 0;
-    snprintf(s->image, sizeof(s->image), "%s.zaro-cache/%s.png", dir, stem);
-    snprintf(s->hash_path, sizeof(s->hash_path), "%s.zaro-cache/%s.hash", dir, stem);
+// False if the cache paths would be too long.
+bool layout_svg_frames(SpriteSheet* s) {
+    const char* slash = strrchr(s->path, '/');
+    const int dir_len = slash ? (int)(slash + 1 - s->path) : 0;
+    const char* stem = s->path + dir_len;
+    const char* ext = strstr(stem, ".toml");
+    const int stem_len = ext ? (int)(ext - stem) : (int)strlen(stem);
+    const int a = snprintf(s->image, sizeof(s->image), "%.*s.zaro-cache/%.*s.png", dir_len, s->path, stem_len, stem);
+    const int b = snprintf(s->hash_path, sizeof(s->hash_path), "%.*s.zaro-cache/%.*s.hash", dir_len, s->path,
+                           stem_len, stem);
+    if (a < 0 || b < 0 || a >= (int)sizeof(s->image) || b >= (int)sizeof(s->hash_path)) return false;
     // One transparent pixel around each frame, so filtering never reads a neighbour.
     const uint32_t cw = s->frame_size[0] + 2, ch = s->frame_size[1] + 2;
     uint32_t cols = 1;
@@ -92,6 +91,7 @@ void layout_svg_frames(SpriteSheet* s) {
         f.pivot[0] = s->pivot[0];
         f.pivot[1] = s->pivot[1];
     }
+    return true;
 }
 
 void load_header(SpriteSheet* s, const toml_datum_t& h, double* cell, int* cell_line, int* image_line, DiagList* d) {
@@ -287,8 +287,8 @@ SpriteSheet* load_sprite_sheet(const char* path, DiagList* d) {
                              "an SVG sheet takes its frames from svg; it has no image, cell or [[frame]]");
                 } else if (!s->frame_size[0]) {
                     diag_add(d, kErrSpriteSheet, path, s->svg_line, 1, "an SVG sheet needs size = [width, height]");
-                } else {
-                    layout_svg_frames(s);
+                } else if (!layout_svg_frames(s)) {
+                    diag_add(d, kErrSpriteSheet, path, s->svg_line, 1, "the sheet's path is too long for its cache file");
                 }
             } else if (!s->image[0]) {
                 diag_add(d, kErrSpriteSheet, path, header.lineno, header.colno, "[sheet] needs image = \"<file>.png\"");
