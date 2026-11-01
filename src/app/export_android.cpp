@@ -18,6 +18,7 @@ namespace {
 
 constexpr uint32_t kMaxFiles = 256;
 constexpr size_t kPath = 512;
+constexpr size_t kLongPath = 2048;  // a directory joined with a kPath-sized relative path
 
 struct PathList {
     char (*items)[kPath] = nullptr;
@@ -122,7 +123,7 @@ struct Export {
 };
 
 bool make_parent(const char* path) {
-    char dir[kPath];
+    char dir[kLongPath];
     snprintf(dir, sizeof(dir), "%s", path);
     char* slash = strrchr(dir, '/');
     if (!slash) return true;
@@ -161,7 +162,7 @@ bool copy_with_substitutions(const Export& e, const char* from, const char* to) 
 void copy_runtime_file(const char* path, void* user) {
     Export& e = *(Export*)user;
     const char* rel = path + strlen(e.runtime) + 1;
-    char to[kPath];
+    char to[kLongPath];
     snprintf(to, sizeof(to), "%s/%s", e.out, rel);
     if (!copy_with_substitutions(e, path, to)) {
         log_error(kErrIo, "%s: cannot write", to);
@@ -230,8 +231,9 @@ int export_android(const ExportOptions& o) {
     strip_trailing_slash(runtime);
     path_join_relative("", o.out_dir ? o.out_dir : "build/android-project", out, sizeof(out));
     strip_trailing_slash(out);
-    snprintf(path, sizeof(path), "%s/app/src/main/jniLibs/arm64-v8a/libmain.so", runtime);
-    if (code == 0 && platform::file_mtime(path) == 0) {
+    char file[kLongPath];
+    snprintf(file, sizeof(file), "%s/app/src/main/jniLibs/arm64-v8a/libmain.so", runtime);
+    if (code == 0 && platform::file_mtime(file) == 0) {
         log_error(kErrExport, "%s: no Android runtime here; build it with 'python tools/build.py android' "
                   "(or pass --runtime <build>/android-runtime)", runtime);
         code = 1;
@@ -267,7 +269,7 @@ int export_android(const ExportOptions& o) {
             e.ok = false;
         }
         for (uint32_t i = 0; i < files.count && e.ok; ++i) {
-            char rel[kPath], to[kPath];
+            char rel[kPath + 8], to[kLongPath];
             snprintf(rel, sizeof(rel), "game/%s", files.items[i] + root);
             snprintf(to, sizeof(to), "%s/app/src/main/assets/%s", out, rel);
             if (!make_parent(to) || !platform::copy_file(files.items[i], to)) {
@@ -284,14 +286,14 @@ int export_android(const ExportOptions& o) {
         }
         char args[kPath + 16];
         const int args_len = snprintf(args, sizeof(args), "run game/%s\n", files.items[0] + root);
-        snprintf(path, sizeof(path), "%s/app/src/main/assets/zaro_assets.txt", out);
-        if (e.ok && (used >= sizeof(list) || !write_file(path, list, used))) {
-            log_error(kErrIo, "%s: cannot write", path);
+        snprintf(file, sizeof(file), "%s/app/src/main/assets/zaro_assets.txt", out);
+        if (e.ok && (used >= sizeof(list) || !write_file(file, list, used))) {
+            log_error(kErrIo, "%s: cannot write", file);
             e.ok = false;
         }
-        snprintf(path, sizeof(path), "%s/app/src/main/assets/zaro_args.txt", out);
-        if (e.ok && !write_file(path, args, (size_t)args_len)) {
-            log_error(kErrIo, "%s: cannot write", path);
+        snprintf(file, sizeof(file), "%s/app/src/main/assets/zaro_args.txt", out);
+        if (e.ok && !write_file(file, args, (size_t)args_len)) {
+            log_error(kErrIo, "%s: cannot write", file);
             e.ok = false;
         }
         if (!e.ok) code = 1;
