@@ -22,6 +22,14 @@ constexpr uint32_t kSheetField = 0;      // index of Sprite::sheet in its FieldD
 constexpr uint32_t kAnimationField = 1;  // Sprite::animation
 constexpr uint32_t kFrameField = 9;      // Sprite::frame
 
+int field_line(const scene::Entity* e, uint32_t field) {
+    const scene::ComponentData* c = scene::find_component_data(e, &sim::kSpriteDesc);
+    return c && c->field_lines && c->field_lines[field] ? c->field_lines[field] : e->line;
+}
+
+}  // namespace
+
+// Outside the anonymous namespace, as SpriteLayer holds them.
 struct SpriteRecord {
     sim::Sprite* sprite;
     const scene::Entity* entity;
@@ -30,13 +38,6 @@ struct SpriteRecord {
     int animation_index;                       // -1: none, or unknown (already reported)
     uint64_t start_tick;
 };
-
-int field_line(const scene::Entity* e, uint32_t field) {
-    const scene::ComponentData* c = scene::find_component_data(e, &sim::kSpriteDesc);
-    return c && c->field_lines && c->field_lines[field] ? c->field_lines[field] : e->line;
-}
-
-}  // namespace
 
 struct SpriteLayer {
     scene::Scene* scene = nullptr;

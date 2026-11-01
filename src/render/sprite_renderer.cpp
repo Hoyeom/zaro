@@ -20,13 +20,14 @@ static_assert(sizeof(ViewConstants) == 96, "must match shaders/sprite.slang");
 
 constexpr uint32_t kMaxSheets = 64;
 
-struct Sheet {
+}  // namespace
+
+// A sheet on the GPU. Outside the anonymous namespace, as SpriteRenderer holds an array of them.
+struct SpriteSheetGpu {
     rhi::Texture* texture = nullptr;
     rhi::Buffer* frames = nullptr;
     rhi::BindGroup* group = nullptr;
 };
-
-}  // namespace
 
 struct SpriteRenderer {
     rhi::Device* device = nullptr;
@@ -39,13 +40,13 @@ struct SpriteRenderer {
     rhi::BindLayout* layout = nullptr;
     rhi::RenderPipeline* world = nullptr;
     rhi::RenderPipeline* screen = nullptr;
-    Sheet sheets[kMaxSheets];
+    SpriteSheetGpu sheets[kMaxSheets];
     uint32_t sheet_count = 0;
 };
 
 namespace {
 
-void make_group(SpriteRenderer* r, Sheet& s) {
+void make_group(SpriteRenderer* r, SpriteSheetGpu& s) {
     rhi::destroy_bind_group(s.group);
     rhi::BindEntry entries[5] = {{0, r->view}, {1, r->instances}, {2, s.frames}, {3, nullptr}, {4, nullptr}};
     entries[3].texture = s.texture;
@@ -128,7 +129,7 @@ void destroy_sprite_renderer(SpriteRenderer* r) {
 uint32_t add_sprite_sheet(SpriteRenderer* r, const uint8_t* rgba, uint32_t width, uint32_t height,
                           const SpriteFrameInfo* frames, uint32_t frame_count, const char* label) {
     if (r->sheet_count == kMaxSheets) return 0;  // callers stay under the limit (app/sprite_layer)
-    Sheet& s = r->sheets[r->sheet_count];
+    SpriteSheetGpu& s = r->sheets[r->sheet_count];
     s.texture = rhi::create_texture(r->device, width, height, rhi::TextureFormat::kRGBA8Srgb, label);
     rhi::write_texture(r->device, s.texture, 0, 0, width, height, rgba, width * 4);
     const uint32_t n = frame_count ? frame_count : 1;
