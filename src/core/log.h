@@ -28,6 +28,7 @@ enum ErrorId {
     kErrTestExpect = 601,     // ZE0601 an [[expect]] did not hold after the run
     kErrTestStateHash = 602,  // ZE0602 the run's state hash differs from the golden one
     kErrFontLoad = 700,       // ZE0700 font file missing or not a TrueType/OpenType font
+    kErrExport = 800,         // ZE0800 export failed: runtime package missing or a scene file outside the tree
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

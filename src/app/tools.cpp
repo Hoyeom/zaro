@@ -2,6 +2,7 @@
 
 #include "core/diag.h"
 #include "core/reflect.h"
+#include "platform/platform.h"
 #include "scene/scene.h"
 #include "script/script.h"
 #include "sim/crowd_components.h"
@@ -9,6 +10,8 @@
 #include <stdio.h>
 
 namespace zaro::app {
+
+bool prepare_process() { return platform::prepare_process(); }
 
 void register_all_components() { sim::register_crowd_components(); }
 

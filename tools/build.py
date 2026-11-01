@@ -4,7 +4,9 @@
 Usage:
   python tools/build.py [preset] [--test] [--no-gpu-tests] [--clean] [--engine-budget=SECONDS]
 
-preset is one of the configure presets in CMakePresets.json (default: debug).
+preset is one of the configure presets in CMakePresets.json (default: debug). `android`
+cross-compiles libmain.so with the NDK that `python tools/android.py setup` installs and writes
+the runtime package to build/android/android-runtime (cmake/ZaroAndroid.cmake).
 --no-gpu-tests skips ctest tests labelled `gpu` (hosted CI runners have no GPU).
 --engine-budget=S deletes ZARO's own object files after the build, rebuilds them alone and
 fails if that takes longer than S seconds (`engine_build_seconds=<n>`). Third-party code is
@@ -126,6 +128,19 @@ def main(argv: list[str]) -> int:
                   "Build Tools with the 'Desktop development with C++' workload", file=sys.stderr)
             return 1
         env = msvc_env(vs)
+    if preset == "android":
+        # Cross build with the pinned NDK (tools/android.py, D-021). Tests run on the host only.
+        sys.path.insert(0, str(ROOT / "tools"))
+        import android
+        if not (android.ndk_dir() / "build" / "cmake" / "android.toolchain.cmake").exists():
+            print(f"build.py: error: NDK {android.NDK_VERSION} not found at {android.ndk_dir()}; "
+                  "run `python tools/android.py setup`", file=sys.stderr)
+            return 1
+        if "--test" in argv:
+            print("build.py: error: the android preset has no tests; tests run on the host",
+                  file=sys.stderr)
+            return 1
+        env["ANDROID_NDK_HOME"] = str(android.ndk_dir())
 
     def run(*cmd: str) -> None:
         print("+", " ".join(cmd), flush=True)

@@ -22,6 +22,8 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
 
 ### P1. Mobile builds: Android first, then iOS
 
+- **Status**: Android in progress since 2026-11-01 (toolchain and packaging: D-021). The APK
+  builds locally and in CI; the on-device check below is pending.
 - **Scope**:
   - Android build of the engine and the `zaro` runtime: SDL3 Android backend, wgpu on Vulkan, the
     Slang to WGSL step at build time, and assets packed into the APK.

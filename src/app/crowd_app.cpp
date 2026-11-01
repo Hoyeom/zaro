@@ -282,8 +282,21 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
     uint32_t frames = 0, ticks = 0;
     int exit_code = 0;
     platform::Input input;
+    bool has_surface = true;
     while (!input.quit) {
         platform::poll_input(&input);
+        // Mobile: the OS takes the window away in the background and may hand back a new one.
+        if (input.background && has_surface) {
+            rhi::set_window(device, nullptr);
+            has_surface = false;
+        }
+        if (input.window_changed) {
+            const platform::NativeWindow nw = platform::native_window(window);
+            rhi::set_window(device, &nw);
+            has_surface = true;
+            last = platform::now_ticks();  // no catch-up ticks for the time away
+        }
+        if (input.background) continue;
         const uint64_t now = platform::now_ticks();
         accumulator += platform::ticks_to_seconds(now - last);
         last = now;

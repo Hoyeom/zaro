@@ -85,3 +85,40 @@ jobs:
         with:
           name: perf-${{ matrix.os }}
           path: perf-*.json
+
+  # Android APK of the crowd example (D-021). Running it needs a device, so that stays local:
+  # python tools/android.py perf
+  android:
+    name: android apk
+    needs: rules
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: System packages
+        run: sh tools/ci/install-linux-deps.sh
+      - name: Cache pinned dependency downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/deps/*-subbuild/*-populate-prefix/src
+          key: deps-android-${{ hashFiles('cmake/ZaroDeps.cmake') }}
+      - name: Cache Gradle downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.local/share/zaro/downloads
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('tools/android.py', 'src/platform/android/project/**') }}
+      - name: Android toolchain (pinned NDK, SDK packages, Gradle)
+        run: python tools/android.py setup --accept-licenses
+      - name: Host zaro (runs the export)
+        run: python tools/build.py release
+      - name: APK
+        run: python tools/android.py apk examples/crowd/scene.toml
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zaro-crowd-apk
+          path: build/android-project/app/build/outputs/apk/debug/*.apk

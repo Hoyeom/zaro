@@ -32,7 +32,10 @@ endif()
 zaro_target_defaults(zaro_core)
 
 add_library(zaro_platform STATIC src/platform/platform_sdl.cpp)
-target_link_libraries(zaro_platform PUBLIC zaro_core PRIVATE SDL3::SDL3-static)
+target_link_libraries(zaro_platform PUBLIC zaro_core PRIVATE SDL3::SDL3)
+if(ANDROID)
+  target_link_libraries(zaro_platform PRIVATE log android)
+endif()
 zaro_target_defaults(zaro_platform)
 
 add_library(zaro_rhi STATIC src/rhi/rhi_wgpu.cpp)
@@ -61,12 +64,19 @@ target_link_libraries(zaro_ui PUBLIC zaro_core PRIVATE zaro_stb_truetype)
 set_source_files_properties(src/ui/font.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 zaro_target_defaults(zaro_ui)
 
-add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp)
+add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp
+  src/app/export_android.cpp)
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform)
 zaro_target_defaults(zaro_app)
 
 # CLI. Everything an agent or the editor does goes through this binary.
-add_executable(zaro src/cli/main.cpp)
+if(ANDROID)
+  # SDLActivity loads libmain.so and calls its main() (ZaroActivity.getMainFunction, D-021).
+  add_library(zaro SHARED src/cli/main.cpp)
+  set_target_properties(zaro PROPERTIES OUTPUT_NAME main)
+else()
+  add_executable(zaro src/cli/main.cpp)
+endif()
 target_link_libraries(zaro PRIVATE zaro_app)
 zaro_target_defaults(zaro)
 zaro_add_shaders(zaro shaders/crowd_cull.slang shaders/crowd_draw.slang shaders/ui.slang)
@@ -74,6 +84,10 @@ zaro_add_fonts(zaro)
 add_custom_command(TARGET zaro POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:zaro_wgpu> $<TARGET_FILE_DIR:zaro>
   VERBATIM)
+
+if(ANDROID)
+  include(ZaroAndroid)
+endif()
 
 if(ZARO_BUILD_TESTS)
   enable_testing()
