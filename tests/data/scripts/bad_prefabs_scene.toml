@@ -1,0 +1,4 @@
+# A spawnable prefab without a name (ZE1200), and one listed twice under the same name.
+[scene]
+name = "bad-prefabs"
+prefabs = ["unnamed.toml", "grunt.toml", "grunt_again.toml"]

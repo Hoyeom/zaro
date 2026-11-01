@@ -8,6 +8,7 @@
 //   strings = "strings"              # optional: directory of string tables, <language>.toml
 //   languages = ["ko", "en"]         # with strings: the languages it holds; the first is the default
 //   build_extensions = ["ext.toml"]  # optional: what plugins add to an Android export (scene/build_extension.h)
+//   prefabs = ["prefabs/enemy.toml"] # optional: prefabs scripts can spawn by their [prefab] name (scene/world.h)
 //
 //   [[entity]]
 //   name = "player"                  # required, unique in the scene
@@ -35,7 +36,8 @@
 //   text = "@hud.gold"               # text starting with @ is a key into the string tables
 //
 // A prefab file has a [prefab] table with a name and top-level component tables. Prefabs do not
-// nest. Values start from the component defaults, then the prefab, then the entity.
+// nest. Values start from the component defaults, then the prefab, then the entity. A prefab in
+// [scene] prefabs needs its name, which scripts pass to zaro.spawn; names are unique in a scene.
 #pragma once
 
 #include "core/diag.h"
@@ -51,6 +53,7 @@ constexpr uint32_t kMaxSceneScreens = 8;
 constexpr uint32_t kMaxLanguages = 8;
 constexpr uint32_t kLanguageCapacity = 16;
 constexpr uint32_t kMaxBuildExtensions = 16;
+constexpr uint32_t kMaxSpawnPrefabs = 64;
 
 enum class DocKind : uint8_t { kScene, kScreen };
 
@@ -69,6 +72,18 @@ struct Entity {
     int line;                    // line of the entity or node in the file
     char parent[kNameCapacity];  // screens: the parent node's name, empty at the top level
     int parent_index;            // screens: index of the parent in `entities`, -1 at the top level
+    ComponentData* components;
+    uint32_t component_count;
+    // Scenes: unique in the run and never reused. The file's entities are 1..n in file order and
+    // spawned ones continue (scene/world.h), so `entities` is always in id order.
+    uint32_t id;
+    bool destroyed;  // destroyed this tick; removed by flush_entities at the end of it
+};
+
+// A prefab from [scene] prefabs, kept loaded so scripts can spawn it (scene/world.h).
+struct SpawnPrefab {
+    char name[kNameCapacity];
+    char path[kPathCapacity];  // resolved
     ComponentData* components;
     uint32_t component_count;
 };
@@ -93,6 +108,16 @@ struct Scene {
     char build_extensions[kMaxBuildExtensions][kPathCapacity];  // resolved paths (build_extension.h)
     int build_extensions_line;
     uint32_t build_extension_count;
+    SpawnPrefab* prefabs;
+    uint32_t prefab_count;
+    int prefabs_line;
+
+    // Run time (scene/world.h).
+    uint32_t entity_capacity;  // allocated length of `entities`
+    uint32_t next_id;
+    // Changes whenever entities are added or removed, which may move `entities`. Code that keeps
+    // pointers into it rebuilds them when this differs from the value it saw.
+    uint64_t generation;
 
     // Screens only.
     char theme[kPathCapacity];  // resolved theme path, or empty

@@ -61,6 +61,15 @@ Game scripts are Luau files. The API and the sandbox are documented at the top o
 `zaro.has`, `zaro.tick` and `zaro.log`. `zaro.set` goes through reflection, so a script can change any
 registered component field with the same type and range checks as a scene file.
 
+Entities at run time (D-031, `src/scene/world.h`): every entity has an id, unique in the run (the
+file's entities are 1..n in file order), and the API takes an id or a name. `zaro.spawn(prefab, {name,
+<Component> = {...}})` spawns a prefab listed in `[scene] prefabs` by its `[prefab]` name (ZE1200 if
+it has none or two share one); `zaro.destroy` marks an entity, which is removed at the end of the
+tick; `zaro.query`/`zaro.count` list live entities with given components in id order. Spawning or
+removing bumps `Scene::generation`, which may move `Scene::entities`: code that keeps pointers into
+it (like `app/sprite_layer`) rebuilds them when the generation changes. Spawnable prefabs' sprite
+sheets are loaded with the scene, and the Android export packs the prefabs.
+
 A scene names its script with `script = "file.luau"` in `[scene]`. `zaro run <scene>` calls
 `on_start()` once and `on_tick(tick)` before every simulation tick (tick 1 is the first). Values the
 script changes are read back the same tick. Today these are `CrowdSpawner.speed` and
@@ -92,7 +101,9 @@ given files or directories, or in `tests/` when none are given. Each test runs i
 without a GPU, with the scripted player, the scene's script and its UI. `[[click]]` entries click a
 screen's button before a given tick's `on_tick`. It then checks the `[[expect]]` values (`equals`,
 `min`, `max`; with `screen` + `node` a widget field, or `text` for what a node shows) and the
-optional golden `state_hash`.
+optional golden `state_hash`. The hash covers the crowd and every live entity's id, name and
+non-visual component fields (`scene::world_hash`); visual components (`ZARO_VISUAL_COMPONENT`, such
+as `Sprite`, and UI widgets) are left out, so a purely visual change never moves a golden.
 
 - Failures are `file:line` diagnostics: ZE0600 invalid test file, ZE0601 expectation not met,
   ZE0602 state hash differs, ZE0603 a click found no shown, enabled button (or one behind a modal).
@@ -117,7 +128,7 @@ and keeps at most two frames in flight. `--perf PATH` writes:
 | `cpu_ms.sim`, `cpu_ms.render_prep` | average CPU time of the simulation tick and of instance upload + command recording |
 | `gpu_ms` | average GPU time per timed pass (`cull`, `main`) and `total`; `null` without timestamp support |
 | `draw_calls`, `entities`, `enemies`, `ticks`, `hits` | per-frame draw calls and simulation counters |
-| `state_hash` | simulation state after the run; equal for equal seed, tick count and build |
+| `state_hash` | gameplay state after the run (crowd and entities, as in scene tests); equal for equal seed, tick count and build |
 | `adapter`, `backend`, `threads`, `resolution`, `mode` | run environment |
 | `hdr` | the HDR frame's format (`rg11b10f`, `rgba16f`), or `null` without a `Bloom` component (`zaro-fx`) |
 

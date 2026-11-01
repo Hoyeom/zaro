@@ -68,12 +68,12 @@ const reflect::FieldDesc kParticleEmitterFields[] = {
 
 }  // namespace
 
-ZARO_COMPONENT(ScreenFx, "Screen shake and full-screen flash that fall on the tick clock (one per scene)",
+ZARO_VISUAL_COMPONENT(ScreenFx, "Screen shake and full-screen flash that fall on the tick clock (one per scene)",
                kScreenFxFields);
-ZARO_COMPONENT(CrowdFx, "Sparks, shake and flash when an enemy of the crowd reaches the player", kCrowdFxFields);
-ZARO_COMPONENT(ParticleEmitter, "GPU sparks from a point: a steady rate, or a burst a script fires",
+ZARO_VISUAL_COMPONENT(CrowdFx, "Sparks, shake and flash when an enemy of the crowd reaches the player", kCrowdFxFields);
+ZARO_VISUAL_COMPONENT(ParticleEmitter, "GPU sparks from a point: a steady rate, or a burst a script fires",
                kParticleEmitterFields);
-ZARO_COMPONENT(Bloom, "Renders the 3D view in HDR: colours brighter than the threshold glow (D-030)", kBloomFields);
+ZARO_VISUAL_COMPONENT(Bloom, "Renders the 3D view in HDR: colours brighter than the threshold glow (D-030)", kBloomFields);
 
 void register_fx_components() {
     reflect::register_component(&kBloomDesc);

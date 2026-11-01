@@ -66,10 +66,10 @@ const reflect::FieldDesc kArenaLookFields[] = {
 
 }  // namespace
 
-ZARO_COMPONENT(Shape, "A glowing shape (rect, circle, ring, polygon, line) on the ground or on the screen",
+ZARO_VISUAL_COMPONENT(Shape, "A glowing shape (rect, circle, ring, polygon, line) on the ground or on the screen",
                kShapeFields);
-ZARO_COMPONENT(CrowdShape, "Draws the crowd's enemies as glowing shapes instead of cubes", kCrowdShapeFields);
-ZARO_COMPONENT(ArenaLook, "The arena's colours: ground, glowing grid, obstacles and background", kArenaLookFields);
+ZARO_VISUAL_COMPONENT(CrowdShape, "Draws the crowd's enemies as glowing shapes instead of cubes", kCrowdShapeFields);
+ZARO_VISUAL_COMPONENT(ArenaLook, "The arena's colours: ground, glowing grid, obstacles and background", kArenaLookFields);
 
 void register_shape_components() {
     reflect::register_component(&kShapeDesc);

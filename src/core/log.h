@@ -48,6 +48,7 @@ enum ErrorId {
                               //        a version code or the upload key
     kErrShape = 1100,         // ZE1100 a shape component is invalid: CrowdShape beside CrowdSprite, or a
                               //        screen shape that follows the player
+    kErrSpawnPrefab = 1200,   // ZE1200 a [scene] prefabs entry has no [prefab] name, or two share one (D-031)
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

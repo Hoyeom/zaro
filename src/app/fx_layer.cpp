@@ -35,6 +35,7 @@ struct FxLayer {
     bool hdr = false;  // Bloom or ScreenFx: render through the HDR frame and the tonemap
     EmitterRecord* emitters = nullptr;
     uint32_t emitter_count = 0;
+    uint64_t generation = 0;  // the scene's generation the emitters were collected for (D-031)
     uint64_t ticks = 0;
 
     rhi::Device* device = nullptr;
@@ -91,6 +92,45 @@ void queue_burst(FxLayer* l, float x, float y, float z, uint32_t count, uint32_t
 
 float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
+bool prefab_has_emitter(const scene::Scene* s) {
+    for (uint32_t i = 0; i < s->prefab_count; ++i) {
+        for (uint32_t c = 0; c < s->prefabs[i].component_count; ++c) {
+            if (s->prefabs[i].components[c].desc == &sim::kParticleEmitterDesc) return true;
+        }
+    }
+    return false;
+}
+
+// Collects the emitters again after scripts spawned or removed entities (Scene::generation
+// changed), keeping the carry of emitters that are still there; their data does not move.
+void sync_emitters(FxLayer* l) {
+    if (l->generation == l->scene->generation) return;
+    l->generation = l->scene->generation;
+    const scene::Scene* s = l->scene;
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < s->entity_count; ++i) count += scene::get_component(&s->entities[i], &sim::kParticleEmitterDesc) ? 1 : 0;
+    EmitterRecord* old = l->emitters;
+    const uint32_t old_count = l->emitter_count;
+    l->emitters = (EmitterRecord*)calloc(count ? count : 1, sizeof(EmitterRecord));
+    l->emitter_count = 0;
+    uint32_t j = 0;
+    for (uint32_t i = 0; i < s->entity_count; ++i) {
+        if (s->entities[i].destroyed) continue;
+        auto* e = (sim::ParticleEmitter*)scene::get_component(&s->entities[i], &sim::kParticleEmitterDesc);
+        if (!e) continue;
+        EmitterRecord& r = l->emitters[l->emitter_count++];
+        uint32_t k = j;
+        while (k < old_count && old[k].emitter != e) ++k;
+        if (k < old_count) {
+            r = old[k];
+            j = k + 1;
+        } else {
+            r.emitter = e;
+        }
+    }
+    free(old);
+}
+
 }  // namespace
 
 FxLayer* create_fx_layer(scene::Scene* scene) {
@@ -102,9 +142,11 @@ FxLayer* create_fx_layer(scene::Scene* scene) {
         emitters += scene::get_component(&scene->entities[i], &sim::kParticleEmitterDesc) ? 1 : 0;
     }
     const bool crowd_fx = scene::first_component(scene, &sim::kCrowdFxDesc, nullptr) != nullptr;
-    if (!hdr && !emitters && !crowd_fx) return nullptr;
+    const bool spawnable = prefab_has_emitter(scene);
+    if (!hdr && !emitters && !crowd_fx && !spawnable) return nullptr;
     FxLayer* l = new FxLayer();
     l->scene = scene;
+    l->generation = scene->generation;
     l->hdr = hdr;
     l->emitters = (EmitterRecord*)calloc(emitters ? emitters : 1, sizeof(EmitterRecord));
     for (uint32_t i = 0; i < scene->entity_count; ++i) {
@@ -125,6 +167,7 @@ void destroy_fx_layer(FxLayer* l) {
 
 void step_fx(FxLayer* l, const sim::Crowd* crowd, ShapeLayer* shapes) {
     if (!l) return;
+    sync_emitters(l);
     l->ticks++;
     const float dt = sim::kTickSeconds;
     auto* screen = (sim::ScreenFx*)scene::first_component_mut(l->scene, &sim::kScreenFxDesc);
@@ -192,7 +235,7 @@ bool attach_fx_gpu(FxLayer* l, rhi::Device* device, const char* shader_dir) {
         l->post = render::create_post_renderer(device, shader_dir, l->format);
         if (!l->post) return false;
     }
-    if (l->emitter_count || scene::first_component(l->scene, &sim::kCrowdFxDesc, nullptr)) {
+    if (l->emitter_count || prefab_has_emitter(l->scene) || scene::first_component(l->scene, &sim::kCrowdFxDesc, nullptr)) {
         l->particles = render::create_particle_renderer(device, shader_dir, kParticleCapacity, l->format);
         if (!l->particles) return false;
     }

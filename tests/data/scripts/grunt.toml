@@ -1,0 +1,6 @@
+[prefab]
+name = "grunt"
+
+[CrowdSpawner]
+count = 0
+speed = 1.0

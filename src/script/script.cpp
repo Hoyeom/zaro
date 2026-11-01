@@ -2,6 +2,7 @@
 
 #include "core/reflect.h"
 #include "scene/ui_state.h"
+#include "scene/world.h"
 
 #include <lua.h>
 #include <luacode.h>
@@ -70,13 +71,48 @@ void report(Script* s, ErrorId id, const char* raw, DiagList* diags) {
 // --- zaro.* bindings. These raise Lua errors with luaL_error (longjmp), so they hold no
 // objects with destructors.
 
+// Raises err as a script error at the calling line, like luaL_error. The message is copied to the
+// Lua stack first, because lua_error does not return and err lives in the caller's frame.
+void raise(lua_State* L, const char* err) {
+    luaL_where(L, 1);
+    lua_pushstring(L, err);
+    lua_concat(L, 2);
+    lua_error(L);
+}
+
+// An entity by id (number) or name (string), or nullptr when there is no such live entity.
+scene::Entity* entity_opt(lua_State* L, int arg) {
+    Script* s = self(L);
+    if (lua_type(L, arg) == LUA_TNUMBER) {
+        const double id = lua_tonumber(L, arg);
+        scene::Entity* e = id >= 1 && id <= 4294967295.0 ? scene::entity_by_id(s->scene, (uint32_t)id) : nullptr;
+        return e && (double)e->id == id ? e : nullptr;
+    }
+    return scene::entity_by_name(s->scene, luaL_checklstring(L, arg, nullptr));
+}
+
+// The same, raising for an unknown or destroyed entity.
 scene::Entity* entity_arg(lua_State* L, int arg) {
     Script* s = self(L);
-    const char* name = luaL_checklstring(L, arg, nullptr);
-    for (uint32_t i = 0; i < s->scene->entity_count; ++i) {
-        if (strcmp(s->scene->entities[i].name, name) == 0) return &s->scene->entities[i];
+    if (scene::Entity* e = entity_opt(L, arg)) return e;
+    if (lua_type(L, arg) == LUA_TNUMBER) {
+        luaL_error(L, "no entity with id %g (it was destroyed, or never existed)", lua_tonumber(L, arg));
     }
-    luaL_error(L, "no entity named '%s' in scene '%s'", name, s->scene->name);
+    const char* name = lua_tostring(L, arg);
+    const char* hint = scene::suggest_entity(s->scene, name);
+    luaL_error(L, "no entity named '%s' in scene '%s'%s%s%s", name, s->scene->name, hint ? " (did you mean '" : "",
+               hint ? hint : "", hint ? "'?)" : "");
+}
+
+// A scene component by name, raising with "did you mean" for an unknown one.
+const ComponentDesc* component_name_arg(lua_State* L, const char* name) {
+    const ComponentDesc* desc = reflect::find_component(name);
+    if (!desc || desc->kind != reflect::ComponentKind::kScene) {
+        const char* hint = reflect::suggest_component(name);
+        luaL_error(L, "unknown component '%s'%s%s%s", name, hint ? " (did you mean '" : "", hint ? hint : "",
+                   hint ? "'?)" : "");
+    }
+    return desc;
 }
 
 void* component_arg(lua_State* L, scene::Entity* e, int arg, const ComponentDesc** out) {
@@ -254,13 +290,6 @@ scene::Scene* screen_arg(lua_State* L, int arg) {
                hint ? "'?)" : "");
 }
 
-// Raises err as a script error. The message is copied to the Lua stack first, because luaL_error
-// does not return and err lives in the caller's frame.
-void raise(lua_State* L, const char* err) {
-    lua_pushstring(L, err);
-    lua_error(L);
-}
-
 bool opt_flag(lua_State* L, int table, const char* key) {
     lua_getfield(L, table, key);
     const bool on = lua_toboolean(L, -1) != 0;
@@ -380,15 +409,142 @@ int ui_language(lua_State* L) {
 }
 
 int zaro_has(lua_State* L) {
-    Script* s = self(L);
-    const char* name = luaL_checklstring(L, 1, nullptr);
-    const scene::Entity* e = scene::find_entity(s->scene, name);
+    const scene::Entity* e = entity_opt(L, 1);
     bool found = e != nullptr;
     if (found && lua_gettop(L) >= 2) {
         const ComponentDesc* desc = reflect::find_component(luaL_checklstring(L, 2, nullptr));
         found = desc && scene::get_component(e, desc);
     }
     lua_pushboolean(L, found);
+    return 1;
+}
+
+// --- Entities at run time (D-031, scene/world.h).
+
+int compare_names(const void* a, const void* b) { return strcmp(*(const char* const*)a, *(const char* const*)b); }
+
+int zaro_spawn(lua_State* L) {
+    Script* s = self(L);
+    const char* prefab = luaL_checklstring(L, 1, nullptr);
+    const int p = scene::find_spawn_prefab(s->scene, prefab);
+    if (p < 0) {
+        const char* hint = scene::suggest_spawn_prefab(s->scene, prefab);
+        luaL_error(L, "no prefab named '%s' in the scene's [scene] prefabs%s%s%s", prefab,
+                   hint ? " (did you mean '" : "", hint ? hint : "",
+                   hint ? "'?)" : (s->scene->prefab_count ? "" : " (it lists none)"));
+    }
+    const bool options = lua_type(L, 2) == LUA_TTABLE;
+    if (!options && !lua_isnoneornil(L, 2)) {
+        luaL_error(L, "zaro.spawn(prefab, options): options must be a table, got %s", luaL_typename(L, 2));
+    }
+    const char* name = nullptr;
+    // Component tables in the options, applied in name order so every run builds the same entity.
+    constexpr int kMaxOverrides = 32;
+    const char* comps[kMaxOverrides];
+    int ncomps = 0;
+    if (options) {
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0) {
+            if (lua_type(L, -2) != LUA_TSTRING) luaL_error(L, "zaro.spawn: option keys must be strings");
+            const char* key = lua_tostring(L, -2);  // the options table keeps its key strings alive
+            if (strcmp(key, "name") == 0) {
+                if (lua_type(L, -1) != LUA_TSTRING) luaL_error(L, "zaro.spawn: name must be a string");
+                name = lua_tostring(L, -1);
+            } else {
+                component_name_arg(L, key);
+                if (lua_type(L, -1) != LUA_TTABLE) luaL_error(L, "zaro.spawn: %s must be a table of fields", key);
+                if (ncomps == kMaxOverrides) luaL_error(L, "zaro.spawn: more than %d component tables", kMaxOverrides);
+                comps[ncomps++] = key;
+            }
+            lua_pop(L, 1);
+        }
+    }
+    qsort(comps, (size_t)ncomps, sizeof(comps[0]), compare_names);
+    char err[200];
+    scene::Entity* e = scene::spawn_entity(s->scene, p, name, err, sizeof(err));
+    if (!e) raise(L, err);
+    for (int c = 0; c < ncomps; ++c) {
+        const ComponentDesc* desc = reflect::find_component(comps[c]);
+        uint8_t* data = (uint8_t*)scene::add_component(e, desc);
+        lua_getfield(L, 2, comps[c]);
+        const int fields = lua_gettop(L);
+        lua_pushnil(L);
+        while (lua_next(L, fields) != 0) {
+            if (lua_type(L, -2) != LUA_TSTRING) luaL_error(L, "zaro.spawn: %s takes field names as keys", desc->name);
+            lua_pushvalue(L, -2);
+            const FieldDesc* f = field_arg(L, desc, lua_gettop(L));
+            lua_pop(L, 1);
+            store_field(L, desc, f, data + f->offset, lua_gettop(L));
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+    }
+    lua_pushnumber(L, (double)e->id);
+    return 1;
+}
+
+int zaro_destroy(lua_State* L) {
+    // A name that matches nothing is a typo and raises; an id that is gone was destroyed already.
+    scene::Entity* e = lua_type(L, 1) == LUA_TNUMBER ? entity_opt(L, 1) : entity_arg(L, 1);
+    if (e) scene::destroy_entity(self(L)->scene, e);
+    lua_pushboolean(L, e != nullptr);
+    return 1;
+}
+
+int zaro_alive(lua_State* L) {
+    lua_pushboolean(L, entity_opt(L, 1) != nullptr);
+    return 1;
+}
+
+int zaro_find(lua_State* L) {
+    const scene::Entity* e = scene::entity_by_name(self(L)->scene, luaL_checklstring(L, 1, nullptr));
+    if (e) lua_pushnumber(L, (double)e->id);
+    else lua_pushnil(L);
+    return 1;
+}
+
+int zaro_name(lua_State* L) {
+    lua_pushstring(L, entity_arg(L, 1)->name);
+    return 1;
+}
+
+int zaro_id(lua_State* L) {
+    lua_pushnumber(L, (double)entity_arg(L, 1)->id);
+    return 1;
+}
+
+// Counts the live entities that have every component named by the arguments 1..ncomps, in id
+// order; with fill, also appends their ids to the table on top of the stack.
+int collect_entities(lua_State* L, int ncomps, bool fill) {
+    Script* s = self(L);
+    constexpr int kMaxQuery = 8;
+    if (ncomps > kMaxQuery) luaL_error(L, "a query names at most %d components", kMaxQuery);
+    const ComponentDesc* want[kMaxQuery];
+    for (int i = 0; i < ncomps; ++i) want[i] = component_name_arg(L, luaL_checklstring(L, i + 1, nullptr));
+    int n = 0;
+    for (uint32_t i = 0; i < s->scene->entity_count; ++i) {
+        const scene::Entity* e = &s->scene->entities[i];
+        bool all = !e->destroyed;
+        for (int c = 0; c < ncomps && all; ++c) all = scene::get_component(e, want[c]) != nullptr;
+        if (!all) continue;
+        ++n;
+        if (fill) {
+            lua_pushnumber(L, (double)e->id);
+            lua_rawseti(L, -2, n);
+        }
+    }
+    return n;
+}
+
+int zaro_query(lua_State* L) {
+    const int ncomps = lua_gettop(L);
+    lua_newtable(L);
+    collect_entities(L, ncomps, true);
+    return 1;
+}
+
+int zaro_count(lua_State* L) {
+    lua_pushnumber(L, collect_entities(L, lua_gettop(L), false));
     return 1;
 }
 
@@ -510,9 +666,12 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     lua_call(L, 1, 0);
     lua_pop(L, 1);
 
-    static const luaL_Reg kApi[] = {{"get", zaro_get}, {"set", zaro_set}, {"has", zaro_has},
-                                    {"tick", zaro_tick}, {"log", zaro_log}, {nullptr, nullptr}};
-    lua_createtable(L, 0, 5);
+    static const luaL_Reg kApi[] = {
+        {"get", zaro_get},       {"set", zaro_set},     {"has", zaro_has},     {"tick", zaro_tick},
+        {"log", zaro_log},       {"spawn", zaro_spawn}, {"destroy", zaro_destroy}, {"alive", zaro_alive},
+        {"find", zaro_find},     {"name", zaro_name},   {"id", zaro_id},       {"query", zaro_query},
+        {"count", zaro_count},   {nullptr, nullptr}};
+    lua_createtable(L, 0, 13);
     for (const luaL_Reg* r = kApi; r->name; ++r) {
         lua_pushcfunction(L, r->func, r->name);
         lua_setfield(L, -2, r->name);

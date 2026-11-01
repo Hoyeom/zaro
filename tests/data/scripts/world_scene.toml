@@ -1,0 +1,14 @@
+# Scene for the run-time entity tests in tests/test_script.cpp (D-031): world.luau spawns grunts.
+[scene]
+name = "world-test"
+prefabs = ["grunt.toml"]
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 10
+
+[[entity]]
+name = "player"
+[entity.PlayerController]
+speed = 8.0

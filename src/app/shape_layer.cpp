@@ -34,6 +34,8 @@ struct ShapeLayer {
     scene::Scene* scene = nullptr;
     ShapeRecord* records = nullptr;
     uint32_t count = 0;
+    uint64_t generation = 0;  // the scene's generation the records were built for (D-031)
+    bool spawnable = false;   // a prefab scripts can spawn has a Shape
     const sim::CrowdShape* crowd = nullptr;
     const sim::ArenaLook* arena = nullptr;
     render::CrowdShapes crowd_shapes;
@@ -118,14 +120,61 @@ uint32_t add_trail(const ShapeRecord& r, float x, float y, float z, render::Shap
 
 }  // namespace
 
+namespace {
+
+bool prefab_has_shape(const scene::Scene* s) {
+    for (uint32_t i = 0; i < s->prefab_count; ++i) {
+        for (uint32_t c = 0; c < s->prefabs[i].component_count; ++c) {
+            if (s->prefabs[i].components[c].desc == &sim::kShapeDesc) return true;
+        }
+    }
+    return false;
+}
+
+// Rebuilds the records after scripts spawned or removed entities (Scene::generation changed),
+// keeping the trails of shapes that are still there; their component data does not move.
+void sync_records(ShapeLayer* l) {
+    if (l->generation == l->scene->generation) return;
+    l->generation = l->scene->generation;
+    const scene::Scene* s = l->scene;
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < s->entity_count; ++i) count += scene::get_component(&s->entities[i], &sim::kShapeDesc) ? 1 : 0;
+    ShapeRecord* old = l->records;
+    const uint32_t old_count = l->count;
+    l->records = (ShapeRecord*)calloc(count ? count : 1, sizeof(ShapeRecord));
+    l->count = 0;
+    uint32_t j = 0;
+    for (uint32_t i = 0; i < s->entity_count; ++i) {
+        if (s->entities[i].destroyed) continue;
+        auto* shape = (sim::Shape*)scene::get_component(&s->entities[i], &sim::kShapeDesc);
+        if (!shape) continue;
+        ShapeRecord& r = l->records[l->count++];
+        // Records keep entity order, so a surviving shape is at or after the last match.
+        uint32_t k = j;
+        while (k < old_count && old[k].shape != shape) ++k;
+        if (k < old_count) {
+            r = old[k];
+            j = k + 1;
+        } else {
+            r.shape = shape;
+        }
+    }
+    free(old);
+    l->crowd = (const sim::CrowdShape*)scene::first_component(s, &sim::kCrowdShapeDesc, nullptr);
+    l->arena = (const sim::ArenaLook*)scene::first_component(s, &sim::kArenaLookDesc, nullptr);
+}
+
+}  // namespace
+
 ShapeLayer* create_shape_layer(scene::Scene* s, DiagList* diags, bool* failed) {
     *failed = false;
     uint32_t count = 0;
     for (uint32_t i = 0; i < s->entity_count; ++i) count += scene::get_component(&s->entities[i], &sim::kShapeDesc) ? 1 : 0;
+    const bool spawnable = prefab_has_shape(s);
     const scene::Entity* crowd_entity = nullptr;
     const auto* crowd = (const sim::CrowdShape*)scene::first_component(s, &sim::kCrowdShapeDesc, &crowd_entity);
     const auto* arena = (const sim::ArenaLook*)scene::first_component(s, &sim::kArenaLookDesc, nullptr);
-    if (!count && !crowd && !arena) return nullptr;
+    if (!count && !crowd && !arena && !spawnable) return nullptr;
 
     const uint32_t before = diags->count;
     const scene::Entity* sprite_entity = nullptr;
@@ -136,6 +185,8 @@ ShapeLayer* create_shape_layer(scene::Scene* s, DiagList* diags, bool* failed) {
     }
     ShapeLayer* l = new ShapeLayer();
     l->scene = s;
+    l->generation = s->generation;
+    l->spawnable = spawnable;
     l->crowd = crowd;
     l->arena = arena;
     l->records = (ShapeRecord*)calloc(count ? count : 1, sizeof(ShapeRecord));
@@ -169,6 +220,7 @@ void destroy_shape_layer(ShapeLayer* l) {
 
 void step_shapes(ShapeLayer* l, uint64_t, float player_x, float player_z) {
     if (!l) return;
+    sync_records(l);
     for (uint32_t i = 0; i < l->count; ++i) {
         ShapeRecord& r = l->records[i];
         sim::Shape& s = *r.shape;
@@ -232,7 +284,7 @@ void shape_crowd_scene(ShapeLayer* l, render::CrowdScene* scene) {
 bool attach_shape_gpu(ShapeLayer* l, rhi::Device* device, const char* shader_dir, rhi::TextureFormat format) {
     if (!l) return true;
     l->device = device;
-    if (!l->count) return true;  // only the crowd's look or the arena's colours
+    if (!l->count && !l->spawnable) return true;  // only the crowd's look or the arena's colours
     l->renderer = render::create_shape_renderer(device, shader_dir, format);
     return l->renderer != nullptr;
 }
