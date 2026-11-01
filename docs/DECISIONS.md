@@ -222,5 +222,4 @@ save-format versioning, physics (Jolt candidate), the MCP server (local only, ac
 
 - Check trademark, company-name, domain and GitHub-organization conflicts for "Zaro".
 - Enable GitHub private vulnerability reporting (SECURITY.md relies on it).
-- Fill in the conduct contact in CODE_OF_CONDUCT.md.
 - Protect `main`: `gh api -X POST repos/<owner>/zaro/rulesets --input tools/github/ruleset-main.json`.
