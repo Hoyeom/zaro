@@ -285,6 +285,64 @@ Status of all entries below: **accepted, 2026-11-01**.
   - The plugin ABI (D-011) gets built in P4b, earlier than planned and for the backend first,
     not for Steamworks.
 
+## D-019 Fonts: stb_truetype into a dynamic glyph atlas, Noto Sans KR bundled
+
+- **Decision**: The `ui` module rasterizes glyphs with stb_truetype (public domain or MIT, one
+  header) into a dynamic single-channel atlas, keyed by glyph and pixel size. Glyphs are added on
+  first use, so the 11,172 Hangul syllables never have to be baked up front. When the atlas is
+  full it is cleared and refilled with the glyphs the next frame uses. The default font is Noto
+  Sans KR (Regular and Bold, unmodified OTF), which covers Hangul, Latin and common symbols. It is
+  downloaded at configure time, pinned by commit and SHA-256 like the other dependencies, and
+  copied next to the executable. Games can name their own fonts.
+- **Why**:
+  - Compile speed (D-001): stb_truetype compiles in well under a second; FreeType is dozens of
+    files and an attribution clause in every product's documentation.
+  - Mobile screens are high-DPI, where hinting matters least. Hangul syllables and Latin need no
+    shaping: precomposed syllables map one codepoint to one glyph, and kerning comes from the
+    font's `kern` and GPOS tables.
+  - stb_truetype reads TrueType and CFF (OTF) outlines, including CID-keyed CJK fonts.
+- **Font license**: Noto Sans KR is under the SIL Open Font License 1.1. OFL allows bundling and
+  embedding the font with software under any license, including commercial games; it forbids
+  selling the font on its own and reserves its font names for modified versions. ZARO ships the
+  files unmodified, so D-012 is met. A game that subsets the font to save space must rename it
+  (the Reserved Font Name rule) or use a font without reserved names.
+- **Rejected**:
+  - FreeType: better small-size rendering through hinting, variable fonts and an SDF renderer,
+    but far more to build and an attribution duty. It stays the upgrade path; font code is
+    confined to one file of the `ui` module so the swap stays local.
+  - Signed-distance-field glyphs: one entry serves every size and makes outlines cheap, but
+    complex Hangul glyphs blur at small sizes. Outlines and shadows can be drawn as extra glyph
+    passes later.
+  - Prebaked bitmap fonts: they cannot cover Korean at several sizes in a reasonable atlas.
+- **Revisit when**: a target needs scripts that require shaping (Arabic, Indic, Thai), or text
+  below about 12 px on low-DPI screens looks too soft.
+
+## D-020 UI screens: TOML files of nodes with reflected widget components
+
+- **Decision**: Screens are TOML files, in the same form as scenes (D-017). A `[screen]` table
+  names the screen. Each `[[node]]` has a `name`, an optional `parent` (another node's name, so
+  the tree is a flat list) and `[node.<Widget>]` tables. Widgets (`Layout`, `Panel`, `Label`,
+  `Image`, `Button`, `ScrollList`, `Modal`, …) are plain structs described with the reflection
+  macros and registered like scene components, but marked as UI components so they cannot be
+  used in scenes and vice versa. The scene loader reads both kinds of file, so `zaro check` gives
+  screens the same `file:line:col` errors, range checks and "did you mean" hints, and
+  `zaro schema` lists every widget. Text that starts with `@` is a key into a per-language string
+  table.
+- **Why**:
+  - One format and one loader: an agent that can write a scene can write a screen, and every
+    diagnostic and tool already works.
+  - A flat node list with `parent` keys diffs line by line, and nesting depth costs no
+    indentation. Deeply nested TOML tables would be hard to read and to edit.
+  - Reflected widgets give `zaro.set` from Luau and scene-test `[[expect]]` checks on widget
+    fields for free.
+- **Rejected**:
+  - A dedicated markup (XML-like or KDL-like): trees read more naturally, but it needs a new
+    parser, new error positions and new hints, and agents would learn a second format.
+  - Nested `[[node.children]]` tables: the tree shows in the file, but each level lengthens every
+    table header.
+  - Immediate-mode UI written in Luau: flexible, but screens could no longer be checked without
+    running code, and layouts would not be text assets.
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:
