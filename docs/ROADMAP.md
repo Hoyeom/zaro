@@ -108,7 +108,11 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
     time.
 - **Done when**: the crowd demo can draw its enemies as animated sprites instead of cubes at the M1
   frame rate, and an SVG character from the art pipeline appears in a scene.
-- **Waits for**: P2's atlas and texture support.
+- **Decisions**: D-024 (PlutoSVG on PlutoVG, in the `zaro` tool's cook step only).
+- **Status**: started 2026-11-02. Steps, one PR each: 1 D-024, 2 batched sprites from PNG atlases
+  (screen space and billboards), 3 sprite animation and the crowd's enemies as sprites, 4 the SVG
+  cook and a scene with an SVG character.
+- **Waits for**: P2's atlas and texture support (done).
 - **Runs beside**: P1, P4.
 
 ### P4. Backend plugin (private repository)
@@ -148,4 +152,4 @@ Steamworks, consoles through private porting layers, the Luau type checker, and 
 
 ## Open decisions
 
-- **SVG rasterizer for P3**: it must also pass D-012.
+None at the moment. (The SVG rasterizer for P3 was settled as D-024.)
