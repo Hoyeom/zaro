@@ -1,13 +1,38 @@
 ---
 name: zaro-fx
-description: Visual effects for the neon look (P6, D-029, D-030) — the HDR frame with bloom and its formats, the post-processing passes and tonemap, and how effect components reach render without touching the simulation. Load before adding or changing a Bloom component or another effect component, before editing src/app/fx_layer, src/render/post_renderer or shaders/post.slang, before adding a pass that draws into the 3D view, and when a glow looks wrong or costs too much.
+description: Visual effects for the neon look (P6, D-029, D-030) — glowing shapes (Shape, CrowdShape, ArenaLook) with halos, additive blending, trails and hit flash, the HDR frame with bloom and its formats, the post-processing passes and tonemap, and how effect components reach render without touching the simulation. Load before adding or changing a Shape, CrowdShape, ArenaLook, Bloom or another effect component, before editing src/app/fx_layer, src/app/shape_layer, src/render/post_renderer, src/render/shape_renderer or shaders/post.slang, shape.slang or shape_sdf.slang, before adding a pass that draws into the 3D view, and when a glow looks wrong or costs too much.
 ---
 
 # Visual effects (P6)
 
-Everything here is visual only. Effect components are plain data in `sim/fx_components.h`; the app
-reads them each frame and hands plain settings to `render`. They never feed the simulation, and
-`sim::state_hash` does not include them (D-005).
+Everything here is visual only. Effect components are plain data in `sim/fx_components.h` and
+`sim/shape_components.h`; the app reads them each frame and hands plain data to `render`. They
+never feed the simulation, and `sim::state_hash` does not include them (D-005). `zaro schema` lists
+every field.
+
+## Glowing shapes
+
+- **`Shape`** (any entity): a rect, circle, ring, regular polygon or line. In the world it lies flat
+  on the ground at `position` (y is its height; local +y points to world -z); on the screen it is
+  in pixels. `follow = "player"` draws it at the player's interpolated position plus `position` and
+  hides the player's cube. `intensity` above 1 glows under `Bloom`; `glow` adds a halo of that width
+  beyond the edge; `blend = "add"` adds light, `"alpha"` covers. `spin` turns it on the tick clock.
+- **Trails**: `trail` seconds of positions sampled every tick, drawn as fading, thinning line
+  segments behind the shape (world shapes only).
+- **Hit flash**: `flash` (0..1) turns the shape white and falls by `flash_decay` per second on the
+  tick clock, in `app::step_shapes`. Scripts set it with `zaro.set`; scene tests can expect it.
+- **`CrowdShape`** (one per scene): the enemies as shapes instead of cubes, the first corner along
+  the heading, each with its own hue within `hue_jitter`. Drawn by the crowd renderer in its "main"
+  pass (`vs_enemy_shape` in shaders/crowd_draw.slang), GPU-culled like the cubes.
+- **`ArenaLook`**: a dark ground with a glowing grid, obstacle and background colours.
+- `render::ShapeRenderer` draws all `Shape`s in one "shapes" pass after the crowd and before the
+  sprites: one draw for world shapes (depth-tested, no depth writes), one for screen shapes. Each is
+  a quad shaded from a signed distance (`shaders/shape_sdf.slang`, shared with the crowd shader);
+  `render::ShapeInstance` mirrors `Instance` in shaders/shape.slang (64 bytes).
+- **Errors**: ZE1100 for a CrowdShape beside a CrowdSprite, and for a screen shape that follows the
+  player (`zaro check` reports both).
+- **Tests**: `shape_render_gpu` (every kind at known pixels), `scene_tests_fx` (flash on the tick
+  clock), `check_crowd_two_looks`, `check_screen_shape_follow`, `screenshot_shapes`.
 
 ## The HDR frame and bloom (D-030)
 
