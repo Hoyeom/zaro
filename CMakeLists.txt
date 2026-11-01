@@ -49,7 +49,7 @@ target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
 add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
-  src/scene/theme.cpp src/scene/sprite_sheet.cpp)
+  src/scene/theme.cpp src/scene/sprite_sheet.cpp src/scene/build_extension.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
@@ -254,5 +254,9 @@ if(ZARO_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)
     add_test(NAME lint COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tools/lint.py)
+    # The Android export (version, build extensions, their errors) without an Android build.
+    add_test(NAME android_export
+             COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_android_export.py $<TARGET_FILE:zaro>
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   endif()
 endif()

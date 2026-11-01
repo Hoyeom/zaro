@@ -51,3 +51,18 @@ Commands are in the CLAUDE.md "Commands" table (`tools/android.py setup|doctor|a
   the date they were checked, are D-025; re-check them and record the differences as a new
   D-number.
 - The CI job builds a debug-key AAB and a release AAB with a key it generates for that run.
+
+## Build extensions (D-026)
+
+- A plugin's Android additions are a build extension file (format at the top of
+  `src/scene/build_extension.h`). It holds Gradle dependencies, permissions, a `<manifest>` and an
+  `<application>` XML fragment, and a directory of `.java`/`.kt` sources. A scene names it in
+  `[scene] build_extensions = [...]`.
+- `zaro check <scene>` validates the extensions (ZE0410 for a malformed dependency, permission or
+  fragment, ZE0406 for unknown keys). `zaro export android` fills `@ZARO_GRADLE_DEPENDENCIES@`,
+  `@ZARO_MANIFEST_EXTRA@` and `@ZARO_APPLICATION_EXTRA@` in the template and copies the sources.
+  A source that would replace a runtime or another extension's file is ZE0800 at the extension's
+  `sources` line.
+- Never edit the template for one game or plugin; add a build extension instead.
+- `tests/test_android_export.py` (ctest `android_export`) exports `tests/data/build_extensions/`
+  against a stand-in runtime, so the export is tested without an Android build.

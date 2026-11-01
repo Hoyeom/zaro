@@ -1,0 +1,9 @@
+[build_extension]
+name = "example"
+
+[android]
+dependencies = ["com.example:library:1.2.3"]
+permissions = ["android.permission.VIBRATE"]
+manifest = """<queries><package android:name="com.example.store" /></queries>"""
+application = """<meta-data android:name="com.example.key" android:value="42" />"""
+sources = "java"

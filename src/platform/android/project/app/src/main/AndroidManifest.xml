@@ -5,6 +5,8 @@
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+    <!-- From the scene's build extensions (D-026). -->
+@ZARO_MANIFEST_EXTRA@
 
     <application
         android:label="@ZARO_NAME@"
@@ -26,5 +28,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- From the scene's build extensions (D-026). -->
+@ZARO_APPLICATION_EXTRA@
     </application>
 </manifest>
