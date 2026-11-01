@@ -1,0 +1,23 @@
+# How `zaro build` builds the neon arena (D-027).
+#   zaro build examples/neon/build.toml --plan
+#   python tools/android.py apk examples/neon/scene.toml    (then: python tools/android.py perf)
+[game]
+name = "neon"
+scene = "scene.toml"
+version = "0.1.0"
+
+[environment.dev]
+debug_tools = true
+[environment.dev.config]
+log_level = "info"
+
+[environment.production]
+release = true
+[environment.production.config]
+log_level = "warning"
+
+[[step]]
+stage = "pre"
+name = "scene-tests"
+uses = "test"
+with = ["tests"]
