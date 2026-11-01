@@ -111,8 +111,14 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
   frame rate, and an SVG character from the art pipeline appears in a scene.
 - **Decisions**: D-024 (PlutoSVG on PlutoVG, in the `zaro` tool's cook step only).
 - **Status**: started 2026-11-02. Steps, one PR each: 1 D-024, 2 batched sprites from PNG atlases
-  (screen space and billboards), 3 sprite animation and the crowd's enemies as sprites, 4 the SVG
-  cook and a scene with an SVG character.
+  (screen space and billboards), 3 the SVG cook and a scene with an SVG character, 4 the crowd's
+  enemies as animated sprites.
+  - Step 1 (D-024, the SVG rasterizer): merged (#26).
+  - Step 2 (sprites): sprite sheet files (PNG, grid or explicit frames, pivots, named animations
+    on the tick clock), the `Sprite` component (world billboards and screen sprites), the
+    "sprites" pass with one draw per sheet batch, `zaro check` for sheets (ZE0900-ZE0902), PNG
+    decoding moved to `core`; tests `sprite_sheets`, `sprite_render_gpu`, `scene_tests_sprites`,
+    `screenshot_sprites`.
 - **Waits for**: P2's atlas and texture support (done).
 - **Runs beside**: P1, P4.
 

@@ -1,0 +1,9 @@
+# The Sprite names an animation its sheet does not have (ZE0902 with "did you mean").
+[scene]
+name = "sprite_typo"
+
+[[entity]]
+name = "blob"
+[entity.Sprite]
+sheet = "blob.toml"
+animation = "idel"

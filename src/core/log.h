@@ -37,6 +37,9 @@ enum ErrorId {
     kErrStringTable = 703,    // ZE0703 string table missing, invalid, or missing a key other languages have
     kErrDesignKit = 704,      // ZE0704 design kit missing or invalid, or the theme it makes is out of date
     kErrExport = 800,         // ZE0800 export failed: runtime package missing or a scene file outside the tree
+    kErrSpriteSheet = 900,    // ZE0900 sprite sheet missing or invalid (keys, frames, animations)
+    kErrSpriteImage = 901,    // ZE0901 sheet image missing or not a PNG, or a frame outside it
+    kErrSpriteRef = 902,      // ZE0902 a sprite component names an animation its sheet does not have
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

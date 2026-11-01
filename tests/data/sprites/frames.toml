@@ -1,0 +1,10 @@
+# Explicit frames with their own pivots.
+[sheet]
+image = "blob.png"
+
+[[frame]]
+rect = [0, 0, 32, 32]
+
+[[frame]]
+rect = [32, 0, 32, 32]
+pivot = [0.25, 0.75]

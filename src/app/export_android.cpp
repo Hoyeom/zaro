@@ -7,6 +7,8 @@
 #include "platform/platform.h"
 #include "scene/build_extension.h"
 #include "scene/scene.h"
+#include "scene/sprite_sheet.h"
+#include "sim/sprite_components.h"
 #include "ui/widgets.h"
 #include "zaro/zaro.h"
 
@@ -298,6 +300,20 @@ void free_extensions(ExtensionText* x) {
     free(x->application);
 }
 
+// A sprite sheet and its image.
+void add_sheet_files(PathList& files, const char* doc_path, const char* sheet_rel, bool* ok) {
+    char path[kPath];
+    path_join_relative(doc_path, sheet_rel, path, sizeof(path));
+    *ok &= add_unique(files, path);
+    DiagList* diags = new DiagList();
+    if (scene::SpriteSheet* sheet = scene::load_sprite_sheet(path, diags)) {
+        path_join_relative("", sheet->image, path, sizeof(path));
+        *ok &= add_unique(files, path);
+        scene::free_sprite_sheet(sheet);
+    }
+    delete diags;
+}
+
 // A document's own files: the prefabs of its entities or nodes and the images of its Image widgets,
 // all relative to the document.
 void add_document_files(PathList& files, const scene::Scene* doc, bool* ok) {
@@ -313,6 +329,8 @@ void add_document_files(PathList& files, const scene::Scene* doc, bool* ok) {
             path_join_relative(doc->path, image->path, path, sizeof(path));
             *ok &= add_unique(files, path);
         }
+        const auto* sprite = (const sim::Sprite*)scene::get_component(&en, &sim::kSpriteDesc);
+        if (sprite && sprite->sheet[0]) add_sheet_files(files, doc->path, sprite->sheet, ok);
     }
 }
 

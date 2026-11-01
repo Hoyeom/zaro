@@ -21,10 +21,12 @@ include(ZaroDeps)
 # ("Modules"); tools/lint.py rule Z007 enforces the same graph on #include lines.
 
 add_library(zaro_core STATIC
-  src/core/version.cpp src/core/log.cpp src/core/jobs.cpp src/core/png.cpp
+  src/core/version.cpp src/core/log.cpp src/core/jobs.cpp src/core/png.cpp src/core/png_decode.cpp
   src/core/reflect.cpp src/core/diag.cpp src/core/path.cpp)
 target_include_directories(zaro_core PUBLIC include src)
-target_link_libraries(zaro_core PRIVATE enkiTS)
+target_link_libraries(zaro_core PRIVATE enkiTS zaro_stb_image)
+# png_decode.cpp compiles the stb_image implementation; keep it out of the unity source.
+set_source_files_properties(src/core/png_decode.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 if(ZARO_TRACY)
   target_link_libraries(zaro_core PUBLIC Tracy::TracyClient)
   target_compile_definitions(zaro_core PUBLIC ZARO_TRACY)
@@ -42,12 +44,12 @@ add_library(zaro_rhi STATIC src/rhi/rhi_wgpu.cpp)
 target_link_libraries(zaro_rhi PUBLIC zaro_platform PRIVATE zaro_wgpu)
 zaro_target_defaults(zaro_rhi)
 
-add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp)
+add_library(zaro_sim STATIC src/sim/crowd.cpp src/sim/crowd_components.cpp src/sim/sprite_components.cpp)
 target_link_libraries(zaro_sim PUBLIC zaro_core)
 zaro_target_defaults(zaro_sim)
 
 add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
-  src/scene/theme.cpp src/scene/build_extension.cpp)
+  src/scene/theme.cpp src/scene/sprite_sheet.cpp src/scene/build_extension.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
@@ -55,20 +57,20 @@ add_library(zaro_script STATIC src/script/script.cpp)
 target_link_libraries(zaro_script PUBLIC zaro_scene PRIVATE Luau.VM Luau.Compiler)
 zaro_target_defaults(zaro_script)
 
-add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_renderer.cpp)
+add_library(zaro_render STATIC src/render/crowd_renderer.cpp src/render/ui_renderer.cpp src/render/sprite_renderer.cpp)
 target_link_libraries(zaro_render PUBLIC zaro_rhi)
 zaro_target_defaults(zaro_render)
 
 add_library(zaro_ui STATIC
-  src/ui/draw.cpp src/ui/font.cpp src/ui/text.cpp src/ui/pack.cpp src/ui/image.cpp src/ui/context.cpp
+  src/ui/draw.cpp src/ui/font.cpp src/ui/text.cpp src/ui/pack.cpp src/ui/context.cpp
   src/ui/widgets.cpp src/ui/screen.cpp src/ui/navigator.cpp)
-target_link_libraries(zaro_ui PUBLIC zaro_scene PRIVATE zaro_stb_truetype zaro_stb_image)
-# font.cpp and image.cpp compile stb implementations; keep them out of the unity source.
-set_source_files_properties(src/ui/font.cpp src/ui/image.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+target_link_libraries(zaro_ui PUBLIC zaro_scene PRIVATE zaro_stb_truetype)
+# font.cpp compiles the stb_truetype implementation; keep it out of the unity source.
+set_source_files_properties(src/ui/font.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 zaro_target_defaults(zaro_ui)
 
 add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp src/app/ui_layer.cpp
-  src/app/export_android.cpp src/app/design_import.cpp)
+  src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp)
 target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform
   PRIVATE zaro_cjson)
 zaro_target_defaults(zaro_app)
@@ -83,7 +85,7 @@ else()
 endif()
 target_link_libraries(zaro PRIVATE zaro_app)
 zaro_target_defaults(zaro)
-zaro_add_shaders(zaro shaders/crowd_cull.slang shaders/crowd_draw.slang shaders/ui.slang)
+zaro_add_shaders(zaro shaders/crowd_cull.slang shaders/crowd_draw.slang shaders/ui.slang shaders/sprite.slang)
 zaro_add_fonts(zaro)
 add_custom_command(TARGET zaro POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:zaro_wgpu> $<TARGET_FILE_DIR:zaro>
@@ -154,6 +156,33 @@ if(ZARO_BUILD_TESTS)
   add_dependencies(test_ui_render zaro)
   add_test(NAME ui_render_gpu COMMAND test_ui_render ${CMAKE_BINARY_DIR}/ ${CMAKE_BINARY_DIR}/ui_render_test.png)
   set_tests_properties(ui_render_gpu PROPERTIES LABELS gpu)
+
+  # Sprite sheets: grid and explicit frames, animations, diagnostics with lines.
+  add_executable(test_sprites tests/test_sprites.cpp)
+  target_link_libraries(test_sprites PRIVATE zaro_scene)
+  zaro_target_defaults(test_sprites)
+  add_test(NAME sprite_sheets COMMAND test_sprites WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # Sprites drawn on the GPU: a depth-tested, mirrored billboard and a screen sprite.
+  add_executable(test_sprite_render tests/test_sprite_render.cpp)
+  target_link_libraries(test_sprite_render PRIVATE zaro_render)
+  zaro_target_defaults(test_sprite_render)
+  add_dependencies(test_sprite_render zaro)  # the shaders are built with zaro
+  add_test(NAME sprite_render_gpu COMMAND test_sprite_render ${CMAKE_BINARY_DIR}/ ${CMAKE_BINARY_DIR}/sprite_render_test.png
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(sprite_render_gpu PROPERTIES LABELS gpu)
+  # A scene with sprites stays valid; a misspelt animation is reported at its line.
+  add_test(NAME check_sprite_scene COMMAND zaro check tests/data/sprites/scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME check_sprite_animation COMMAND zaro check tests/data/sprites/typo_scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_sprite_animation PROPERTIES
+    PASS_REGULAR_EXPRESSION "typo_scene.toml:9:1: error\\[ZE0902\\]: entity 'blob': sheet '[^']*blob.toml' has no animation 'idel' \\(did you mean 'idle'")
+  add_test(NAME scene_tests_sprites COMMAND zaro test tests/data/sprites
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME screenshot_sprites
+           COMMAND zaro screenshot tests/data/sprites/scene.toml ${CMAKE_BINARY_DIR}/sprites.png --frames 5 --size 640x360
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_sprites PROPERTIES LABELS gpu)
 
   # The example scene stays valid, and `zaro schema` stays valid JSON.
   add_test(NAME example_crowd_scene COMMAND zaro check examples/crowd/scene.toml

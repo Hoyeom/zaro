@@ -133,8 +133,13 @@ void compute_begin(Device* device, const char* name);
 void compute_dispatch(Device* device, ComputePipeline* pipeline, BindGroup* group, uint32_t groups_x);
 void compute_end(Device* device);
 // clear_rgba nullptr keeps the colour target's contents (a pass drawn over an earlier one).
-void render_begin(Device* device, const char* name, const float clear_rgba[4]);
-void draw(Device* device, RenderPipeline* pipeline, BindGroup* group, uint32_t vertices, uint32_t instances);
+// Depth is cleared and dropped at the end of the pass unless `depth` says otherwise: kDepthStore
+// keeps it for a later pass, which starts from it with kDepthLoad (sprites over the 3D view).
+enum DepthOps : uint32_t { kDepthClear = 0, kDepthStore = 1u << 0, kDepthLoad = 1u << 1 };
+void render_begin(Device* device, const char* name, const float clear_rgba[4], uint32_t depth = kDepthClear);
+// first_instance offsets SV_InstanceID, so one instance buffer can hold several batches.
+void draw(Device* device, RenderPipeline* pipeline, BindGroup* group, uint32_t vertices, uint32_t instances,
+          uint32_t first_instance = 0);
 void draw_indirect(Device* device, RenderPipeline* pipeline, BindGroup* group, Buffer* args);
 void render_end(Device* device);
 void end_frame(Device* device);

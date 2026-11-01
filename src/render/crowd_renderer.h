@@ -16,7 +16,12 @@ struct CrowdScene {
     float arena_size = 256.0f;
     float time_seconds = 0.0f;
     float zoom = 1.0f;  // >1 pulls the camera back
+    bool keep_depth = false;  // keep the depth buffer for a later pass (sprites in the 3D view)
 };
+
+// The camera render_crowd uses for this scene and target size: view-projection (column-major,
+// clip = view_proj * world) and the camera's right vector, for sprites drawn into the same view.
+void crowd_camera(const CrowdScene& scene, uint32_t width, uint32_t height, float view_proj[16], float right[3]);
 
 struct CrowdRenderer;
 

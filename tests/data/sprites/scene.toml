@@ -1,0 +1,30 @@
+# A scene with sprites in the 3D view and on the screen (zaro check, zaro screenshot).
+[scene]
+name = "sprites"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 0
+
+[[entity]]
+name = "blob"
+[entity.Sprite]
+sheet = "blob.toml"
+animation = "idle"
+position = [32.0, 0.0, 32.0]
+scale = 3.0
+
+[[entity]]
+name = "badge"
+[entity.Sprite]
+sheet = "blob.toml"
+space = "screen"
+position = [80.0, 120.0, 0.0]
+scale = 2.0
+frame = 2
