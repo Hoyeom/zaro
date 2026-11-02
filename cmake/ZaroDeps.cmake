@@ -196,15 +196,9 @@ FetchContent_Declare(miniaudio
   SOURCE_SUBDIR _none)
 FetchContent_MakeAvailable(miniaudio)
 file(WRITE ${_ZARO_DEP_BIN}/miniaudio/zaro_miniaudio.c
-  "#define STB_VORBIS_HEADER_ONLY
-#include \"extras/stb_vorbis.c\"
-"
-  "#define MINIAUDIO_IMPLEMENTATION
-#include \"miniaudio.h\"
-"
-  "#undef STB_VORBIS_HEADER_ONLY
-#include \"extras/stb_vorbis.c\"
-")
+  "#define STB_VORBIS_HEADER_ONLY\n#include \"extras/stb_vorbis.c\"\n"
+  "#define MINIAUDIO_IMPLEMENTATION\n#include \"miniaudio.h\"\n"
+  "#undef STB_VORBIS_HEADER_ONLY\n#include \"extras/stb_vorbis.c\"\n")
 add_library(zaro_miniaudio STATIC ${_ZARO_DEP_BIN}/miniaudio/zaro_miniaudio.c)
 target_include_directories(zaro_miniaudio SYSTEM PUBLIC ${miniaudio_SOURCE_DIR})
 target_compile_definitions(zaro_miniaudio PUBLIC MA_NO_DEVICE_IO MA_NO_ENCODING MA_NO_GENERATION)
