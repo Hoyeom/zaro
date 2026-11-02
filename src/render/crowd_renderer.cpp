@@ -259,15 +259,26 @@ float camera_back(const CrowdCamera& c) {
 
 Vec3 camera_eye(const CrowdScene& scene) {
     if (const CrowdCamera* c = scene.camera) {
-        return camera_target(scene) + Vec3{0.0f, c->height, camera_back(*c)} * scene.zoom;
+        // Orthographic: --zoom widens extent instead; the eye only sets the direction, fog and depth.
+        const float zoom = c->orthographic ? 1.0f : scene.zoom;
+        return camera_target(scene) + Vec3{0.0f, c->height, camera_back(*c)} * zoom;
     }
     return camera_target(scene) + Vec3{0.0f, 30.0f, 24.0f} * scene.zoom;
 }
 
+// Whether fov (or extent) spans the screen's width for this aspect, as fov_axis says.
+bool camera_spans_width(const CrowdCamera& c, float aspect) { return c.fov_axis == 1 || (c.fov_axis == 2 && aspect < 1.0f); }
+
 // The vertical field of view for this aspect: fov spans the side fov_axis names.
 float camera_fov_y(const CrowdCamera& c, float aspect) {
-    const bool horizontal = c.fov_axis == 1 || (c.fov_axis == 2 && aspect < 1.0f);
-    return horizontal ? 2.0f * atanf(tanf(c.fov * 0.5f) / aspect) : c.fov;
+    return camera_spans_width(c, aspect) ? 2.0f * atanf(tanf(c.fov * 0.5f) / aspect) : c.fov;
+}
+
+// Orthographic (D-038): extent metres span the side fov_axis names.
+Mat4 camera_orthographic(const CrowdCamera& c, float aspect, float zoom, float far_plane) {
+    const float half = c.extent * 0.5f * zoom;
+    const bool width = camera_spans_width(c, aspect);
+    return orthographic(width ? half : half * aspect, width ? half / aspect : half, 0.5f, far_plane);
 }
 
 Mat4 camera_view_proj(const CrowdScene& scene, uint32_t width, uint32_t height) {
@@ -277,7 +288,9 @@ Mat4 camera_view_proj(const CrowdScene& scene, uint32_t width, uint32_t height) 
         const Vec3 eye = camera_eye(scene);
         const float far_plane = 600.0f + eye.y;
         const Vec3 up = camera_back(*c) > 1e-3f * c->height ? Vec3{0, 1, 0} : Vec3{0, 0, -1};
-        return mul(perspective(camera_fov_y(*c, aspect), aspect, 0.5f, far_plane), look_at(eye, camera_target(scene), up));
+        const Mat4 proj = c->orthographic ? camera_orthographic(*c, aspect, scene.zoom, far_plane)
+                                          : perspective(camera_fov_y(*c, aspect), aspect, 0.5f, far_plane);
+        return mul(proj, look_at(eye, camera_target(scene), up));
     }
     return mul(perspective(0.87f, aspect, 0.5f, 600.0f), look_at(camera_eye(scene), camera_target(scene), Vec3{0, 1, 0}));
 }

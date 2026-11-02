@@ -100,6 +100,34 @@ int main() {
     project(vp, 45.0f, 0.0f, 60.0f, &nx, &ny);
     expect(nx > 0.0f && nx < low_x * 0.6f, "a higher camera shows more around the target");
 
+    // Orthographic and straight down (D-038): `extent` metres across the shorter side whatever the
+    // height, and no foreshortening, so the view reads as flat 2D.
+    cam.orthographic = true;
+    cam.extent = 24.0f;
+    cam.fov_axis = 2;
+    cam.pitch = radians(90.0f);
+    const float heights[2] = {30.0f, 300.0f};
+    for (float h : heights) {
+        cam.height = h;
+        render::crowd_camera(scene, 1080, 1920, vp, right);
+        project(vp, 40.0f + 12.0f, 0.0f, 60.0f, &nx, &ny);
+        expect(fabsf(nx - 1.0f) < 1e-4f && fabsf(ny) < 1e-4f, "orthographic portrait: extent spans the width");
+        project(vp, 40.0f, 0.0f, 60.0f - 12.0f, &nx, &ny);
+        expect(fabsf(ny - 12.0f / (12.0f * 1920.0f / 1080.0f)) < 1e-4f, "orthographic portrait: -z is up, unstretched");
+        float hx, hy;
+        project(vp, 46.0f, 5.0f, 57.0f, &hx, &hy);
+        project(vp, 46.0f, 0.0f, 57.0f, &nx, &ny);
+        expect(fabsf(hx - nx) < 1e-5f && fabsf(hy - ny) < 1e-5f, "orthographic from above: height does not move a point");
+    }
+    render::crowd_camera(scene, 1920, 1080, vp, right);
+    project(vp, 40.0f, 0.0f, 60.0f - 12.0f, &nx, &ny);
+    expect(fabsf(ny - 1.0f) < 1e-4f, "orthographic landscape: extent spans the height");
+    scene.zoom = 2.0f;
+    render::crowd_camera(scene, 1920, 1080, vp, right);
+    project(vp, 40.0f, 0.0f, 60.0f - 12.0f, &nx, &ny);
+    expect(fabsf(ny - 0.5f) < 1e-4f, "--zoom widens an orthographic view");
+    scene.zoom = 1.0f;
+
     if (g_failures) return 1;
     printf("camera: ok\n");
     return 0;
