@@ -840,6 +840,9 @@ Status of all entries below: **accepted, 2026-11-01**.
     volume and a pitch range, and a voice limit and cooldown, so ten thousand hits in a tick play a
     few voices. Short sounds are decoded into memory when the scene loads; music is streamed and
     loops, with fades between tracks.
+  - **Synthesized sounds**: instead of a file, a sound can be a tone (a waveform, a frequency
+    glide, an attack and release) or a pattern of notes over several tracks, such as a music loop.
+    The engine renders it into samples when the scene loads, and it plays like any other sound.
   - **Volume groups** are declared in the same file under one `master`. A group can follow a field
     of the game's save (D-033), which is the settings hook: a settings screen changes the field
     and the volume follows, and it is kept across runs without script code.
@@ -858,6 +861,9 @@ Status of all entries below: **accepted, 2026-11-01**.
   - Taking only the mixer keeps OS audio APIs inside `platform`, like windows and input: a console
     port replaces SDL's output there and nothing else. SDL3 is already the platform layer on every
     target, and its Android backend (AAudio, OpenSL ES) is the one the rest of the app uses.
+  - P6 asks for `examples/neon` built only from text assets, and G1's art is code (D-029).
+    Synthesized sounds let its sound be text too, reviewable and diffable like its shapes, while
+    real recordings still play from files when a game has them.
   - 0.11.26 rather than an older pin: it fixes the ends of sounds being cut off and a race when
     group volumes change during playback, both on the paths ZARO uses.
   - A record-only null device lets tests check sound behaviour on CI machines, which have no audio
