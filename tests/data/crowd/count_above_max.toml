@@ -1,0 +1,9 @@
+# A spawner that asks for more enemies at start than it reserves (ZE1400 at the horde entity).
+[scene]
+name = "count-above-max"
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 500
+max = 400

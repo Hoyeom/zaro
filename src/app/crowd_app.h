@@ -47,6 +47,10 @@ struct RunOptions {
 // Returns the process exit code.
 int run_crowd(const RunOptions& options);
 
+// Checks the scene's crowd components: a CrowdSpawner whose count is above its max is ZE1400
+// (D-034). Returns false after adding diagnostics. `zaro check` and every run call it.
+bool check_crowd(const scene::Scene* scene, DiagList* diags);
+
 struct SimulateResult {
     uint64_t state_hash = 0;
     uint64_t ticks = 0;

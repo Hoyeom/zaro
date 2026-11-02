@@ -14,7 +14,8 @@ struct CrowdArena {
 };
 
 struct CrowdSpawner {
-    uint32_t count = 50000;
+    uint32_t count = 50000;  // scripts may change it while the game runs, up to max (D-034)
+    uint32_t max = 0;        // most enemies at once; 0: count at start
     float speed = 4.0f;
     float radius = 0.35f;
 };

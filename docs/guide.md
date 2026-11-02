@@ -82,7 +82,7 @@ A headless run prints the simulation's state hash. The same scene, seed and tick
 give the same hash, whatever the thread count (`--threads 1` prints the same line):
 
 ```
-state_hash=8a0417d00cbf17dd ticks=600
+state_hash=75d1f56558b67adf ticks=600
 ```
 
 `zaro run --headless --perf perf.json` renders offscreen and writes timings; see
@@ -112,7 +112,7 @@ $ zaro run mygame/scene.toml --sim-only --warmup 0 --frames 1200
 script: horde of 5000
 script: tick 600 horde speed 4
 script: tick 1200 horde speed 5
-state_hash=1baf3a4dfcecb5c1 ticks=1200
+state_hash=ed46e8edabeee539 ticks=1200
 ```
 
 `on_tick` runs at 60 Hz, before each simulation tick. `zaro.set` can change any field the schema
@@ -137,7 +137,7 @@ equals = 5.0
 
 ```
 $ zaro test mygame
-PASS mygame/tests/speedup.test.toml (1200 ticks, state_hash 1baf3a4dfcecb5c1)
+PASS mygame/tests/speedup.test.toml (1200 ticks, state_hash ed46e8edabeee539)
 zaro test: 1 passed, 0 failed
 ```
 
@@ -146,14 +146,14 @@ outcome fails the test until you accept it with `--update` again:
 
 ```
 $ zaro test mygame --update
-PASS mygame/tests/speedup.test.toml (1200 ticks, state_hash 1baf3a4dfcecb5c1, golden updated)
+PASS mygame/tests/speedup.test.toml (1200 ticks, state_hash ed46e8edabeee539, golden updated)
 ```
 
 A script error fails the test and points at the script line:
 
 ```
 $ zaro test mygame
-FAIL mygame/tests/speedup.test.toml (600 ticks, state_hash 8a0417d00cbf17dd)
+FAIL mygame/tests/speedup.test.toml (600 ticks, state_hash 75d1f56558b67adf)
 mygame/game.luau:9:1: error[ZE0501]: CrowdSpawner has no field 'sped' (did you mean 'speed'?)
 zaro test: 0 passed, 1 failed
 ```
