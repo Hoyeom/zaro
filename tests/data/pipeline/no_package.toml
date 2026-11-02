@@ -1,0 +1,9 @@
+# A release environment without [game] package (tests/test_build_pipeline.py).
+[game]
+name = "no-package"
+scene = "game/scene.toml"
+version = "1.0"
+version_code = 1
+
+[environment.production]
+release = true

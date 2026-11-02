@@ -18,13 +18,17 @@ are in D-022.
 ## Building a release bundle
 
 A release goes through the game's build pipeline (D-027). The game has a build file with its
-version and a release environment (format at the top of `src/scene/build_spec.h`), for example:
+version, its package name and a release environment (format at the top of
+`src/scene/build_spec.h`), for example:
 
 ```toml
 [game]
 name = "mygame"
 scene = "scene.toml"
 version = "1.4.0"
+package = "com.example.mygame"   # fixed at the first upload
+title = "My Game"                # the name under the icon
+orientation = "portrait"         # or "landscape" (the default)
 
 [environment.production]
 release = true
@@ -37,8 +41,8 @@ python tools/android.py aab game/build.toml --env production --release --version
 
 This runs `zaro build game/build.toml --target android --release`, which checks everything below
 before it builds anything. `--release` needs a release environment (`release = true`, which can
-never enable debug tools) and a version code. It reads the upload key from the environment only,
-and stops with an error (ZE1003) naming each missing variable:
+never enable debug tools), a version code and `package` in `[game]`. It reads the upload key from
+the environment only, and stops with an error (ZE1003) naming each missing variable:
 
 | Variable | Value |
 |---|---|
@@ -49,6 +53,14 @@ and stops with an error (ZE1003) naming each missing variable:
 
 The version code comes from `--version-code` or `version_code` in `[game]`. Every upload needs a
 higher one, up to 2100000000. `version` in `[game]` is what players see.
+
+Choose `package` before the first upload: Google Play fixes the package name (application id)
+then, and the app can never be renamed. It is reverse-domain style, two or more parts of letters,
+digits and `_`, each starting with a letter. A build without it is named `dev.zaro.<scene name>`,
+which is fine for local test builds but refused for a release. `title` and `orientation` can
+change with any update; without them the app is named after the scene and runs in landscape.
+`zaro build <build.toml> --target android --plan` shows all three under the export stage. The
+rules and their reasons are D-037.
 
 The pipeline checks the result before it reports success:
 

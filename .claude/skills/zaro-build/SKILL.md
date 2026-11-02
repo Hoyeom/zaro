@@ -1,6 +1,6 @@
 ---
 name: zaro-build
-description: The game build pipeline (D-027) — zaro build and its stages (validate, pre, native, export, post, package, sign), game build files with versions, environments and config, pre and post steps from the game and from plugins' build extensions, built-in steps (check, test, design-check, cook-svg) and how to add one, build_info.toml stamping, the release rule against debug tools, and the ZE1000-ZE1002 errors. Load before writing or changing a build.toml, a [[step]], a built-in step in src/app/pipeline.cpp, or anything a target's build stages run.
+description: The game build pipeline (D-027) — zaro build and its stages (validate, pre, native, export, post, package, sign), game build files with versions, environments and config, pre and post steps from the game and from plugins' build extensions, built-in steps (check, test, design-check, cook-svg) and how to add one, build_info.toml stamping, the app's package name, title and orientation, the release rule against debug tools, and the ZE1000-ZE1003 errors. Load before writing or changing a build.toml, a [[step]], a built-in step in src/app/pipeline.cpp, or anything a target's build stages run.
 ---
 
 # The build pipeline (D-027)
@@ -21,8 +21,13 @@ at the top of `src/scene/build_spec.h`; the stages and the runner are described 
 
   The tools come from the checkout zaro was built from (`ZARO_SOURCE_DIR`, `ZARO_PYTHON` in
   CMakeLists.txt). Usually run as `tools/android.py aab|apk <build.toml>` (zaro-android).
-- **Release**: `--release` needs `--target`, a release environment, a version code and the four
-  `ZARO_UPLOAD_*` variables. validate reports every missing one (ZE1003) before anything builds.
+- **App identity** (D-037): `[game] package`, `title` and `orientation` (`portrait` or
+  `landscape`) go to the export as `--package`, `--title` and `--portrait`; `--plan` prints them
+  under export. Unset keys keep the export's defaults (`dev.zaro.<scene name>`, the scene's name,
+  landscape). The rules are `scene::valid_package_name` and `scene::valid_app_title` (ZE1000).
+- **Release**: `--release` needs `--target`, a release environment, a version code, `[game]
+  package` and the four `ZARO_UPLOAD_*` variables. validate reports every missing one (ZE1003)
+  before anything builds.
 - **Validate first**: `--plan` loads the build file, runs `zaro check` on the scene, loads every
   build extension and checks each step, then prints the plan and runs nothing. Use it after any
   edit.

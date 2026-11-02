@@ -54,6 +54,20 @@ def main() -> int:
         check("game/plugin/build_extension.toml" not in assets and not any(a.endswith(".java") for a in assets),
               "the scene's build extensions and sources are not game assets", str(assets))
 
+        # The app identity (D-037): package, the label under the icon and the orientation.
+        r = zaro("export", "android", str(DATA / "scene.toml"), "--runtime", str(runtime), "--out", str(tmp / "id"),
+                 "--package", "com.example.arena", "--title", "Neon Arena 2", "--portrait")
+        check(r.returncode == 0, "export with package, title and orientation", r.stdout + r.stderr)
+        gradle = (tmp / "id/app/build.gradle").read_text()
+        manifest = (tmp / "id/app/src/main/AndroidManifest.xml").read_text()
+        check("applicationId = 'com.example.arena'" in gradle, "package", gradle)
+        check('android:label="Neon Arena 2"' in manifest and 'android:screenOrientation="sensorPortrait"' in manifest,
+              "title and orientation", manifest)
+        r = zaro("export", "android", str(DATA / "scene.toml"), "--runtime", str(runtime), "--out", str(tmp / "id"),
+                 "--title", "@string/app")
+        check(r.returncode == 2 and "--title '@string/app'" in r.stdout + r.stderr, "title read as a resource",
+              r.stdout + r.stderr)
+
         # Exporting again into the same project replaces its own files without a clash.
         r = zaro("export", "android", str(DATA / "scene.toml"), "--runtime", str(runtime), "--out", str(out))
         check(r.returncode == 0, "export again into the same project", r.stdout + r.stderr)

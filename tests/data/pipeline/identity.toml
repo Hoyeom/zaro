@@ -1,0 +1,10 @@
+# Invalid [game] package, title and orientation (tests/test_build_pipeline.py).
+[game]
+name = "identity"
+scene = "game/scene.toml"
+version = "1.0"
+package = "com.example."
+title = "Cat's <Arena>"
+orientation = "sideways"
+
+[environment.dev]
