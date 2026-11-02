@@ -328,6 +328,8 @@ const render::CrowdCamera* frame_camera(Game& g, float player_x, float player_z,
     out.pitch = c->pitch * kRadians;
     out.fov = c->fov * kRadians;
     out.fov_axis = c->fov_axis;
+    out.orthographic = c->projection == sim::kProjectionOrthographic;
+    out.extent = c->extent;
     out.fog = c->fog;
     return &out;
 }

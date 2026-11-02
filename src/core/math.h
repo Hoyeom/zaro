@@ -54,6 +54,13 @@ inline Mat4 perspective(float fov_y_radians, float aspect, float z_near, float z
     return {{f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, r, -1, 0, 0, r * z_near, 0}};
 }
 
+// Right-handed orthographic projection with WebGPU clip depth [0, 1]: view x in [-half_width,
+// half_width] and y in [-half_height, half_height] fill the target.
+inline Mat4 orthographic(float half_width, float half_height, float z_near, float z_far) {
+    const float r = 1.0f / (z_near - z_far);
+    return {{1.0f / half_width, 0, 0, 0, 0, 1.0f / half_height, 0, 0, 0, 0, r, 0, 0, 0, r * z_near, 1}};
+}
+
 // Frustum planes (a, b, c, d) with inward normals, unnormalized: inside when dot >= 0.
 // Order: left, right, bottom, top, near, far.
 inline void frustum_planes(const Mat4& vp, float out[6][4]) {

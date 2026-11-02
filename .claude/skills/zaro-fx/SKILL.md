@@ -68,10 +68,14 @@ every field.
   (`follow = "player"`) or `target`, plus `offset`, eased with `lag` seconds on the frame clock in
   `app::frame_camera`; `fog` is where distance fog starts. Without one, `render::CrowdScene::camera`
   is nullptr and the view is the old fixed one (30 m up, 24 m back, 0.87 rad vertical).
+- `projection = "orthographic"` (D-038) shows `extent` metres across `fov_axis` with no
+  foreshortening; with `pitch = 90` it is a flat top-down view (tests/data/fx/camera_flat.toml).
+  Upright things (world sprites, CrowdSprite, obstacle walls) are edge-on from there.
 - Every pass in the 3D view gets the camera from `render::crowd_camera` and
   `render::crowd_camera_forward`; the right vector is +x whenever a Camera is set.
 - **Tests**: `scene_camera` (tests/test_camera.cpp: the defaults match the old view, the shorter
-  side on portrait and landscape, straight down), `screenshot_camera` (540x960).
+  side on portrait and landscape, straight down, orthographic), `screenshot_camera` and
+  `screenshot_camera_flat` (540x960).
 
 ## The HDR frame and bloom (D-030)
 

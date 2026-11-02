@@ -247,7 +247,9 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
     - Step 3 (D-035): the `Camera` component: height, pitch, field of view across the vertical, the
       horizontal or the shorter side (portrait phones keep their width), following the player or a
       point with an offset and lag, and where fog starts. Visual only. Tests `scene_camera`,
-      `check_camera_scene`, `screenshot_camera` (a portrait screen). With this the track is done.
+      `check_camera_scene`, `screenshot_camera` (a portrait screen) (#53). Then D-038: an orthographic
+      projection (`extent` metres across `fov_axis`), straight down for a flat 2D look; tests
+      `scene_camera`, `screenshot_camera_flat`. With this the track is done.
 - **Done when**: `examples/neon`, a small arena where the player sweeps a few thousand glowing
   enemies, is built only from scenes, scripts and text assets. It has bloom, particles, tweens, sound
   and a saved best score, runs at a stable 60 fps on PC and on a mid-range Android phone, and is

@@ -42,6 +42,8 @@ struct CrowdCamera {
     float pitch = 0.896f;   // radians below the horizon, up to pi/2 (straight down)
     float fov = 0.87f;      // radians across fov_axis
     uint32_t fov_axis = 0;  // 0 the vertical side, 1 the horizontal side, 2 the shorter side
+    bool orthographic = false;  // D-038: no foreshortening; `extent` replaces fov
+    float extent = 40.0f;       // orthographic: metres across fov_axis (times CrowdScene::zoom)
     float fog = 60.0f;      // metres from the camera where distance fog starts (full 140 m later)
 };
 

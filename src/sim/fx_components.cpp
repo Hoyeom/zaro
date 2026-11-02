@@ -68,6 +68,7 @@ const reflect::FieldDesc kParticleEmitterFields[] = {
 
 const char* const kCameraFollows[] = {"player", "none", nullptr};
 const char* const kFovAxes[] = {"vertical", "horizontal", "shorter", nullptr};
+const char* const kProjections[] = {"perspective", "orthographic", nullptr};
 
 const reflect::FieldDesc kCameraFields[] = {
     ZARO_FIELD_RANGE(Camera, height, kF32, "Metres above the point it looks at (times zaro run --zoom)", 1.0, 2000.0),
@@ -77,6 +78,12 @@ const reflect::FieldDesc kCameraFields[] = {
                     "Which side of the screen fov spans: vertical, horizontal, or the shorter one (a portrait phone "
                     "keeps its width)",
                     kFovAxes),
+    ZARO_FIELD_ENUM(Camera, projection,
+                    "perspective: a field of view; orthographic: extent metres across fov_axis, no foreshortening "
+                    "(with pitch 90 the view is flat, as 2D)",
+                    kProjections),
+    ZARO_FIELD_RANGE(Camera, extent, kF32, "Orthographic: metres of the world across fov_axis (times zaro run --zoom)",
+                     0.5, 10000.0),
     ZARO_FIELD_ENUM(Camera, follow, "player: looks at the player; none: looks at target", kCameraFollows),
     ZARO_FIELD(Camera, target, kVec3, "World point it looks at when follow = none"),
     ZARO_FIELD(Camera, offset, kVec3, "Added to the point it looks at, in metres (z below 0 shows more of -z)"),

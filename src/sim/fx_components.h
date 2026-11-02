@@ -73,16 +73,21 @@ struct ParticleEmitter {
 
 enum CameraFollow : uint32_t { kCameraFollowPlayer, kCameraFollowNone };
 enum CameraFovAxis : uint32_t { kFovVertical, kFovHorizontal, kFovShorter };
+enum CameraProjection : uint32_t { kProjectionPerspective, kProjectionOrthographic };
 
 // The 3D view's camera, one per scene (the first counts; D-035). It looks down at a point from
 // `height` metres above it, tilted `pitch` degrees below the horizon, from the +z side (the screen's
 // up is -z). Without one the camera is 30 m above and 24 m behind the player with a 50-degree
-// vertical field of view, which these defaults match.
+// vertical field of view, which these defaults match. With projection = "orthographic" (D-038) it
+// shows `extent` metres across fov_axis instead of a field of view; with pitch 90 the view is flat
+// and straight down, reading as 2D.
 struct Camera {
     float height = 30.0f;  // metres above the point it looks at (times `zaro run --zoom`)
     float pitch = 51.34f;  // degrees below the horizon; 90 looks straight down
     float fov = 49.85f;    // degrees across fov_axis
     uint32_t fov_axis = kFovVertical;
+    uint32_t projection = kProjectionPerspective;
+    float extent = 40.0f;  // orthographic: metres of the world across fov_axis (times --zoom)
     uint32_t follow = kCameraFollowPlayer;
     float target[3] = {};  // the point it looks at when follow = none
     float offset[3] = {};  // added to the point it looks at

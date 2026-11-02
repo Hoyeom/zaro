@@ -1039,6 +1039,23 @@ Status of all entries below: **accepted, 2026-11-01**.
   non-ASCII titles belong in the build file. Per-environment ids (a `.dev` suffix so a test build
   installs beside the store build) are not supported yet; they would be an environment key.
 
+## D-038 An orthographic camera for a flat, top-down look
+
+- **Status**: accepted, 2026-11-02. Extends D-035.
+- **Decision**: `Camera.projection` is `perspective` (the default, D-035) or `orthographic`. An
+  orthographic camera shows `extent` metres of the world across the side `fov_axis` names (with
+  `shorter`, the shorter side of the screen, so a portrait phone and a landscape window show the
+  same ground around the player) and has no foreshortening. With `pitch = 90` it looks straight
+  down, so the arena reads as flat 2D. Height, follow, offset, lag and fog work as with a
+  perspective camera; `zaro run --zoom` widens `extent`.
+- **Why**: the first game's look is flat 2D rather than a tilted 3D view. Sizing the view in metres
+  of the arena is how a designer thinks about a top-down screen, and spanning the shorter side
+  keeps that amount on every aspect ratio. Keeping perspective the default leaves existing scenes,
+  screenshots and golden hashes as they are, and the camera stays visual only (D-005).
+- **Consequences**: from straight above, upright things (world sprites, `CrowdSprite` enemies,
+  obstacle walls) are seen edge-on or from their tops; a flat game draws with shapes. A shape on
+  the ground needs a small height (`position` y) to stay above the ground plane, as in perspective.
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:
