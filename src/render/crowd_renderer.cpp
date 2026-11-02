@@ -15,7 +15,7 @@ struct FrameConstants {
     float view_proj[16];
     float planes[6][4];
     float player[4];  // x, z, time, arena size
-    float camera[4];
+    float camera[4];  // world position, where distance fog starts
     uint32_t enemy_count;
     uint32_t obstacle_count;
     uint32_t pad[2];
@@ -235,17 +235,44 @@ void destroy_crowd_renderer(CrowdRenderer* r) {
 namespace {
 
 Vec3 camera_target(const CrowdScene& scene) {
+    if (const CrowdCamera* c = scene.camera) {
+        return Vec3{c->target[0] + scene.camera_offset[0], c->target[1], c->target[2] + scene.camera_offset[1]};
+    }
     return Vec3{scene.player_x + scene.camera_offset[0], 0.0f, scene.player_z + scene.camera_offset[1]};
 }
 
-Vec3 camera_eye(const CrowdScene& scene) { return camera_target(scene) + Vec3{0.0f, 30.0f, 24.0f} * scene.zoom; }
+// How far behind the target the camera is (+z), for its height and pitch; 0 when looking straight down.
+float camera_back(const CrowdCamera& c) {
+    return c.pitch < 1.5706f ? c.height / tanf(c.pitch) : 0.0f;
+}
+
+Vec3 camera_eye(const CrowdScene& scene) {
+    if (const CrowdCamera* c = scene.camera) {
+        return camera_target(scene) + Vec3{0.0f, c->height, camera_back(*c)} * scene.zoom;
+    }
+    return camera_target(scene) + Vec3{0.0f, 30.0f, 24.0f} * scene.zoom;
+}
+
+// The vertical field of view for this aspect: fov spans the side fov_axis names.
+float camera_fov_y(const CrowdCamera& c, float aspect) {
+    const bool horizontal = c.fov_axis == 1 || (c.fov_axis == 2 && aspect < 1.0f);
+    return horizontal ? 2.0f * atanf(tanf(c.fov * 0.5f) / aspect) : c.fov;
+}
 
 Mat4 camera_view_proj(const CrowdScene& scene, uint32_t width, uint32_t height) {
     const float aspect = height ? (float)width / (float)height : 1.0f;
+    if (const CrowdCamera* c = scene.camera) {
+        // Far enough for the whole arena seen from this height; the screen's up is -z, also from straight above.
+        const Vec3 eye = camera_eye(scene);
+        const float far_plane = 600.0f + eye.y;
+        const Vec3 up = camera_back(*c) > 1e-3f * c->height ? Vec3{0, 1, 0} : Vec3{0, 0, -1};
+        return mul(perspective(camera_fov_y(*c, aspect), aspect, 0.5f, far_plane), look_at(eye, camera_target(scene), up));
+    }
     return mul(perspective(0.87f, aspect, 0.5f, 600.0f), look_at(camera_eye(scene), camera_target(scene), Vec3{0, 1, 0}));
 }
 
 Vec3 camera_right(const CrowdScene& scene) {
+    if (scene.camera) return Vec3{1.0f, 0.0f, 0.0f};  // the camera never turns about the vertical
     return normalize(cross(camera_target(scene) - camera_eye(scene), Vec3{0, 1, 0}));
 }
 
@@ -286,7 +313,7 @@ void render_crowd(CrowdRenderer* r, const CrowdScene& scene) {
     fc.camera[0] = eye.x;
     fc.camera[1] = eye.y;
     fc.camera[2] = eye.z;
-    fc.camera[3] = 1.0f;
+    fc.camera[3] = scene.camera ? scene.camera->fog : 60.0f;  // where fog starts
     fc.enemy_count = count;
     fc.obstacle_count = r->obstacle_count;
     fc.pad[0] = fc.pad[1] = 0;

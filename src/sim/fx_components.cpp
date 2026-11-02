@@ -66,6 +66,26 @@ const reflect::FieldDesc kParticleEmitterFields[] = {
     ZARO_FIELD_RANGE(ParticleEmitter, spread, kF32, "Degrees around the direction; 360: every way", 0.0, 360.0),
 };
 
+const char* const kCameraFollows[] = {"player", "none", nullptr};
+const char* const kFovAxes[] = {"vertical", "horizontal", "shorter", nullptr};
+
+const reflect::FieldDesc kCameraFields[] = {
+    ZARO_FIELD_RANGE(Camera, height, kF32, "Metres above the point it looks at (times zaro run --zoom)", 1.0, 2000.0),
+    ZARO_FIELD_RANGE(Camera, pitch, kF32, "Degrees below the horizon; 90 looks straight down", 10.0, 90.0),
+    ZARO_FIELD_RANGE(Camera, fov, kF32, "Field of view in degrees, across fov_axis", 5.0, 150.0),
+    ZARO_FIELD_ENUM(Camera, fov_axis,
+                    "Which side of the screen fov spans: vertical, horizontal, or the shorter one (a portrait phone "
+                    "keeps its width)",
+                    kFovAxes),
+    ZARO_FIELD_ENUM(Camera, follow, "player: looks at the player; none: looks at target", kCameraFollows),
+    ZARO_FIELD(Camera, target, kVec3, "World point it looks at when follow = none"),
+    ZARO_FIELD(Camera, offset, kVec3, "Added to the point it looks at, in metres (z below 0 shows more of -z)"),
+    ZARO_FIELD_RANGE(Camera, lag, kF32, "Seconds the view takes to close most (63%) of the gap to a moving point; 0: none",
+                     0.0, 10.0),
+    ZARO_FIELD_RANGE(Camera, fog, kF32, "Metres from the camera where distance fog starts (it is full 140 m later)",
+                     0.0, 100000.0),
+};
+
 }  // namespace
 
 ZARO_VISUAL_COMPONENT(ScreenFx, "Screen shake and full-screen flash that fall on the tick clock (one per scene)",
@@ -73,6 +93,8 @@ ZARO_VISUAL_COMPONENT(ScreenFx, "Screen shake and full-screen flash that fall on
 ZARO_VISUAL_COMPONENT(CrowdFx, "Sparks, shake and flash when an enemy of the crowd reaches the player", kCrowdFxFields);
 ZARO_VISUAL_COMPONENT(ParticleEmitter, "GPU sparks from a point: a steady rate, or a burst a script fires",
                kParticleEmitterFields);
+ZARO_VISUAL_COMPONENT(Camera, "The 3D view's camera: height, pitch, field of view and what it follows (one per scene)",
+                      kCameraFields);
 ZARO_VISUAL_COMPONENT(Bloom, "Renders the 3D view in HDR: colours brighter than the threshold glow (D-030)", kBloomFields);
 
 void register_fx_components() {
@@ -80,6 +102,7 @@ void register_fx_components() {
     reflect::register_component(&kScreenFxDesc);
     reflect::register_component(&kCrowdFxDesc);
     reflect::register_component(&kParticleEmitterDesc);
+    reflect::register_component(&kCameraDesc);
 }
 
 }  // namespace zaro::sim

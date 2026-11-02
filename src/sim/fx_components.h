@@ -71,10 +71,30 @@ struct ParticleEmitter {
     float spread = 360.0f;   // degrees around the direction
 };
 
+enum CameraFollow : uint32_t { kCameraFollowPlayer, kCameraFollowNone };
+enum CameraFovAxis : uint32_t { kFovVertical, kFovHorizontal, kFovShorter };
+
+// The 3D view's camera, one per scene (the first counts; D-035). It looks down at a point from
+// `height` metres above it, tilted `pitch` degrees below the horizon, from the +z side (the screen's
+// up is -z). Without one the camera is 30 m above and 24 m behind the player with a 50-degree
+// vertical field of view, which these defaults match.
+struct Camera {
+    float height = 30.0f;  // metres above the point it looks at (times `zaro run --zoom`)
+    float pitch = 51.34f;  // degrees below the horizon; 90 looks straight down
+    float fov = 49.85f;    // degrees across fov_axis
+    uint32_t fov_axis = kFovVertical;
+    uint32_t follow = kCameraFollowPlayer;
+    float target[3] = {};  // the point it looks at when follow = none
+    float offset[3] = {};  // added to the point it looks at
+    float lag = 0.0f;      // seconds to close most of the gap to a moving point; 0: none
+    float fog = 60.0f;     // metres from the camera where distance fog starts
+};
+
 extern const reflect::ComponentDesc kBloomDesc;
 extern const reflect::ComponentDesc kScreenFxDesc;
 extern const reflect::ComponentDesc kCrowdFxDesc;
 extern const reflect::ComponentDesc kParticleEmitterDesc;
+extern const reflect::ComponentDesc kCameraDesc;
 
 void register_fx_components();
 

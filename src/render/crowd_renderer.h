@@ -32,6 +32,17 @@ struct ArenaColors {
     float sky[3] = {};
 };
 
+// The 3D view's camera, from a scene's Camera component (D-035). It looks at `target` from `height`
+// metres above it, tilted `pitch` below the horizon from the +z side, so the screen's up is -z.
+struct CrowdCamera {
+    float target[3] = {};   // the point it looks at, before CrowdScene::camera_offset
+    float height = 30.0f;   // metres above target (times CrowdScene::zoom)
+    float pitch = 0.896f;   // radians below the horizon, up to pi/2 (straight down)
+    float fov = 0.87f;      // radians across fov_axis
+    uint32_t fov_axis = 0;  // 0 the vertical side, 1 the horizontal side, 2 the shorter side
+    float fog = 60.0f;      // metres from the camera where distance fog starts (full 140 m later)
+};
+
 struct CrowdScene {
     const float* enemy_instances = nullptr;  // enemy_count * (x, z, heading_x, heading_z)
     uint32_t enemy_count = 0;
@@ -46,6 +57,8 @@ struct CrowdScene {
     bool draw_player = true;  // false when something else (a Shape following it) draws the player
     const CrowdShapes* enemy_shapes = nullptr;  // the enemies' look when created with shapes
     const ArenaColors* arena = nullptr;  // nullptr: the grey checkerboard
+    // nullptr: 30 m above and 24 m behind the player, 0.87 rad vertical field of view.
+    const CrowdCamera* camera = nullptr;
 };
 
 // The camera render_crowd uses for this scene and target size: view-projection (column-major,

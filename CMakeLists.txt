@@ -315,6 +315,17 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro screenshot tests/data/fx/shapes.toml ${CMAKE_BINARY_DIR}/shapes.png --frames 30 --size 640x360
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(screenshot_shapes PROPERTIES LABELS gpu)
+  # The scene camera (D-036): its projection without a GPU, and a portrait screenshot.
+  add_executable(test_camera tests/test_camera.cpp)
+  target_link_libraries(test_camera PRIVATE zaro_render)
+  zaro_target_defaults(test_camera)
+  add_test(NAME scene_camera COMMAND test_camera)
+  add_test(NAME check_camera_scene COMMAND zaro check tests/data/fx/camera.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME screenshot_camera
+           COMMAND zaro screenshot tests/data/fx/camera.toml ${CMAKE_BINARY_DIR}/camera.png --frames 60 --size 540x960
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_camera PROPERTIES LABELS gpu)
   # Particles, shake and flash: sparks from hits and emitters through the HDR frame.
   add_test(NAME check_sparks_scene COMMAND zaro check tests/data/fx/sparks.toml
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

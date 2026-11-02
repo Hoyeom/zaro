@@ -6,7 +6,7 @@ public struct Frame {
     public float4x4 view_proj;  // column-major, clip = view_proj * world
     public float4 planes[6];    // frustum planes, inside when dot(plane.xyz, p) + plane.w >= 0
     public float4 player;       // x, z, time seconds, arena size
-    public float4 camera;       // world position
+    public float4 camera;       // world position (xyz), metres from it where fog starts (w)
     public uint enemy_count;
     public uint obstacle_count;
     public uint2 pad;

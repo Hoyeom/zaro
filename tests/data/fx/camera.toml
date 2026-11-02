@@ -1,0 +1,42 @@
+# A scene camera for a portrait phone (D-035): higher and steeper than the default, a field of view
+# across the shorter side so the width stays, easing after the player, looking a little ahead.
+#   zaro screenshot tests/data/fx/camera.toml camera.png --size 540x960 --frames 60
+[scene]
+name = "camera"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 96
+seed = 3
+[entity.ArenaLook]
+grid = "#1b3fa0"
+grid_intensity = 1.6
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 3000
+speed = 4.0
+[entity.CrowdShape]
+kind = "polygon"
+sides = 3
+size = 0.9
+color = "#ff2b6a"
+intensity = 1.4
+
+[[entity]]
+name = "player"
+[entity.PlayerController]
+speed = 8.0
+
+[[entity]]
+name = "view"
+[entity.Camera]
+height = 42.0
+pitch = 68.0
+fov = 60.0
+fov_axis = "shorter"
+offset = [0.0, 0.0, -3.0]
+lag = 0.25
+fog = 120.0
