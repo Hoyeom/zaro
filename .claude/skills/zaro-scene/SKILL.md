@@ -113,7 +113,8 @@ change any widget field of a screen node (for example `Layout.visible` to open a
 calls `on_ui(action, screen, node)` before the frame's ticks. The view model and the command queue
 are `scene::UiState` (`src/scene/ui_state.h`), owned by the app's UI layer.
 
-Scripts play sounds through `audio` (same header; the `zaro-audio` skill).
+Scripts play sounds through `audio` and keep the game's save through `save` (same header; the
+`zaro-audio` and `zaro-save` skills).
 
 A failing script ends a headless run with exit code 1. In a window it is paused and reloads when the
 file is saved.

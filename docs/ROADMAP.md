@@ -213,6 +213,18 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
     fields in TOML behind a replaceable store). Steps, one PR each: 1 the decisions, 2 audio,
     3 local save, 4 an example with sound, volume settings and a saved best score, then
     `examples/neon`'s sound and save.
+    - Step 1 (D-032, D-033): merged (#46).
+    - Step 2 (audio): the `audio` module on miniaudio, SDL3 output in `platform`, sound files with
+      groups, file sounds and synthesized tones and note patterns, `[scene] sounds` and `music`,
+      `Button.sound`, `audio.*`, a null mixer for headless runs and scene tests (`sound` and
+      `volume` expectations), `zaro check` (ZE1300-ZE1302), sound files in the Android export
+      (#47).
+    - Step 3 (local save): save declarations with typed fields, merge hints, `local` and
+      `[[migrate]]` steps, `[scene] save`, `save.get`/`set`/`commit`, the file store (atomic write,
+      backup, newer saves kept) and the memory store behind `app::SaveStore`, `--save-dir`, sound
+      groups that follow a save field, starting saves and `save` expectations in scene tests,
+      `zaro check` (ZE1350-ZE1353); tests `save`, `check_save_scene`, `scene_tests_save`,
+      `save_runs_*`.
 - **Done when**: `examples/neon`, a small arena where the player sweeps a few thousand glowing
   enemies, is built only from scenes, scripts and text assets. It has bloom, particles, tweens, sound
   and a saved best score, runs at a stable 60 fps on PC and on a mid-range Android phone, and is
