@@ -2,6 +2,8 @@
 -- seconds a wave makes the horde faster and sends golden elites, which only the blades can stop.
 -- Uses what P6 gives scripts: spawning and destroying, a hierarchy (blades on a rotor on the
 -- player), events, timers and tweens. Edit and save while `zaro run examples/neon/scene.toml` runs.
+-- Sound (audio.*) and the saved best score and volumes (save.*) come from audio/sounds.toml and
+-- save.toml; the HUD shows {score} and {best}, the settings popup the volumes.
 
 local WAVE_SECONDS = 8
 local SPEEDUP = 0.25 -- horde m/s per wave
@@ -17,6 +19,7 @@ local blades = {}
 local elites = {}
 local wave = 0
 local score, combo = 0, 0
+local best = 0
 
 local function add_blade()
     if #blades >= MAX_BLADES then
@@ -67,13 +70,34 @@ local function start_wave()
     zaro.emit("wave", { wave = wave, speed = speed })
 end
 
+-- The HUD's numbers, and a new best score kept at the start of each wave.
+local function show_score()
+    if score > best then
+        best = score
+        save.set("best_score", best)
+    end
+    ui.set("score", score)
+    ui.set("best", best)
+end
+
+local function show_volumes()
+    ui.set("music_volume", math.floor(save.get("music_volume") * 100 + 0.5))
+    ui.set("sfx_volume", math.floor(save.get("sfx_volume") * 100 + 0.5))
+end
+
 function on_start()
+    best = save.get("best_score")
+    zaro.log("best score", best)
+    show_score()
+    show_volumes()
     add_blade()
     add_blade()
     zaro.every(WAVE_SECONDS, start_wave)
 
     zaro.on("wave", function(w)
         zaro.log("wave", w.wave, "horde speed", w.speed, "score", score)
+        audio.play("wave")
+        save.commit()
     end)
     zaro.on("crowd_hit", function()
         combo = 0
@@ -81,11 +105,13 @@ function on_start()
     zaro.on("elite_down", function(e)
         score += 25 + combo
         shockwave(e.x, e.z, "#ffd23d")
+        audio.play("elite_down")
     end)
     zaro.on("player_hit", function()
         combo = 0
         zaro.set("player", "Shape", "flash", 1)
         zaro.set("camera", "ScreenFx", "shake", 1)
+        audio.play("player_hit")
     end)
 end
 
@@ -129,7 +155,31 @@ function on_tick(tick)
             score += swept
             combo += swept
             zaro.set(blade, "ParticleEmitter", "burst", math.min(swept * 4, 40))
+            audio.play("sweep", { pan = (tip.x / ARENA) * 2 - 1 })
         end
     end
     move_elites(zaro.world("player"), tips)
+    show_score()
+end
+
+-- The sound settings: each button moves a volume by 10%; the sound groups follow the save at
+-- once, and closing the popup (its button, Escape or Android back) keeps the new volumes.
+local function change_volume(field, by)
+    local v = math.floor(save.get(field) * 10 + 0.5) + by
+    save.set(field, math.clamp(v, 0, 10) / 10)
+    show_volumes()
+end
+
+function on_ui(action)
+    if action == "music_down" or action == "music_up" then
+        change_volume("music_volume", action == "music_up" and 1 or -1)
+    elseif action == "sfx_down" or action == "sfx_up" then
+        change_volume("sfx_volume", action == "sfx_up" and 1 or -1)
+    end
+end
+
+function on_screen(event, screen)
+    if event == "closed" and screen == "settings" then
+        save.commit()
+    end
 end

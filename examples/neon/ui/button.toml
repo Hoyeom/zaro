@@ -1,0 +1,17 @@
+# The settings popup's buttons: neon outlines that click.
+[prefab]
+name = "NeonButton"
+
+[Layout]
+width = 52
+height = 44
+
+[Button]
+font = "bold"
+size = 24
+sound = "click"
+color = "#1c1238"
+hover_color = "#2c1d58"
+pressed_color = "#3d2878"
+text_color = "#5ef2ff"
+radius = 10

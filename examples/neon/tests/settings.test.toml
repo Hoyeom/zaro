@@ -1,0 +1,53 @@
+# The sound settings (D-032, D-033): the HUD's SOUND button opens the popup, two clicks turn the
+# music down to 40% and one turns the effects up to 90%; the groups follow at once, and closing
+# the popup with back commits the volumes. Every button clicks.
+[test]
+scene = "../scene.toml"
+ticks = 120
+
+[[click]]
+tick = 10
+screen = "hud"
+node = "settings_button"
+
+[[click]]
+tick = 30
+screen = "settings"
+node = "music_down"
+
+[[click]]
+tick = 31
+screen = "settings"
+node = "music_down"
+
+[[click]]
+tick = 32
+screen = "settings"
+node = "sfx_up"
+
+[[back]]
+tick = 60
+
+[[expect]]
+volume = "music"
+equals = 0.4
+
+[[expect]]
+volume = "sfx"
+equals = 0.9
+
+[[expect]]
+save = "music_volume"
+equals = 0.4
+
+[[expect]]
+save = "sfx_volume"
+equals = 0.9
+
+[[expect]]
+sound = "click"
+equals = 4
+
+[[expect]]
+screen = "settings"
+state = "closed"

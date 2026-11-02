@@ -2,14 +2,20 @@
 # This file holds its look (zaro-fx): the neon arena, the enemies as glowing triangles, the player
 # as a ring with a trail, sparks, shake and flash on every hit, and bloom over all of it. Its
 # gameplay is neon.luau (D-031): blades on a rotor orbit the player and sweep the horde away, and
-# waves of golden elites come every 8 seconds. Audio and the saved best score join it from the
-# other P6 tracks.
+# waves of golden elites come every 8 seconds. Its sound is synthesized from audio/sounds.toml
+# (D-032), and save.toml keeps the best score and the volumes that the HUD's sound settings change
+# (D-033).
 #   zaro run examples/neon/scene.toml
 #   zaro screenshot examples/neon/scene.toml neon.png --frames 120
 [scene]
 name = "neon"
 script = "neon.luau"
 prefabs = ["prefabs/blade.toml", "prefabs/elite.toml", "prefabs/shock.toml"]
+ui = ["ui/hud.toml"]
+screens = ["ui/settings.toml"]
+sounds = "audio/sounds.toml"
+music = "music"
+save = "save.toml"
 
 [[entity]]
 name = "arena"

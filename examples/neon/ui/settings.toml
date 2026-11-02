@@ -1,0 +1,136 @@
+# The sound settings: music and effects volumes in steps of 10%, which neon.luau writes to the save
+# (../save.toml) and commits when the popup closes. The sound groups follow the save, so a change is
+# heard at once. The HUD's SOUND button opens it; Close, Escape or Android back close it.
+#   zaro check examples/neon/ui/settings.toml
+[screen]
+name = "settings"
+reference = [1280, 720]
+navigable = true
+transition = "pop"
+
+[[node]]
+name = "popup"
+[node.Modal]
+dim_color = "#000000aa"
+
+[[node]]
+name = "panel"
+parent = "popup"
+[node.Layout]
+width = 460
+anchor = [0.5, 0.5]
+direction = "column"
+padding = [28, 28, 28, 28]
+gap = 20
+[node.Panel]
+color = "#0b0820f0"
+radius = 14
+border = 2
+border_color = "#b04dff"
+
+[[node]]
+name = "title"
+parent = "panel"
+[node.Layout]
+fill_width = true
+[node.Label]
+text = "SOUND"
+font = "bold"
+size = 30
+color = "#e0b0ff"
+align = "center"
+
+[[node]]
+name = "music_row"
+parent = "panel"
+[node.Layout]
+fill_width = true
+direction = "row"
+align = "center"
+gap = 16
+[[node]]
+name = "music_label"
+parent = "music_row"
+[node.Layout]
+fill_width = true
+[node.Label]
+text = "MUSIC"
+size = 22
+color = "#c8d0ff"
+[[node]]
+name = "music_down"
+parent = "music_row"
+prefab = "button.toml"
+[node.Button]
+text = "-"
+action = "music_down"
+[[node]]
+name = "music_value"
+parent = "music_row"
+[node.Layout]
+width = 72
+[node.Label]
+text = "{music_volume}%"
+size = 22
+color = "#5ef2ff"
+align = "center"
+[[node]]
+name = "music_up"
+parent = "music_row"
+prefab = "button.toml"
+[node.Button]
+text = "+"
+action = "music_up"
+
+[[node]]
+name = "sfx_row"
+parent = "panel"
+[node.Layout]
+fill_width = true
+direction = "row"
+align = "center"
+gap = 16
+[[node]]
+name = "sfx_label"
+parent = "sfx_row"
+[node.Layout]
+fill_width = true
+[node.Label]
+text = "EFFECTS"
+size = 22
+color = "#c8d0ff"
+[[node]]
+name = "sfx_down"
+parent = "sfx_row"
+prefab = "button.toml"
+[node.Button]
+text = "-"
+action = "sfx_down"
+[[node]]
+name = "sfx_value"
+parent = "sfx_row"
+[node.Layout]
+width = 72
+[node.Label]
+text = "{sfx_volume}%"
+size = 22
+color = "#5ef2ff"
+align = "center"
+[[node]]
+name = "sfx_up"
+parent = "sfx_row"
+prefab = "button.toml"
+[node.Button]
+text = "+"
+action = "sfx_up"
+
+[[node]]
+name = "close"
+parent = "panel"
+prefab = "button.toml"
+[node.Layout]
+width = 404
+height = 52
+[node.Button]
+text = "CLOSE"
+action = "close"

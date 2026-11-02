@@ -1,0 +1,23 @@
+# A version 1 save (save_v1.toml) migrates to version 2 (D-033): `best` becomes best_score, the HUD
+# shows it, and the new volumes start from their defaults, which the sound groups follow.
+[test]
+scene = "../scene.toml"
+ticks = 10
+save = "save_v1.toml"
+
+[[expect]]
+save = "best_score"
+equals = 5000
+
+[[expect]]
+save = "music_volume"
+equals = 0.6
+
+[[expect]]
+volume = "music"
+equals = 0.6
+
+[[expect]]
+screen = "hud"
+node = "best"
+text = "BEST 5,000"

@@ -1,0 +1,33 @@
+# What the neon arena keeps on the device (D-033): the best score and the two volumes, which the
+# settings popup changes and the sound groups follow (audio/sounds.toml).
+#   zaro check examples/neon/scene.toml
+[save]
+game = "neon"
+version = 2
+
+[[field]]
+name = "best_score"
+type = "int"
+min = 0
+merge = "max"
+
+[[field]]
+name = "music_volume"
+type = "number"
+default = 0.6
+min = 0.0
+max = 1.0
+local = true
+
+[[field]]
+name = "sfx_volume"
+type = "number"
+default = 0.8
+min = 0.0
+max = 1.0
+local = true
+
+# Version 1 had only the best score, as `best`; the volumes came with version 2.
+[[migrate]]
+from = 1
+rename = { best = "best_score" }

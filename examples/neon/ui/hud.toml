@@ -1,0 +1,57 @@
+# The neon arena's HUD: the score, the saved best score and a button that opens the sound settings.
+# neon.luau fills {score} and {best}.
+#   zaro check examples/neon/ui/hud.toml
+[screen]
+name = "hud"
+reference = [1280, 720]
+
+[[node]]
+name = "top_bar"
+[node.Layout]
+fill_width = true
+height = 64
+direction = "row"
+align = "center"
+gap = 32
+padding = [28, 0, 20, 0]
+[node.Panel]
+color = "#02030a99"
+
+[[node]]
+name = "score"
+parent = "top_bar"
+[node.Label]
+text = "SCORE {score:,}"
+font = "bold"
+size = 26
+color = "#5ef2ff"
+
+[[node]]
+name = "best"
+parent = "top_bar"
+[node.Label]
+text = "BEST {best:,}"
+size = 22
+color = "#ffd23d"
+
+[[node]]
+name = "spacer"
+parent = "top_bar"
+[node.Layout]
+fill_width = true
+
+[[node]]
+name = "settings_button"
+parent = "top_bar"
+[node.Layout]
+width = 120
+height = 40
+[node.Button]
+text = "SOUND"
+action = "open:settings"
+sound = "click"
+size = 18
+color = "#1c1238"
+hover_color = "#2c1d58"
+pressed_color = "#3d2878"
+text_color = "#e0b0ff"

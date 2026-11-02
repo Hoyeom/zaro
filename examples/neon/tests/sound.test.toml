@@ -1,0 +1,29 @@
+# The neon arena's sound for 25 seconds (D-032): the music from the start, an arpeggio at each of
+# the three waves, sweeps as the blades take enemies, and every wave keeps the best score so far
+# (D-033). Counted by the null mixer; the golden hash is waves.test.toml's, since sound and the
+# save never change the simulation.
+[test]
+scene = "../scene.toml"
+ticks = 1500
+state_hash = "0a2e95445d130a5b"
+
+[[expect]]
+sound = "music"
+equals = 1
+
+[[expect]]
+sound = "wave"
+equals = 3
+
+[[expect]]
+sound = "sweep"
+min = 100
+
+[[expect]]
+save = "best_score"
+equals = 1779
+
+[[expect]]
+screen = "hud"
+node = "score"
+text = "SCORE 1,786"
