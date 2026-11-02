@@ -1,0 +1,23 @@
+# A crowd whose size a script changes while it runs (D-034): it starts at 100 of the 1000 enemies
+# reserved by max, and grow.luau adds and retires enemies.
+[scene]
+name = "crowd-grow"
+script = "grow.luau"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+seed = 9
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 100
+max = 1000
+speed = 5.0
+
+[[entity]]
+name = "player"
+[entity.PlayerController]
+speed = 6.0

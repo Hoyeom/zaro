@@ -10,7 +10,13 @@ const reflect::FieldDesc kArenaFields[] = {
 };
 
 const reflect::FieldDesc kSpawnerFields[] = {
-    ZARO_FIELD_RANGE(CrowdSpawner, count, kU32, "Number of enemies", 0, 1000000),
+    ZARO_FIELD_RANGE(CrowdSpawner, count, kU32,
+                     "Number of enemies; a script may change it while the game runs, up to max: new ones "
+                     "appear at the arena edge, the highest-numbered ones leave",
+                     0, 1000000),
+    ZARO_FIELD_RANGE(CrowdSpawner, max, kU32,
+                     "Most enemies at once, reserved at start (0: count at start); count is kept at or below it",
+                     0, 1000000),
     ZARO_FIELD_RANGE(CrowdSpawner, speed, kF32, "Enemy speed in m/s", 0.0, 100.0),
     ZARO_FIELD_RANGE(CrowdSpawner, radius, kF32, "Enemy collision radius in m", 0.05, 5.0),
 };

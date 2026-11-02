@@ -1,6 +1,7 @@
 #include "app/tools.h"
 
 #include "app/audio_layer.h"
+#include "app/crowd_app.h"
 #include "app/save_layer.h"
 #include "app/shape_layer.h"
 #include "app/sprite_layer.h"
@@ -61,6 +62,8 @@ int check_scene(const char* path, bool json) {
         bool shapes_failed = false;
         destroy_shape_layer(create_shape_layer(s, diags, &shapes_failed));
         failed = shapes_failed || failed;
+        // Its crowd: a spawner's count above its max.
+        failed = !check_crowd(s, diags) || failed;
         // Its sounds: the sound file, that each sound decodes, the music and the buttons' sounds.
         failed = !check_scene_audio(s, diags) || failed;
         // Its save declaration: fields, defaults, ranges and [[migrate]] steps.

@@ -102,8 +102,9 @@ is tested by `tests/data/scripts/events.luau`; change it only with that test.
 
 A scene names its script with `script = "file.luau"` in `[scene]`. `zaro run <scene>` calls
 `on_start()` once and `on_tick(tick)` before every simulation tick (tick 1 is the first). Values the
-script changes are read back the same tick. Today these are `CrowdSpawner.speed` and
-`PlayerController.speed`; count, arena and seed are fixed at start. `zaro check` also compiles the
+script changes are read back the same tick. Today these are `CrowdSpawner.speed`,
+`CrowdSpawner.count` (up to `CrowdSpawner.max`, reserved at start; D-034) and
+`PlayerController.speed`; arena and seed are fixed at start. `zaro check` also compiles the
 script and runs its top level.
 
 Scripts drive the scene's UI through `ui` (same header): `ui.set(key, value)` sets a view-model

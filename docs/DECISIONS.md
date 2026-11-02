@@ -912,6 +912,36 @@ Status of all entries below: **accepted, 2026-11-01**.
   a scene test that depends on them names its starting save. Lists and tables in saves are not
   supported yet; they are added as new field types. Errors are ZE1350-ZE1399.
 
+## D-034 Crowd size at run time: an active count under a capacity reserved at start
+
+- **Status**: accepted, 2026-11-02. First step of P6's crowd track (docs/ROADMAP.md).
+- **Decision**: `CrowdSpawner.max` reserves room for that many enemies when the run starts (0:
+  `count`), and `CrowdSpawner.count` becomes a value scripts change while the game runs, like
+  `speed`. The app reads it back after each `on_tick` and the simulation adds or retires enemies
+  before the step (`sim::set_enemy_count`).
+  - **Growing**: new enemies appear at the arena edge, standing, at a point hashed from their index
+    and the tick, as respawned enemies do. **Shrinking**: the enemies with the highest indices
+    leave, without counting as hits or kills.
+  - **Above max**: the count is kept at max, the component is set back to the count actually used,
+    and the run says so once. A scene file whose `count` is above its `max` is ZE1400 in
+    `zaro check` and in every run.
+  - **State hash**: covers the live enemies only; the count is mixed in when it differs from the
+    count at start, so runs that never change it keep their golden hashes.
+- **Why**:
+  - Survivors-like games grow waves from a few hundred enemies to thousands. Reserving the
+    simulation arrays, the instance buffer and the GPU buffers once keeps a run free of
+    reallocation and of a GPU resource rebuild mid-frame, and gives a known memory ceiling on
+    phones.
+  - Keeping live enemies in the first `count` slots lets every parallel loop, the spatial hash,
+    the cull and the indirect draw run over a dense range with no per-enemy alive flag.
+  - Retiring the highest indices and placing new ones from index and tick hashes is the same for
+    any thread count (D-005) and needs no random state.
+  - Clamping instead of failing keeps a game running when a wave formula overshoots; the message
+    and the read-back value tell a script author what happened.
+- **Consequences**: `CrowdSpawner` gained a field, and the state hash covers every gameplay field
+  of every entity (D-031), so the golden hashes of scene tests with a `CrowdSpawner` changed once.
+  Crowd errors are ZE1400-ZE1499.
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:

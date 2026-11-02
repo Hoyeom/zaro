@@ -1,7 +1,7 @@
 # The wave script must have raised the horde speed twice after 1300 ticks (21.7 s).
 # Run with: zaro test examples/crowd/tests   (refresh the golden hash with --update)
 [test]
-state_hash = "f7e96f159153ce6e"
+state_hash = "489f598887ec016a"
 scene = "../scene.toml"
 ticks = 1300
 enemies = 2000

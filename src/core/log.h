@@ -58,6 +58,7 @@ enum ErrorId {
     kErrSaveFile = 1351,      // ZE1351 a save file is damaged, or a value in it does not fit its field
     kErrSaveNewer = 1352,     // ZE1352 a save file from a newer version of the game: not loaded, not overwritten
     kErrSaveWrite = 1353,     // ZE1353 the save could not be written
+    kErrCrowd = 1400,         // ZE1400 a crowd component is invalid: a CrowdSpawner count above its max (D-034)
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

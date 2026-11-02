@@ -48,8 +48,9 @@ struct Crowd {
     // Player.
     float px = 0, pz = 0, prev_px = 0, prev_pz = 0;
 
-    // Enemies (SoA).
+    // Enemies (SoA): the first n of cap slots are live.
     uint32_t n = 0;
+    uint32_t cap = 0;
     float *x = nullptr, *z = nullptr, *vx = nullptr, *vz = nullptr;
     float *prev_x = nullptr, *prev_z = nullptr, *nvx = nullptr, *nvz = nullptr;
 
@@ -340,7 +341,8 @@ Crowd* create_crowd(const CrowdConfig& cfg) {
     c->cell_start = alloc<uint32_t>(cells + 1);
 
     c->n = cfg.enemy_count;
-    const size_t n = c->n ? c->n : 1;
+    c->cap = cfg.enemy_capacity > cfg.enemy_count ? cfg.enemy_capacity : cfg.enemy_count;
+    const size_t n = c->cap ? c->cap : 1;
     c->x = alloc<float>(n);
     c->z = alloc<float>(n);
     c->vx = alloc<float>(n);
@@ -431,7 +433,24 @@ void set_tuning(Crowd* c, float enemy_speed, float player_speed) {
 }
 
 uint64_t tick(const Crowd* c) { return c->tick; }
+uint32_t set_enemy_count(Crowd* c, uint32_t count) {
+    if (count > c->cap) count = c->cap;
+    for (uint32_t i = c->n; i < count; ++i) {
+        float x = 1.5f, z = 1.5f;
+        c->x[i] = x;  // respawn_position keeps this if every attempt is blocked
+        c->z[i] = z;
+        respawn_position(c, i, &x, &z);
+        c->x[i] = c->prev_x[i] = x;
+        c->z[i] = c->prev_z[i] = z;
+        c->vx[i] = c->vz[i] = c->nvx[i] = c->nvz[i] = 0.0f;
+        c->hit_now[i] = 0;
+    }
+    c->n = count;
+    return count;
+}
+
 uint32_t enemy_count(const Crowd* c) { return c->n; }
+uint32_t enemy_capacity(const Crowd* c) { return c->cap; }
 uint64_t total_hits(const Crowd* c) { return c->hits.load(std::memory_order_relaxed); }
 
 uint32_t last_hits(const Crowd* c, const float** xz) {
@@ -463,6 +482,7 @@ uint64_t state_hash(const Crowd* c) {
     const uint64_t hits = total_hits(c);
     h = fnv1a(&hits, sizeof(hits), h);
     if (c->kills) h = fnv1a(&c->kills, sizeof(c->kills), h);  // runs without kills keep their goldens
+    if (c->n != c->cfg.enemy_count) h = fnv1a(&c->n, sizeof(c->n), h);  // and runs that keep their count
     h = fnv1a(&c->px, sizeof(float), h);
     h = fnv1a(&c->pz, sizeof(float), h);
     const size_t bytes = sizeof(float) * c->n;
