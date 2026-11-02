@@ -1,7 +1,7 @@
 // Crowd scene: ground, obstacles, enemies (indirect, GPU-culled) and the player.
 // Meshes are generated from SV_VertexID, so no vertex buffers are bound. Enemies are cubes,
 // animated sprites from one sheet (render::CrowdSprites, `SpriteFrame` = render::SpriteFrameInfo),
-// or glowing shapes (render::CrowdShapes). With arena colours (frame.ground.w = 1) the ground is
+// or glowing shapes (render::CrowdShapes), each kind of enemy with its own look (D-036). With arena colours (frame.ground.w = 1) the ground is
 // dark with a glowing grid instead of the grey checkerboard.
 import frame;
 import shape_sdf;
@@ -20,6 +20,28 @@ struct SpriteFrame {
 [[vk::binding(4, 0)]] Texture2D<float4> sprite_atlas;  // sRGB, so samples are linear
 [[vk::binding(5, 0)]] SamplerState sprite_sampler;
 [[vk::binding(6, 0)]] StructuredBuffer<SpriteFrame> sprite_frames;  // the animation, in play order
+
+// One kind of enemy (render::EnemyKind): the range of its enemies in `instances` and its shape look.
+struct EnemyKind {
+    float4 shape;  // kind, sides, size, thickness
+    float4 color;  // linear rgb times intensity, opacity
+    float4 glow;   // glow, glow strength, additive (1/0), hue jitter
+    uint4 range;   // first enemy, end
+};
+[[vk::binding(7, 0)]] StructuredBuffer<EnemyKind> kinds;
+
+// The kind of enemy e: kinds are packed in order, so the last one starting at or before e.
+uint kind_of(uint e) {
+    uint k = 0;
+    for (uint i = 1; i < frame.kind_count; ++i) {
+        if (e >= kinds[i].range.x) k = i;
+    }
+    return k;
+}
+
+// e's index within its kind: stays the same when another kind grows or shrinks, so each enemy keeps
+// its hue and animation phase.
+uint index_in_kind(uint e) { return e - kinds[kind_of(e)].range.x; }
 
 static const float3 kSky = float3(0.06, 0.07, 0.09);
 
@@ -79,7 +101,7 @@ VSOut vs_enemy(uint vid: SV_VertexID, uint iid: SV_InstanceID) {
     const float3 local = p * scale + float3(0.0, 0.45, 0.0);
     const float3 world = float3(inst.x, 0.0, inst.y) + right * local.x + float3(0, local.y, 0) + fwd * local.z;
     const float3 nw = right * n.x + float3(0, n.y, 0) + fwd * n.z;
-    return make_vertex(world, nw, hue_tint(e));
+    return make_vertex(world, nw, hue_tint(index_in_kind(e)));
 }
 
 struct SpriteOut {
@@ -98,7 +120,7 @@ SpriteOut vs_enemy_sprite(uint vid: SV_VertexID, uint iid: SV_InstanceID) {
     const uint e = visible[iid];
     const float4 inst = instances[e];
     const uint count = uint(frame.sprite.z);
-    uint h = e * 2654435761u;
+    uint h = index_in_kind(e) * 2654435761u;
     h ^= h >> 13;
     const uint step = uint(frame.player.z * frame.sprite.y) + h;
     const SpriteFrame f = sprite_frames[step % count];
@@ -128,6 +150,7 @@ struct ShapeOut {
     float2 local : LOCAL;  // metres in the enemy's frame, +x the way it walks
     float3 world : WORLD;
     nointerpolation float3 color : COLOR;
+    nointerpolation uint kind : KIND;
 };
 
 // Turns c's hue by `turns` of the colour wheel (a rotation about the grey axis).
@@ -145,31 +168,35 @@ ShapeOut vs_enemy_shape(uint vid: SV_VertexID, uint iid: SV_InstanceID) {
                                         float2(-1, -1), float2(1, 1), float2(-1, 1) };
     const uint e = visible[iid];
     const float4 inst = instances[e];
-    const uint kind = uint(frame.shape.x);
-    const float2 size = float2(frame.shape.z);
-    const float2 local = kCorners[vid] * (shape_extent(kind, size, frame.shape.w) + frame.shape_glow.x + 0.06);
+    const uint k = kind_of(e);
+    const EnemyKind look = kinds[k];
+    const uint kind = uint(look.shape.x);
+    const float2 size = float2(look.shape.z);
+    const float2 local = kCorners[vid] * (shape_extent(kind, size, look.shape.w) + look.glow.x + 0.06);
     float2 fwd = inst.zw;
     fwd = dot(fwd, fwd) > 1e-6 ? normalize(fwd) : float2(1.0, 0.0);
     // Local +y is the heading turned 90 degrees toward +z, as for Shape components.
     const float3 world = float3(inst.x, 0.05, inst.y) + float3(fwd.x, 0.0, fwd.y) * local.x +
                          float3(-fwd.y, 0.0, fwd.x) * local.y;
-    uint h = e * 2654435761u;
+    uint h = (e - look.range.x) * 2654435761u;
     h ^= h >> 15;
-    const float jitter = (float(h & 1023u) / 1023.0 - 0.5) * 2.0 * frame.shape_glow.w;
+    const float jitter = (float(h & 1023u) / 1023.0 - 0.5) * 2.0 * look.glow.w;
     ShapeOut o;
     o.pos = mul(frame.view_proj, float4(world, 1.0));
     o.local = local;
     o.world = world;
-    o.color = max(rotate_hue(frame.shape_color.rgb, jitter), float3(0.0));
+    o.color = max(rotate_hue(look.color.rgb, jitter), float3(0.0));
+    o.kind = k;
     return o;
 }
 
 [shader("fragment")]
 float4 fs_enemy_shape(ShapeOut i) : SV_Target {
-    const uint kind = uint(frame.shape.x);
-    const float d = shape_distance(kind, i.local, float2(frame.shape.z), frame.shape.w, frame.shape.y);
-    const float4 c = float4(i.color * (1.0 - fog_amount(i.world)), frame.shape_color.a);
-    return shape_shade(d, fwidth(d), frame.shape_glow.x, frame.shape_glow.y, c, frame.shape_glow.z > 0.5);
+    const EnemyKind look = kinds[i.kind];
+    const uint kind = uint(look.shape.x);
+    const float d = shape_distance(kind, i.local, float2(look.shape.z), look.shape.w, look.shape.y);
+    const float4 c = float4(i.color * (1.0 - fog_amount(i.world)), look.color.a);
+    return shape_shade(d, fwidth(d), look.glow.x, look.glow.y, c, look.glow.z > 0.5);
 }
 
 [shader("vertex")]

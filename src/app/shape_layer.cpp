@@ -40,7 +40,7 @@ struct ShapeLayer {
     bool spawnable = false;   // a prefab scripts can spawn has a Shape
     const sim::CrowdShape* crowd = nullptr;
     const sim::ArenaLook* arena = nullptr;
-    render::CrowdShapes crowd_shapes;
+    render::CrowdShapes crowd_shapes[render::kMaxEnemyKinds];
     render::ArenaColors arena_colors;
 
     rhi::Device* device = nullptr;
@@ -280,10 +280,13 @@ void flash_player_shapes(ShapeLayer* l, float amount) {
 
 bool crowd_has_shapes(const ShapeLayer* l) { return l && l->crowd; }
 
-void shape_crowd_scene(ShapeLayer* l, render::CrowdScene* scene) {
+void shape_crowd_scene(ShapeLayer* l, render::CrowdScene* scene, const uint32_t* kind_ids, uint32_t kind_ids_count) {
     if (!l) return;
-    if (const sim::CrowdShape* c = l->crowd) {
-        render::CrowdShapes& out = l->crowd_shapes;
+    for (uint32_t k = 0; l->crowd && k < scene->kind_count && k < render::kMaxEnemyKinds; ++k) {
+        const scene::Entity* e = k < kind_ids_count ? scene::entity_by_id(l->scene, kind_ids[k]) : nullptr;
+        const auto* own = e ? (const sim::CrowdShape*)scene::get_component(e, &sim::kCrowdShapeDesc) : nullptr;
+        const sim::CrowdShape* c = own ? own : l->crowd;
+        render::CrowdShapes& out = l->crowd_shapes[k];
         out.kind = c->kind;
         out.sides = c->sides;
         out.size = c->size;
@@ -293,7 +296,7 @@ void shape_crowd_scene(ShapeLayer* l, render::CrowdScene* scene) {
         out.glow_strength = c->glow_strength;
         out.hue_jitter = c->hue_jitter;
         out.additive = c->blend == sim::kShapeBlendAdd;
-        scene->enemy_shapes = &out;
+        scene->enemy_shapes = l->crowd_shapes;
     }
     if (const sim::ArenaLook* a = l->arena) {
         render::ArenaColors& out = l->arena_colors;

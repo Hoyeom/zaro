@@ -22,9 +22,12 @@ every field.
   segments behind the shape (world shapes only).
 - **Hit flash**: `flash` (0..1) turns the shape white and falls by `flash_decay` per second on the
   tick clock, in `app::step_shapes`. Scripts set it with `zaro.set`; scene tests can expect it.
-- **`CrowdShape`** (one per scene): the enemies as shapes instead of cubes, the first corner along
-  the heading, each with its own hue within `hue_jitter`. Drawn by the crowd renderer in its "main"
-  pass (`vs_enemy_shape` in shaders/crowd_draw.slang), GPU-culled like the cubes.
+- **`CrowdShape`** (on a kind's spawner entity): the enemies as shapes instead of cubes, the first
+  corner along the heading, each with its own hue within `hue_jitter`. Each kind of enemy (D-036)
+  takes the CrowdShape on its own spawner, else the scene's first one. Drawn by the crowd renderer in
+  its "main" pass (`vs_enemy_shape` in shaders/crowd_draw.slang), GPU-culled like the cubes; the
+  looks go to the GPU as one `render::EnemyKind` per kind with the kind's range of enemies, and each
+  enemy's hue comes from its index within its kind, so it keeps it when another kind grows.
 - **`ArenaLook`**: a dark ground with a glowing grid, obstacle and background colours.
 - `render::ShapeRenderer` draws all `Shape`s in one "shapes" pass after the crowd and before the
   sprites: one draw for world shapes (depth-tested, no depth writes), one for screen shapes. Each is
@@ -40,7 +43,7 @@ every field.
 - **`ParticleEmitter`** (any entity): sparks at `rate` per second, plus `burst` at once; the app
   emits the burst and sets it back to 0 on the next tick, so a script fires one with
   `zaro.set(entity, "ParticleEmitter", "burst", 40)`. `follow = "player"` emits around the player.
-- **`CrowdFx`** (on the crowd's spawner): when an enemy reaches the player (it vanishes and respawns
+- **`CrowdFx`** (on a kind's spawner; a kind without one uses the scene's first): when an enemy reaches the player (it vanishes and respawns
   at the edge, `sim::last_hits`), a burst of `particles` where it was, `shake` and `flash` added to
   `ScreenFx`, and `Shape.flash` raised to `player_flash` on shapes that follow the player. At most
   64 hit bursts per tick; more hits still add shake.

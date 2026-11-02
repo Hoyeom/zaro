@@ -41,7 +41,7 @@ void print_usage() {
          "  --sim-only           headless without a GPU (simulation + state hash)\n"
          "  --frames N           measured frames in headless mode (default 600)\n"
          "  --warmup N           frames before measuring (default 60)\n"
-         "  --enemies N          enemy count; overrides the scene (default 50000)\n"
+         "  --enemies N          enemy count; overrides the scene's first kind (default 50000)\n"
          "  --seed N             simulation seed; overrides the scene (default 1)\n"
          "  --threads N          worker threads, 0 = hardware count (default 0)\n"
          "  --size WxH           render size (default 1920x1080)\n"

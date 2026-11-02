@@ -170,7 +170,8 @@ void destroy_fx_layer(FxLayer* l) {
     delete l;
 }
 
-void step_fx(FxLayer* l, const sim::Crowd* crowd, ShapeLayer* shapes) {
+void step_fx(FxLayer* l, const sim::Crowd* crowd, ShapeLayer* shapes, const uint32_t* kind_ids,
+             uint32_t kind_ids_count) {
     if (!l) return;
     sync_emitters(l);
     l->ticks++;
@@ -183,20 +184,30 @@ void step_fx(FxLayer* l, const sim::Crowd* crowd, ShapeLayer* shapes) {
     float px = 0.0f, pz = 0.0f;
     if (crowd) sim::player_position(crowd, 1.0f, &px, &pz);
 
-    if (const auto* fx = (const sim::CrowdFx*)scene::first_component(l->scene, &sim::kCrowdFxDesc, nullptr)) {
+    if (const auto* first_fx = (const sim::CrowdFx*)scene::first_component(l->scene, &sim::kCrowdFxDesc, nullptr)) {
         const float* xz = nullptr;
-        const uint32_t hits = crowd ? sim::last_hits(crowd, &xz) : 0;
-        for (uint32_t i = 0; i < hits && i < kMaxHitBurstsPerTick; ++i) {
-            queue_burst(l, xz[i * 2], kSparkHeight, xz[i * 2 + 1], fx->particles, fx->color, fx->intensity, fx->speed,
-                        fx->life, fx->size, 3.0f, 0.0f, kFullCircle);
-        }
-        if (hits) {
-            if (screen) {
-                screen->shake = clamp01(screen->shake + fx->shake * (float)hits);
-                screen->flash = clamp01(screen->flash + fx->flash * (float)hits);
+        const uint8_t* kinds = nullptr;
+        const uint32_t hits = crowd ? sim::last_hits(crowd, &xz, &kinds) : 0;
+        // Each kind's CrowdFx (D-036); hits come grouped by kind.
+        float player_flash = 0.0f;
+        for (uint32_t i = 0; i < hits;) {
+            uint32_t end = i + 1;
+            while (end < hits && kinds[end] == kinds[i]) ++end;
+            const scene::Entity* e = kinds[i] < kind_ids_count ? scene::entity_by_id(l->scene, kind_ids[kinds[i]]) : nullptr;
+            const auto* own = e ? (const sim::CrowdFx*)scene::get_component(e, &sim::kCrowdFxDesc) : nullptr;
+            const sim::CrowdFx* fx = own ? own : first_fx;
+            for (uint32_t h = i; h < end && h < kMaxHitBurstsPerTick; ++h) {
+                queue_burst(l, xz[h * 2], kSparkHeight, xz[h * 2 + 1], fx->particles, fx->color, fx->intensity,
+                            fx->speed, fx->life, fx->size, 3.0f, 0.0f, kFullCircle);
             }
-            if (fx->player_flash > 0.0f) flash_player_shapes(shapes, fx->player_flash);
+            if (screen) {
+                screen->shake = clamp01(screen->shake + fx->shake * (float)(end - i));
+                screen->flash = clamp01(screen->flash + fx->flash * (float)(end - i));
+            }
+            if (fx->player_flash > player_flash) player_flash = fx->player_flash;
+            i = end;
         }
+        if (player_flash > 0.0f) flash_player_shapes(shapes, player_flash);
     }
 
     for (uint32_t i = 0; i < l->emitter_count; ++i) {
