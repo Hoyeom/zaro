@@ -16,6 +16,9 @@ constexpr uint32_t kMusicSlots = 4;  // the playing track and tracks still fadin
 // Sounds are not placed in space; they keep their pitch control.
 constexpr ma_uint32 kSoundFlags = MA_SOUND_FLAG_NO_SPATIALIZATION;
 
+}  // namespace
+
+// A sound of the mixer (outside the anonymous namespace: Mixer holds them).
 struct Sound {
     SoundDesc desc;
     char path[260];
@@ -28,8 +31,6 @@ struct Sound {
     double last_play_ms;
     bool played;
 };
-
-}  // namespace
 
 struct Mixer {
     bool null_mixer = false;

@@ -466,13 +466,14 @@ scene::AudioState* audio_of(lua_State* L, const char* what) {
 uint32_t sound_name_arg(lua_State* L, const scene::SoundBank* bank, int arg, bool group) {
     const char* name = luaL_checklstring(L, arg, nullptr);
     const int i = group ? scene::find_sound_group(bank, name) : scene::find_sound(bank, name);
-    if (i >= 0) return (uint32_t)i;
-    const char* hint = group ? scene::suggest_sound_group(bank, name) : scene::suggest_sound(bank, name);
-    char err[300];
-    snprintf(err, sizeof(err), "%s has no %s '%s'%s%s%s", bank->path, group ? "group" : "sound", name,
-             hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
-    raise(L, err);
-    return 0;
+    if (i < 0) {
+        const char* hint = group ? scene::suggest_sound_group(bank, name) : scene::suggest_sound(bank, name);
+        char err[300];
+        snprintf(err, sizeof(err), "%s has no %s '%s'%s%s%s", bank->path, group ? "group" : "sound", name,
+                 hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+        raise(L, err);
+    }
+    return (uint32_t)i;
 }
 
 // An optional number field of an options table, checked against [lo, hi].
