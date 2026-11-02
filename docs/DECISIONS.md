@@ -828,6 +828,90 @@ Status of all entries below: **accepted, 2026-11-01**.
   existing scene tests changed once when the state hash started to cover the entities. New error
   ids are ZE1200-ZE1299; script misuse of the new API stays ZE0501 with file and line.
 
+## D-032 Audio: miniaudio for decoding and mixing, SDL3 for the output device
+
+- **Status**: accepted, 2026-11-02. Settles the P6 open decision "Audio library".
+- **Decision**: a new `audio` module mixes sound with miniaudio 0.11.26 (public domain or MIT-0,
+  the user's choice; no notice required). miniaudio is built with `MA_NO_DEVICE_IO`: it decodes
+  (WAV, Ogg Vorbis through its bundled stb_vorbis, MP3, FLAC), resamples and mixes, and owns no
+  device. `platform` opens the output device through SDL3's audio subsystem and pulls mixed frames
+  from a callback. `audio` may include only `core`.
+  - **Sounds** are declared in a sound file (TOML): each has a name, a file, a volume group, a
+    volume and a pitch range, and a voice limit and cooldown, so ten thousand hits in a tick play a
+    few voices. Short sounds are decoded into memory when the scene loads; music is streamed and
+    loops, with fades between tracks.
+  - **Synthesized sounds**: instead of a file, a sound can be a tone (a waveform, a frequency
+    glide, an attack and release) or a pattern of notes over several tracks, such as a music loop.
+    The engine renders it into samples when the scene loads, and it plays like any other sound.
+  - **Volume groups** are declared in the same file under one `master`. A group can follow a field
+    of the game's save (D-033), which is the settings hook: a settings screen changes the field
+    and the volume follows, and it is kept across runs without script code.
+  - **Playing**: scripts call `audio.*` (play, music, volume); a scene starts its music with
+    `[scene] music`, and a UI button plays a sound when clicked. What scripts ask for goes into a
+    queue that the app hands to the mixer after the tick. Nothing the mixer does is read back by the
+    simulation or a script (D-005).
+  - **Null device**: headless runs, `--sim-only` and scene tests use a null device that records
+    what was played and mixes nothing. A window on a machine without an output device falls back to
+    it with a warning. Scene tests can expect a sound to have been played.
+  - **Mobile**: output pauses while the app is in the background and resumes with it.
+- **Why**:
+  - miniaudio's engine already has what G1 needs (groups, streaming, resampling, fades, sound
+    copies that share decoded data), in one C file with no exceptions or RTTI. Writing a mixer on
+    top of SDL3 alone would mean owning all of that.
+  - Taking only the mixer keeps OS audio APIs inside `platform`, like windows and input: a console
+    port replaces SDL's output there and nothing else. SDL3 is already the platform layer on every
+    target, and its Android backend (AAudio, OpenSL ES) is the one the rest of the app uses.
+  - P6 asks for `examples/neon` built only from text assets, and G1's art is code (D-029).
+    Synthesized sounds let its sound be text too, reviewable and diffable like its shapes, while
+    real recordings still play from files when a game has them.
+  - 0.11.26 rather than an older pin: it fixes the ends of sounds being cut off and a race when
+    group volumes change during playback, both on the paths ZARO uses.
+  - A record-only null device lets tests check sound behaviour on CI machines, which have no audio
+    hardware, without making golden hashes depend on audio.
+- **Consequences**: SDL is built with `SDL_AUDIO` on. `miniaudio.h` belongs to `src/audio/`
+  (lint Z007). Sound files are packed by the Android export. Errors are ZE1300-ZE1349.
+
+## D-033 Local save: declared fields in a TOML file, behind a store the backend can replace
+
+- **Status**: accepted, 2026-11-02. Settles the P6 open decision "Save format".
+- **Decision**: a game declares its save in a save file (TOML) that the scene names, and scripts
+  read and write only the fields it declares.
+  - **Declaration**: `[save]` with the game's id and a `version`, then one `[[field]]` per value:
+    a name, a type (`int`, `number`, `bool`, `string`), a default, an optional range, a `merge`
+    hint (`latest`, `max`, `min`) and `local = true` for values that belong to the device, such
+    as volumes. `zaro check` validates it like a scene.
+  - **Scripts**: `save.get(field)`, `save.set(field, value)` (type- and range-checked, "did you
+    mean" for misspelt names) and `save.commit()`, which marks a consistent point to store.
+    Nothing is written between commits.
+  - **Store**: the engine keeps the save as typed values and hands committed values to a store.
+    The built-in store writes `save.toml` in the platform's user data directory for the game (on
+    Android the app's internal files): a temporary file renamed over the old one, the previous
+    copy kept as `save.toml.bak` and read when the main file is damaged. The backend plugin (P4c)
+    provides another store with its own authorities and conflict merge; games keep the same file
+    and the same calls.
+  - **Versions**: the file records the version it was written with. Loading an older file runs
+    the declared `[[migrate]]` steps in order (`from` a version: rename, remove or set fields);
+    fields added since get their defaults. A file from a newer version is neither loaded nor
+    overwritten: the game runs on defaults and says so.
+  - **Runs**: windowed runs use the store. Headless runs and scene tests keep the save in memory,
+    starting from defaults or from a save file the test names, unless `--save-dir` points at a
+    directory; scene tests can expect saved values.
+- **Why**:
+  - A declared field list is what lets a server store, validate and merge a save field by field
+    later; an opaque blob from a script would leave merging to each game. The merge hint and
+    `local` are written now so moving to the server needs no game change.
+  - TOML keeps saves readable and diffable like every other ZARO asset (D-008) and reuses the
+    scene loader's parser and `file:line` errors.
+  - An explicit commit gives every store, including a queued server one, whole states instead of
+    half-updated ones, and keeps writes off the per-tick path.
+  - Declarative migrations can be checked by `zaro check` and tested without running a game; the
+    common changes (a renamed or retired field, a new default) need no code.
+  - Write-then-rename with a backup survives a crash or a killed app in the middle of a write,
+    which is common on phones.
+- **Consequences**: save values loaded before `on_start` are an input of the run, like the seed:
+  a scene test that depends on them names its starting save. Lists and tables in saves are not
+  supported yet; they are added as new field types. Errors are ZE1350-ZE1399.
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:
@@ -865,5 +949,5 @@ regression baseline; D-013 defines that.
 ## Deferred (design kept open, not built)
 
 Text input and IME, physics (Jolt candidate), the MCP server (local only, access-restricted).
-(Audio and local save, with save-format versioning, are planned in P6: D-029.) (Fonts, localization, game UI and
+(Audio and local save, with save-format versioning, are P6: D-032, D-033.) (Fonts, localization, game UI and
 pointer/gamepad navigation were built in P2: D-019 to D-021 and D-023.)
