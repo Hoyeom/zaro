@@ -190,6 +190,12 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
     rectangles, lines, rings and polygons with glow, additive blending and trails; GPU particles
     (compute) for hits and deaths; screen shake and hit flash. All of it is visual only and never
     feeds the simulation (D-005).
+    **Done** (D-030): `Bloom` renders the 3D view into an HDR frame (RG11B10F where the GPU
+    renders it, else RGBA16F) with a fragment bloom chain and a tonemap; `Shape` (rectangles,
+    circles, rings, polygons, lines with halos, additive blending, trails and hit flash),
+    `CrowdShape` and `ArenaLook`; GPU particles (`ParticleEmitter`, and `CrowdFx` on the crowd's
+    hits); `ScreenFx` shake and flash. `examples/neon/scene.toml` holds the arena's look. The
+    60 fps check on a mid-range phone waits for P1's device run.
   - **Gameplay from scripts**: Luau can spawn and destroy entities, query them, send and receive
     events and run timers, not only read and write fields. Entity hierarchies (a parent moves its
     children). Tweens with easing curves for visual values (scale, colour, position offsets, UI),
@@ -229,9 +235,7 @@ Luau type checker, KTX2 textures and mipmaps.
 
 ## Open decisions
 
-For P6, each settled by the track that needs it, with the license check from D-012:
-- **Bloom and HDR format**: the frame's colour format and the bloom method (downsample chain or
-  compute), measured on a mid-range phone.
+None at the moment.
 
-(The SVG rasterizer for P3 was settled as D-028, the audio library as D-032 and the save format as
-D-033.)
+(The SVG rasterizer for P3 was settled as D-028; for P6 the HDR format and bloom method as D-030,
+the audio library as D-032 and the save format as D-033.)

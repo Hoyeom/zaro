@@ -750,6 +750,41 @@ Status of all entries below: **accepted, 2026-11-01**.
   out of "Later" into P6 and G1. Online features join G1 when P4 provides them; G1 does not wait
   for them.
 
+## D-030 HDR frame: RG11B10F where renderable, RGBA16F otherwise; bloom as a fragment chain
+
+- **Status**: accepted, 2026-11-02, by the owner. Settles the open decision "Bloom and HDR format"
+  of P6.
+- **Decision**:
+  - A scene with `Bloom` or `ScreenFx` renders its 3D view into a linear HDR target. Its format is
+    RG11B10Float (4 bytes per pixel) where the device can render and blend it (the WebGPU feature
+    `rg11b10ufloat-renderable`), and RGBA16Float (8 bytes) otherwise. `Bloom.format` can force
+    either. The bloom levels use the same format.
+  - Bloom is a chain of half-size levels drawn with fragment shaders: a 13-tap downsample whose
+    first pass keeps only light above a soft threshold and weights boxes by brightness, then a 3x3
+    tent upsample back up, each level blended into the one above. No compute.
+  - The tonemap is the identity up to 0.8 and rolls off above it, bleaching light far above 1 toward
+    white; it dithers, adds the flash, and writes the sRGB frame. The UI is drawn after it.
+- **Why**:
+  - Mobile GPUs are short of memory bandwidth, not arithmetic. At a phone's 2400x1080 the HDR target
+    is 10 MB in RG11B10F and 21 MB in RGBA16F, and each pass that loads and stores it moves that
+    twice; RG11B10F halves all of it. The frame needs no alpha, and the 5-6 bit mantissas are hidden
+    by the tonemap's dither.
+  - Measured on the desktop GPU, where bandwidth matters least (release, RTX 5070, Vulkan,
+    1920x1080, 50,000 enemies as glowing shapes): main pass 0.121 ms with RGBA16F against 0.113 ms
+    with RG11B10F; bloom 0.041 ms and tonemap 0.038 ms with either. With 20,000 cubes: 0.046 against
+    0.037 ms. The bloom chain itself costs the same in both, since its levels are small.
+  - Fragment passes suit tile-based mobile GPUs, which keep a pass's target on chip; a compute bloom
+    would write through storage textures, and WebGPU allows RG11B10F there only with another
+    optional feature. Fragment passes also run on every WebGPU backend, the web build included.
+- **Consequences**:
+  - Scenes without Bloom or ScreenFx draw straight into the frame, as before.
+  - The phone measurement is still to be made with P1's device run: `python tools/android.py apk
+    examples/neon/scene.toml`, then `python tools/android.py perf`. If bloom costs more than about
+    2 ms there, start the chain at a quarter of the frame or use fewer levels.
+  - The shapes and particles draw in passes of their own, each loading and storing the HDR target.
+    On a tile-based GPU merging them into the crowd's pass would save that traffic; the RHI has one
+    pass per renderer today.
+
 ## D-031 Gameplay from scripts: entities at run time, events, timers, hierarchies and tweens
 
 - **Status**: accepted, 2026-11-02. Built in steps in P6 (docs/ROADMAP.md); each step's API is
