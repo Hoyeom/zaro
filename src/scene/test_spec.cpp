@@ -76,6 +76,19 @@ void load_expect(const toml_datum_t& t, Expect* e, const char* file, DiagList* d
     e->line = t.lineno;
     char component[64] = {}, field[64] = {};
     // A screen node is named with `node`, a scene entity with `entity`.
+    if (get_string(t, "save", e->save, sizeof(e->save), file, d, false)) {
+        const toml_datum_t eq = toml_get(t, "equals");
+        if (eq.type == TOML_STRING && eq.u.str.len < (int)sizeof(e->equals_string)) {
+            e->has_equals = true;
+            memcpy(e->equals_string, eq.u.str.ptr, (size_t)eq.u.str.len + 1);
+        } else if (eq.type == TOML_BOOLEAN) {
+            e->has_equals = true;
+            e->equals_number = eq.u.boolean ? 1.0 : 0.0;
+        } else {
+            load_number_bounds(t, e, file, d);
+        }
+        return;
+    }
     if (get_string(t, "sound", e->sound, sizeof(e->sound), file, d, false) ||
         get_string(t, "volume", e->volume, sizeof(e->volume), file, d, false)) {
         load_number_bounds(t, e, file, d);
@@ -209,6 +222,7 @@ bool load_test_spec(const char* path, TestSpec* spec, DiagList* d) {
         spec->has_enemies = get_uint(t, "enemies", &enemies, path, d, false);
         spec->enemies = (uint32_t)enemies;
         spec->has_seed = get_uint(t, "seed", &spec->seed, path, d, false);
+        if (get_string(t, "save", rel, sizeof(rel), path, d, false)) path_join_relative(path, rel, spec->save, sizeof(spec->save));
         char hash[32];
         if (get_string(t, "state_hash", hash, sizeof(hash), path, d, false)) {
             char* end = nullptr;

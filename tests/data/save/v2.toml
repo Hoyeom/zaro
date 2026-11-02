@@ -1,0 +1,8 @@
+[save]
+game = "savetest"
+version = 2
+
+[data]
+best_score = 7
+coins = 3
+pilot = "kite"

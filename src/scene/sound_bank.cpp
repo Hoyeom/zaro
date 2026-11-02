@@ -263,9 +263,11 @@ void load_groups(SoundBank* b, const toml_datum_t& groups, DiagList* d) {
                 named = read_name(v, g.name, sizeof(g.name), "group name", b->path, d);
             } else if (strcmp(key, "volume") == 0) {
                 if (read_number(v, 0.0, 1.0, &x, "volume", b->path, d)) g.volume = (float)x;
+            } else if (strcmp(key, "save") == 0) {
+                if (read_name(v, g.save, sizeof(g.save), "save", b->path, d)) g.save_line = v.lineno;
             } else {
                 diag_add(d, kErrSoundFile, b->path, v.lineno, v.colno,
-                         "unexpected key '%s' in [[group]] (expected name, volume)", key);
+                         "unexpected key '%s' in [[group]] (expected name, volume, save)", key);
             }
         }
         if (!named) {

@@ -54,6 +54,10 @@ enum ErrorId {
     kErrSoundFile = 1300,     // ZE1300 sound file missing or invalid: keys, groups, sounds (D-032)
     kErrSoundAsset = 1301,    // ZE1301 a sound's audio file is missing or cannot be decoded
     kErrSoundRef = 1302,      // ZE1302 a sound or group name the scene's sound file does not have
+    kErrSaveSpec = 1350,      // ZE1350 save declaration missing or invalid: [save], fields, [[migrate]] (D-033)
+    kErrSaveFile = 1351,      // ZE1351 a save file is damaged, or a value in it does not fit its field
+    kErrSaveNewer = 1352,     // ZE1352 a save file from a newer version of the game: not loaded, not overwritten
+    kErrSaveWrite = 1353,     // ZE1353 the save could not be written
 };
 
 void log_error(ErrorId id, const char* fmt, ...);

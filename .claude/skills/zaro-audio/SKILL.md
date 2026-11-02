@@ -14,6 +14,8 @@ description: Sound in ZARO (D-032) — sound files with volume groups, file soun
   (`[sound.pattern]`). Synthesized sounds are rendered once when the scene loads, so a game can
   sound finished with text alone (`examples/neon`).
 - A `Button` with `sound = "<sound>"` plays it when clicked.
+- A `[[group]]` with `save = "<field>"` follows that number field of the game's save, the settings
+  hook (`zaro-save`); `zaro check` reports a field that is missing or not a number (ZE1302).
 - `zaro check <scene>` loads the file, decodes the start of every file sound, and checks `music`
   and every `Button.sound` on the scene's screens: ZE1300 (keys, ranges, groups, notes), ZE1301 (a
   file missing, of another type, or not decodable), ZE1302 (a sound or group name the file does not

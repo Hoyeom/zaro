@@ -2,6 +2,7 @@
 
 #include "core/reflect.h"
 #include "scene/audio_state.h"
+#include "scene/save_spec.h"
 #include "scene/ui_state.h"
 #include "scene/tween.h"
 #include "scene/world.h"
@@ -58,6 +59,7 @@ struct Script {
     const UiHost* host = nullptr;
     const CrowdHost* crowd = nullptr;
     scene::AudioState* audio = nullptr;
+    scene::SaveData* save = nullptr;
     uint64_t tick = 0;
     double max_call_seconds = 1.0;
     Clock::time_point deadline;
@@ -521,12 +523,76 @@ int sound_volume(lua_State* L) {
     scene::AudioState* a = audio_of(L, "audio.volume");
     const uint32_t group = sound_name_arg(L, a->bank, 1, true);
     if (!lua_isnoneornil(L, 2)) {
+        if (a->group_follows_save[group]) {
+            luaL_error(L, "audio.volume: group '%s' follows the save field '%s'; change it with save.set",
+                       a->bank->groups[group].name, a->bank->groups[group].save);
+        }
         const double v = luaL_checknumber(L, 2);
         if (v < 0.0 || v > 1.0) luaL_error(L, "audio.volume: value must be in 0..1, got %g", v);
         scene::set_group_volume(a, group, (float)v);
     }
     lua_pushnumber(L, (double)a->group_volume[group]);
     return 1;
+}
+
+// --- save.* (D-033): the declared fields of the game's save.
+
+scene::SaveData* save_of(lua_State* L, const char* what) {
+    Script* s = self(L);
+    if (!s->save) luaL_error(L, "%s: the scene has no save (add save = \"<file>\" to [scene])", what);
+    return s->save;
+}
+
+uint32_t save_field_arg(lua_State* L, const scene::SaveData* data, int arg) {
+    const char* name = luaL_checklstring(L, arg, nullptr);
+    const int f = scene::find_save_field(data->spec, name);
+    if (f < 0) {
+        const char* hint = scene::suggest_save_field(data->spec, name);
+        char err[300];
+        snprintf(err, sizeof(err), "%s declares no field '%s'%s%s%s", data->spec->path, name,
+                 hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+        raise(L, err);
+    }
+    return (uint32_t)f;
+}
+
+int save_get(lua_State* L) {
+    const scene::SaveData* data = save_of(L, "save.get");
+    const scene::SaveValue& v = data->values[save_field_arg(L, data, 1)];
+    switch (v.type) {
+        case scene::kSaveInt: lua_pushnumber(L, (double)v.i); break;
+        case scene::kSaveNumber: lua_pushnumber(L, v.n); break;
+        case scene::kSaveBool: lua_pushboolean(L, v.b); break;
+        default: lua_pushstring(L, v.s); break;
+    }
+    return 1;
+}
+
+int save_set(lua_State* L) {
+    scene::SaveData* data = save_of(L, "save.set");
+    const uint32_t f = save_field_arg(L, data, 1);
+    scene::SaveValue v = {};
+    switch (lua_type(L, 2)) {
+        case LUA_TNUMBER: v.type = scene::kSaveNumber, v.n = lua_tonumber(L, 2); break;
+        case LUA_TBOOLEAN: v.type = scene::kSaveBool, v.b = lua_toboolean(L, 2) != 0; break;
+        case LUA_TSTRING: {
+            size_t n = 0;
+            const char* str = lua_tolstring(L, 2, &n);
+            if (n >= sizeof(v.s)) luaL_error(L, "save.set: strings are at most %d bytes", (int)sizeof(v.s) - 1);
+            v.type = scene::kSaveString;
+            memcpy(v.s, str, n + 1);
+            break;
+        }
+        default: luaL_error(L, "save.set expects a number, boolean or string, got %s", luaL_typename(L, 2));
+    }
+    char err[300];
+    if (!scene::set_save_value(data, f, v, err, sizeof(err))) raise(L, err);
+    return 0;
+}
+
+int save_commit(lua_State* L) {
+    save_of(L, "save.commit")->commit_requested = true;
+    return 0;
 }
 
 int zaro_has(lua_State* L) {
@@ -1144,6 +1210,7 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     s->host = desc.host;
     s->crowd = desc.crowd;
     s->audio = desc.audio;
+    s->save = desc.save;
     s->max_call_seconds = desc.max_call_seconds;
 
     lua_State* L = luaL_newstate();
@@ -1202,6 +1269,15 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     }
     lua_setreadonly(L, -1, 1);
     lua_setglobal(L, "audio");
+
+    static const luaL_Reg kSaveApi[] = {{"get", save_get}, {"set", save_set}, {"commit", save_commit}, {nullptr, nullptr}};
+    lua_createtable(L, 0, 3);
+    for (const luaL_Reg* r = kSaveApi; r->name; ++r) {
+        lua_pushcfunction(L, r->func, r->name);
+        lua_setfield(L, -2, r->name);
+    }
+    lua_setreadonly(L, -1, 1);
+    lua_setglobal(L, "save");
 
     luaL_sandbox(L);  // standard library and `zaro` become read-only
     s->T = lua_newthread(L);

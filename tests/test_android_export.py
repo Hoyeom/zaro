@@ -74,6 +74,14 @@ def main() -> int:
         check(r.returncode == 1, "export refuses sources that replace the runtime's", text)
         check(re.search(r"clash[/\\]build_extension\.toml:5: .*ZaroActivity\.java", text) is not None,
               "clash reported at the extension's sources line", text)
+
+        # Sounds (D-032): the sound file and its file sounds are packed; synthesized ones have no file.
+        r = zaro("export", "android", str(ROOT / "tests/data/audio/scene.toml"), "--runtime", str(runtime),
+                 "--out", str(tmp / "audio"))
+        check(r.returncode == 0, "export a scene with sounds", r.stdout + r.stderr)
+        assets = (tmp / "audio/app/src/main/assets/zaro_assets.txt").read_text().split()
+        check("game/sounds.toml" in assets and "game/click.wav" in assets, "sound file and file sounds packed",
+              str(assets))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print("test_android_export: ok")

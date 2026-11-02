@@ -1,6 +1,7 @@
 #include "app/tools.h"
 
 #include "app/audio_layer.h"
+#include "app/save_layer.h"
 #include "app/shape_layer.h"
 #include "app/sprite_layer.h"
 #include "app/ui_layer.h"
@@ -62,6 +63,8 @@ int check_scene(const char* path, bool json) {
         failed = shapes_failed || failed;
         // Its sounds: the sound file, that each sound decodes, the music and the buttons' sounds.
         failed = !check_scene_audio(s, diags) || failed;
+        // Its save declaration: fields, defaults, ranges and [[migrate]] steps.
+        failed = !check_scene_save(s, diags) || failed;
         if (failed) {
             scene::free_scene(s);
             s = nullptr;

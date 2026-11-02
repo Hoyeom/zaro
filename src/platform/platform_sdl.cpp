@@ -13,6 +13,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 namespace zaro::platform {
@@ -476,6 +477,42 @@ uint64_t file_mtime(const char* path) {
 bool create_directories(const char* path) { return SDL_CreateDirectory(path); }
 
 bool copy_file(const char* from, const char* to) { return SDL_CopyFile(from, to); }
+
+bool user_data_dir(const char* game, char* out, uint32_t size) {
+    char* dir = SDL_GetPrefPath("zaro", game);  // created by SDL, ends with a separator
+    if (!dir) return false;
+    const int n = snprintf(out, size, "%s", dir);
+    SDL_free(dir);
+    return n > 0 && (uint32_t)n < size;
+}
+
+char* read_file(const char* path, uint64_t* size) {
+    size_t n = 0;
+    void* data = SDL_LoadFile(path, &n);  // NUL-terminated
+    if (!data) return nullptr;
+    char* out = (char*)malloc(n + 1);
+    memcpy(out, data, n + 1);
+    SDL_free(data);
+    if (size) *size = n;
+    return out;
+}
+
+bool write_file_atomic(const char* path, const void* data, uint64_t size, const char* backup) {
+    char tmp[1100];
+    if (snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= (int)sizeof(tmp)) return false;
+    SDL_IOStream* io = SDL_IOFromFile(tmp, "wb");
+    if (!io) return false;
+    // SDL_FlushIO reaches the disk (FlushFileBuffers, fdatasync), so the rename never exposes a
+    // half-written file.
+    const bool written = SDL_WriteIO(io, data, (size_t)size) == (size_t)size && SDL_FlushIO(io);
+    if (!SDL_CloseIO(io) || !written) {
+        SDL_RemovePath(tmp);
+        return false;
+    }
+    SDL_PathInfo info;
+    if (backup && SDL_GetPathInfo(path, &info) && !SDL_RenamePath(path, backup)) return false;
+    return SDL_RenamePath(tmp, path);
+}
 
 const char* env_var(const char* name) { return SDL_getenv(name); }
 

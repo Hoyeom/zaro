@@ -22,6 +22,7 @@ phases sessions pick work from are in [docs/ROADMAP.md](docs/ROADMAP.md).
 | Headless benchmark | `build/release/zaro run examples/crowd/scene.toml --headless --perf perf.json` |
 | Headless screenshot | `build/debug/zaro run --headless --frames 60 --screenshot shot.png` |
 | Simulation only, no GPU | `build/debug/zaro run examples/crowd/scene.toml --sim-only --frames 300` |
+| Run with the game's save in a directory instead of the user data directory | `build/debug/zaro run <scene> --save-dir DIR` |
 | List components (fields, types, defaults, ranges) as JSON | `build/debug/zaro schema` |
 | Validate a scene without running it | `build/debug/zaro check examples/crowd/scene.toml [--json]` |
 | Validate a scene's screens and strings, or one screen | `build/debug/zaro check examples/hello/scene.toml`, `... check examples/hello/ui/hud.toml` |
@@ -95,6 +96,8 @@ Load a skill before working in the situation it names; it holds what would other
   headless runs and perf.json.
 - **`zaro-audio`**: sound files, synthesized sounds, music and volume groups, `audio.*` in scripts,
   the null mixer in tests, and the audio module.
+- **`zaro-save`**: save declarations, versions and migrations, `save.*` in scripts, where saves are
+  stored, and save expectations in scene tests.
 - **`zaro-ui`**: text and the glyph atlas, screen files, widgets, string tables, and how a frame's
   UI is built and drawn.
 - **`zaro-fx`**: the neon look's visual effects: glowing shapes, trails and hit flash, GPU

@@ -1,0 +1,8 @@
+[save]
+game = "savetest"
+version = 1
+
+[data]
+best = 42
+old_flag = true
+music_volume = 0.5

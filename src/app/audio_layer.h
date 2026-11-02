@@ -9,6 +9,7 @@
 
 namespace zaro::scene {
 struct AudioState;
+struct SaveData;
 struct Scene;
 }  // namespace zaro::scene
 
@@ -28,6 +29,8 @@ void destroy_audio_layer(AudioLayer* layer);
 scene::AudioState* audio_state(AudioLayer* layer);
 // Hands the queued requests and volume changes to the mixer and empties the queue.
 void flush_audio(AudioLayer* layer);
+// Groups with `save = "<field>"` follow that field of the game's save from now on (nullptr: none).
+void follow_save(AudioLayer* layer, const scene::SaveData* save);
 // Mobile background: stops the output and resumes it.
 void pause_audio(AudioLayer* layer, bool paused);
 // How many times a sound was asked to play during the run (scene tests); -1 for no such sound.
@@ -36,7 +39,8 @@ int64_t sound_play_count(const AudioLayer* layer, const char* sound);
 double sound_group_volume(const AudioLayer* layer, const char* group);
 
 // `zaro check`: the scene's sound file, that every sound decodes, that [scene] music names one of its
-// sounds, and that every Button.sound on the scene's screens does. Returns false if anything was
+// sounds, that every Button.sound on the scene's screens does, and that a group's `save` names a
+// number field of the scene's save. Returns false if anything was
 // reported. A scene without sounds whose buttons name one is reported too.
 bool check_scene_audio(const scene::Scene* scene, DiagList* diags);
 

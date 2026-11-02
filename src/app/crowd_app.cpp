@@ -3,6 +3,7 @@
 #include "app/fx_layer.h"
 #include "app/shape_layer.h"
 #include "app/audio_layer.h"
+#include "app/save_layer.h"
 #include "app/sprite_layer.h"
 #include "app/tools.h"
 #include "app/ui_layer.h"
@@ -43,6 +44,7 @@ struct Game {
     FxLayer* fx = nullptr;           // the scene's frame effects (HDR and bloom), when it has any
     ShapeLayer* shapes = nullptr;    // the scene's glowing shapes and arena colours, when it has any
     AudioLayer* audio = nullptr;     // the scene's sounds, when it has any
+    SaveLayer* save = nullptr;       // the game's save, when the scene declares one
     bool null_audio = false;         // mix nothing (headless runs, scene tests)
     DiagList* diags = nullptr;
 };
@@ -59,7 +61,8 @@ bool handle_ui_events(Game& g, bool back_pressed) {
     if (!g.ui) return true;
     set_script(g.ui, g.script_paused ? nullptr : g.script);
     const bool ok = handle_ui(g.ui, back_pressed, g.diags);
-    flush_audio(g.audio);  // button sounds and what on_ui asked for
+    flush_save(g.save);    // what on_ui committed
+    flush_audio(g.audio);  // button sounds and what on_ui asked for, and volumes from the save
     return ok;
 }
 
@@ -95,7 +98,8 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
                         player ? player->speed : sim::PlayerController{}.speed);
     }
     sim::step(g.crowd, input);
-    flush_audio(g.audio);  // what the tick's hooks asked for
+    flush_save(g.save);    // what the tick's hooks committed
+    flush_audio(g.audio);  // what the tick's hooks asked for, and volumes from the save
     after_step(g);
     if (g.scene) {
         scene::flush_entities(g.scene);  // what scripts destroyed this tick (D-031)
@@ -600,13 +604,18 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         if (auto* a = (sim::CrowdArena*)scene::first_component_mut(g.scene, &sim::kCrowdArenaDesc)) a->seed = o.seed;
     }
     if (g.scene) {
+        bool save_failed = false;
+        g.save = create_save_layer(g.scene, o.save_dir, g.null_audio, o.save_start, g.diags, &save_failed);
         bool audio_failed = false;
-        g.audio = create_audio_layer(g.scene, g.null_audio, g.diags, &audio_failed);
-        if (audio_failed) {
+        if (!save_failed) g.audio = create_audio_layer(g.scene, g.null_audio, g.diags, &audio_failed);
+        if (save_failed || audio_failed) {
+            destroy_save_layer(g.save);
+            g.save = nullptr;
             scene::free_scene(g.scene);
             g.scene = nullptr;
             return false;
         }
+        follow_save(g.audio, save_data(g.save));
         bool ui_failed = false;
         g.ui = create_ui_layer(g.scene, o.language, g.diags, &ui_failed);
         bool sprites_failed = false;
@@ -618,6 +627,8 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         if (ui_failed || sprites_failed || shapes_failed) {
             destroy_audio_layer(g.audio);
             g.audio = nullptr;
+            destroy_save_layer(g.save);
+            g.save = nullptr;
             destroy_sprite_layer(g.sprites);
             g.sprites = nullptr;
             destroy_fx_layer(g.fx);
@@ -639,6 +650,7 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         g.crowd_host = {&g, crowd_kill};
         sd.crowd = &g.crowd_host;
         sd.audio = audio_state(g.audio);
+        sd.save = save_data(g.save);
         g.script = script::load_script(sd, g.diags);
         if (g.ui && g.script) set_script(g.ui, g.script);
         if (!g.script || !script::call_start(g.script, g.diags)) {
@@ -654,11 +666,14 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
             g.shapes = nullptr;
             destroy_audio_layer(g.audio);
             g.audio = nullptr;
+            destroy_save_layer(g.save);
+            g.save = nullptr;
             scene::free_scene(g.scene);
             g.scene = nullptr;
             return false;
         }
     }
+    flush_save(g.save);    // what on_start committed
     flush_audio(g.audio);  // the scene's music and what on_start asked for
     if (g.scene) scene::update_transforms(g.scene);
     return true;
@@ -695,6 +710,7 @@ int run_crowd(const RunOptions& o) {
     destroy_fx_layer(g.fx);
     destroy_shape_layer(g.shapes);
     destroy_audio_layer(g.audio);
+    destroy_save_layer(g.save);  // stores a pending commit
     scene::free_scene(g.scene);
     delete g.diags;
     jobs::shutdown();
@@ -703,7 +719,8 @@ int run_crowd(const RunOptions& o) {
 }
 
 bool simulate_scene(const RunOptions& o, uint32_t ticks, const scene::TestSpec* spec, DiagList* diags,
-                    scene::Scene** scene_out, UiLayer** ui_out, SimulateResult* out, AudioLayer** audio_out) {
+                    scene::Scene** scene_out, UiLayer** ui_out, SimulateResult* out, AudioLayer** audio_out,
+                    SaveLayer** save_out) {
     Game g;
     g.diags = diags;
     g.null_audio = true;
@@ -711,6 +728,7 @@ bool simulate_scene(const RunOptions& o, uint32_t ticks, const scene::TestSpec* 
     *scene_out = nullptr;
     *ui_out = nullptr;
     if (audio_out) *audio_out = nullptr;
+    if (save_out) *save_out = nullptr;
     if (!setup_game(o, g, &cfg)) return false;
     jobs::init(o.threads);
     g.crowd = sim::create_crowd(cfg);
@@ -751,6 +769,8 @@ bool simulate_scene(const RunOptions& o, uint32_t ticks, const scene::TestSpec* 
     *ui_out = g.ui;
     if (audio_out) *audio_out = g.audio;
     else destroy_audio_layer(g.audio);
+    if (save_out) *save_out = g.save;
+    else destroy_save_layer(g.save);
     return ok;
 }
 

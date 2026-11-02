@@ -1,0 +1,20 @@
+# A new game: the defaults, then two commits in 150 ticks.
+[test]
+scene = "../scene.toml"
+ticks = 150
+
+[[expect]]
+save = "best_score"
+equals = 2
+
+[[expect]]
+save = "pilot"
+equals = "nova"
+
+[[expect]]
+save = "music_volume"
+equals = 0.8
+
+[[expect]]
+volume = "music"
+equals = 0.25

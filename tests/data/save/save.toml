@@ -1,0 +1,38 @@
+# The save of the save tests (D-033): version 3, with the steps from versions 1 and 2.
+[save]
+game = "savetest"
+version = 3
+
+[[field]]
+name = "best_score"
+type = "int"
+min = 0
+merge = "max"
+
+[[field]]
+name = "music_volume"
+type = "number"
+default = 0.8
+min = 0.0
+max = 1.0
+local = true
+
+[[field]]
+name = "pilot"
+type = "string"
+default = "nova"
+
+[[field]]
+name = "coins"
+type = "int"
+
+# Version 2 renamed best to best_score and retired old_flag.
+[[migrate]]
+from = 1
+rename = { best = "best_score" }
+remove = ["old_flag"]
+
+# Version 3 gave every player 100 coins.
+[[migrate]]
+from = 2
+set = { coins = 100 }

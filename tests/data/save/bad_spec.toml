@@ -1,0 +1,22 @@
+# Problems the save declaration loader reports, one per line below.
+[save]
+game = "Save Test"
+version = 2
+
+[[field]]
+name = "score"
+type = "integer"
+
+[[field]]
+name = "volume"
+type = "number"
+default = 2.0
+max = 1.0
+
+[[field]]
+name = "flag"
+type = "bool"
+merge = "max"
+
+[[migrate]]
+from = 2

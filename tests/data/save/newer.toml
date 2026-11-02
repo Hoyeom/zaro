@@ -1,0 +1,6 @@
+[save]
+game = "savetest"
+version = 9
+
+[data]
+best_score = 1000

@@ -5,6 +5,7 @@
 #include "core/reflect.h"
 #include "platform/platform.h"
 #include "scene/audio_state.h"
+#include "scene/save_spec.h"
 #include "scene/scene.h"
 #include "scene/sound_bank.h"
 #include "ui/widgets.h"
@@ -21,6 +22,9 @@ struct AudioLayer {
     audio::Mixer* mixer = nullptr;
     platform::AudioOutput* output = nullptr;
     uint32_t volume_changes = 0;  // AudioState::volume_changes the mixer has seen
+    const scene::SaveData* save = nullptr;
+    int save_field[scene::kMaxSoundGroups] = {};  // per group: the save field it follows, or -1
+    uint32_t save_changes = 0;                    // SaveData::changes last applied
 };
 
 namespace {
@@ -162,9 +166,30 @@ void destroy_audio_layer(AudioLayer* l) {
 
 scene::AudioState* audio_state(AudioLayer* l) { return l ? l->state : nullptr; }
 
+void follow_save(AudioLayer* l, const scene::SaveData* save) {
+    if (!l) return;
+    l->save = save;
+    for (uint32_t g = 0; g < l->bank->group_count; ++g) {
+        const int f = save && l->bank->groups[g].save[0] ? scene::find_save_field(save->spec, l->bank->groups[g].save) : -1;
+        const bool number = f >= 0 && save->spec->fields[f].type == scene::kSaveNumber;
+        l->save_field[g] = number ? f : -1;
+        l->state->group_follows_save[g] = number;
+    }
+    l->save_changes = save ? save->changes - 1 : 0;  // apply on the next flush
+    flush_audio(l);
+}
+
 void flush_audio(AudioLayer* l) {
     if (!l) return;
     scene::AudioState* s = l->state;
+    if (l->save && l->save->changes != l->save_changes) {
+        for (uint32_t g = 0; g < l->bank->group_count; ++g) {
+            if (l->save_field[g] < 0) continue;
+            const float v = (float)l->save->values[l->save_field[g]].n;
+            if (v != s->group_volume[g]) scene::set_group_volume(s, g, v);
+        }
+        l->save_changes = l->save->changes;
+    }
     if (s->volume_changes != l->volume_changes) {
         for (uint32_t g = 0; g < l->bank->group_count; ++g) audio::set_group_volume(l->mixer, g, s->group_volume[g]);
         l->volume_changes = s->volume_changes;
@@ -208,6 +233,32 @@ bool check_scene_audio(const scene::Scene* s, DiagList* diags) {
             }
         }
     }
+    // Groups that follow a save field: a number field of the scene's save.
+    scene::SaveSpec* spec = nullptr;
+    for (uint32_t g = 0; bank && g < bank->group_count; ++g) {
+        const scene::SoundGroup& group = bank->groups[g];
+        if (!group.save[0]) continue;
+        if (!spec && s->save[0]) {
+            DiagList* ignored = new DiagList();  // check_scene_save reports the declaration itself
+            spec = scene::load_save_spec(s->save, ignored);
+            delete ignored;
+        }
+        const int f = spec ? scene::find_save_field(spec, group.save) : -1;
+        if (!s->save[0]) {
+            diag_add(diags, kErrSoundRef, bank->path, group.save_line, 1,
+                     "group '%s' follows save field '%s', but the scene has no save = \"<file>\"", group.name, group.save);
+        } else if (spec && f < 0) {
+            const char* hint = scene::suggest_save_field(spec, group.save);
+            diag_add(diags, kErrSoundRef, bank->path, group.save_line, 1, "group '%s': %s declares no field '%s'%s%s%s",
+                     group.name, spec->path, group.save, hint ? " (did you mean '" : "", hint ? hint : "",
+                     hint ? "'?)" : "");
+        } else if (spec && spec->fields[f].type != scene::kSaveNumber) {
+            diag_add(diags, kErrSoundRef, bank->path, group.save_line, 1,
+                     "group '%s': save field '%s' is %s; a volume needs a number field (0..1)", group.name, group.save,
+                     scene::save_type_name(spec->fields[f].type));
+        }
+    }
+    scene::free_save_spec(spec);
     // Every Button.sound on the scene's screens.
     uint32_t sound_field = 0;
     while (sound_field < ui::kButtonDesc.field_count && strcmp(ui::kButtonDesc.fields[sound_field].name, "sound") != 0) {
