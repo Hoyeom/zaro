@@ -942,6 +942,34 @@ Status of all entries below: **accepted, 2026-11-01**.
   of every entity (D-031), so the golden hashes of scene tests with a `CrowdSpawner` changed once.
   Crowd errors are ZE1400-ZE1499.
 
+## D-035 A scene camera: height, pitch, field of view across a chosen side, and what it follows
+
+- **Status**: accepted, 2026-11-02. Third step of P6's crowd track (docs/ROADMAP.md).
+- **Decision**: a `Camera` component (one per scene, the first counts) sets the 3D view. It looks at
+  a point from `height` metres above it, tilted `pitch` degrees below the horizon from the +z side,
+  with `fov` degrees across `fov_axis`: the vertical side, the horizontal side, or the shorter side
+  of the screen. The point is the player's position (`follow = "player"`) or `target`, plus
+  `offset`, eased toward with `lag` seconds; `fog` moves where distance fog starts. Without a
+  Camera the view is as before: 30 m above and 24 m behind the player with a 0.87 rad vertical
+  field of view, which the component's defaults reproduce. `zaro run --zoom` scales the distance
+  either way.
+  - `Camera` is a visual component: it is not in the state hash, scripts and tweens may change it
+    while the game runs (zooming out as a wave grows), and the app eases it per frame, never per
+    tick. The camera never turns about the vertical, so the screen's up stays -z and its right +x,
+    also when it looks straight down.
+- **Why**:
+  - A portrait phone with a fixed vertical field of view sees about half the width a landscape
+    screen does, too little around the player in a survivors-like game. A field of view across the
+    shorter side keeps the width on a portrait phone and the height on a landscape screen, so one
+    scene suits both orientations.
+  - Height and pitch are what a designer tunes for an arena game (how much ground, how steep);
+    eye offsets would make them derived numbers. A fixed yaw keeps shapes, sprites and particles,
+    which face the camera's right vector, unchanged.
+  - Easing on the frame clock is smooth at any frame rate and touches nothing the simulation
+    reads, so determinism and golden hashes are unaffected (D-005).
+- **Consequences**: the crowd shader's fog start comes from the frame constants. Shapes, sprites
+  and particles use the same camera through `render::crowd_camera`.
+
 ## D-036 Enemy kinds: every spawner entity of the scene is a kind in one shared crowd
 
 - **Status**: accepted, 2026-11-02. Second step of P6's crowd track (docs/ROADMAP.md).

@@ -22,8 +22,10 @@
 #include "ui/screen.h"
 #include "sim/crowd.h"
 #include "sim/crowd_components.h"
+#include "sim/fx_components.h"
 #include "zaro/zaro.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,6 +48,8 @@ struct Game {
     AudioLayer* audio = nullptr;     // the scene's sounds, when it has any
     SaveLayer* save = nullptr;       // the game's save, when the scene declares one
     bool null_audio = false;         // mix nothing (headless runs, scene tests)
+    render::CrowdCamera camera;      // the scene's Camera as of the last frame (D-035)
+    bool camera_moved = false;       // `camera.target` holds a point to ease from (Camera.lag)
     bool count_clamped = false;      // said once that a script asked for more enemies than max
     uint32_t kind_ids[sim::kMaxCrowdKinds] = {};  // the crowd's kinds: their spawner entities' ids (D-036)
     uint32_t kind_count = 0;
@@ -301,7 +305,34 @@ uint64_t shader_mtime(const char* dir) {
     return newest;
 }
 
-render::CrowdScene make_scene(const Game& g, const float* instances, float alpha, float zoom) {
+// The scene's Camera for this frame (D-035): the point it looks at is the player's (or target) plus
+// offset, eased toward over `seconds` by lag. Visual only: it reads the simulation, never writes it.
+const render::CrowdCamera* frame_camera(Game& g, float player_x, float player_z, float seconds) {
+    const auto* c = g.scene ? (const sim::Camera*)scene::first_component(g.scene, &sim::kCameraDesc, nullptr) : nullptr;
+    if (!c) {
+        g.camera_moved = false;
+        return nullptr;
+    }
+    float want[3] = {c->target[0] + c->offset[0], c->target[1] + c->offset[1], c->target[2] + c->offset[2]};
+    if (c->follow == sim::kCameraFollowPlayer) {
+        want[0] = player_x + c->offset[0];
+        want[1] = c->offset[1];
+        want[2] = player_z + c->offset[2];
+    }
+    render::CrowdCamera& out = g.camera;
+    const float k = (g.camera_moved && c->lag > 0.0f) ? 1.0f - expf(-seconds / c->lag) : 1.0f;
+    for (int i = 0; i < 3; ++i) out.target[i] += (want[i] - out.target[i]) * k;
+    g.camera_moved = true;
+    const float kRadians = 3.14159265f / 180.0f;
+    out.height = c->height;
+    out.pitch = c->pitch * kRadians;
+    out.fov = c->fov * kRadians;
+    out.fov_axis = c->fov_axis;
+    out.fog = c->fog;
+    return &out;
+}
+
+render::CrowdScene make_scene(Game& g, const float* instances, float alpha, float zoom, float seconds) {
     const sim::Crowd* crowd = g.crowd;
     render::CrowdScene scene;
     scene.enemy_instances = instances;
@@ -310,6 +341,7 @@ render::CrowdScene make_scene(const Game& g, const float* instances, float alpha
     scene.arena_size = sim::arena_size(crowd);
     scene.time_seconds = (float)sim::tick(crowd) * sim::kTickSeconds;
     scene.zoom = zoom;
+    scene.camera = frame_camera(g, scene.player_x, scene.player_z, seconds);
     fx_camera_offset(g.fx, scene.time_seconds + alpha * sim::kTickSeconds, scene.camera_offset);
     scene.keep_depth = has_world_sprites(g.sprites);
     scene.kind_count = sim::kind_count(crowd);
@@ -430,7 +462,7 @@ int run_headless(const RunOptions& o, Game& g, float* instances) {
             const uint64_t t1 = platform::now_ticks();
             sim::write_enemy_instances(crowd, 1.0f, instances);
             if (rhi::begin_frame(device)) {
-                render_frame(g, device, renderer, make_scene(g, instances, 1.0f, o.zoom), sim::kTickSeconds);
+                render_frame(g, device, renderer, make_scene(g, instances, 1.0f, o.zoom, sim::kTickSeconds), sim::kTickSeconds);
                 prep_ms = ms_since(t1);
                 rhi::end_frame(device);
             }
@@ -562,7 +594,8 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
         rhi::resize(device, (uint32_t)pw, (uint32_t)ph);
         sim::write_enemy_instances(crowd, alpha, instances);
         if (rhi::begin_frame(device)) {
-            render_frame(g, device, renderer, make_scene(g, instances, alpha, o.zoom), (float)frame_seconds);
+            render_frame(g, device, renderer, make_scene(g, instances, alpha, o.zoom, (float)frame_seconds),
+                         (float)frame_seconds);
             rhi::end_frame(device);
         }
         ZARO_FRAME_MARK();

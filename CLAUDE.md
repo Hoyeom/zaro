@@ -101,8 +101,8 @@ Load a skill before working in the situation it names; it holds what would other
 - **`zaro-ui`**: text and the glyph atlas, screen files, widgets, string tables, and how a frame's
   UI is built and drawn.
 - **`zaro-fx`**: the neon look's visual effects: glowing shapes, trails and hit flash, GPU
-  particles, screen shake and flash, the HDR frame and bloom, and how effect components reach
-  render without touching the simulation.
+  particles, screen shake and flash, the scene camera, the HDR frame and bloom, and how effect
+  components reach render without touching the simulation.
 - **`zaro-build`**: the build pipeline (`zaro build`): stages, game build files, environments,
   pre and post steps from games and plugins, built-in steps, and the release rule.
 - **`zaro-android`**: the Android toolchain, the `android` preset, APK export, running on a

@@ -47,7 +47,7 @@ static const float3 kSky = float3(0.06, 0.07, 0.09);
 
 bool has_arena_colors() { return frame.ground.w > 0.5; }
 float3 sky() { return has_arena_colors() ? frame.sky.rgb : kSky; }
-float fog_amount(float3 world) { return saturate((length(world - frame.camera.xyz) - 60.0) / 140.0); }
+float fog_amount(float3 world) { return saturate((length(world - frame.camera.xyz) - frame.camera.w) / 140.0); }
 static const float3 kLightDir = float3(0.37, 0.86, 0.35);
 
 struct VSOut {
