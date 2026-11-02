@@ -209,7 +209,7 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
   - **Audio and local save**: sound effects and music with volume groups and a settings hook; a
     local save that a game declares and that later moves to the backend's save authorities (P4c)
     without changing game code.
-    **Started** 2026-11-02 (D-032 audio: miniaudio mixing, SDL3 output; D-033 save: declared
+    **Done** 2026-11-02 (D-032 audio: miniaudio mixing, SDL3 output; D-033 save: declared
     fields in TOML behind a replaceable store). Steps, one PR each: 1 the decisions, 2 audio,
     3 local save, 4 an example with sound, volume settings and a saved best score, then
     `examples/neon`'s sound and save.
@@ -224,7 +224,13 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
       backup, newer saves kept) and the memory store behind `app::SaveStore`, `--save-dir`, sound
       groups that follow a save field, starting saves and `save` expectations in scene tests,
       `zaro check` (ZE1350-ZE1353); tests `save`, `check_save_scene`, `scene_tests_save`,
-      `save_runs_*`.
+      `save_runs_*` (#48).
+    - Step 4 (`examples/neon`): synthesized sounds for sweeps, elites, hits, waves, buttons and a
+      music loop; a HUD with the score and the saved best score; a settings popup that changes the
+      music and effects volumes in the save, which the sound groups follow; a version 1 save
+      migrated by a scene test. Tests `examples/neon/tests` (`sound`, `settings`, `save_migration`;
+      the golden hashes did not change), `screenshot_neon_settings`, `example_neon_save_*` (the
+      best score across runs). With this the track is done; the phone check is P6's.
 - **Done when**: `examples/neon`, a small arena where the player sweeps a few thousand glowing
   enemies, is built only from scenes, scripts and text assets. It has bloom, particles, tweens, sound
   and a saved best score, runs at a stable 60 fps on PC and on a mid-range Android phone, and is

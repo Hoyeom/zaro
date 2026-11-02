@@ -360,6 +360,21 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro screenshot examples/neon/scene.toml ${CMAKE_BINARY_DIR}/neon.png --frames 200 --size 960x540
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(screenshot_neon PROPERTIES LABELS gpu)
+  add_test(NAME screenshot_neon_settings
+           COMMAND zaro screenshot examples/neon/scene.toml ${CMAKE_BINARY_DIR}/neon_settings.png --frames 30
+           --size 960x540 --click hud/settings_button WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_neon_settings PROPERTIES LABELS gpu)
+  # Its best score across runs (D-033): the first wave (tick 480) commits it, the next run starts from it.
+  add_test(NAME example_neon_save_clean COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_CURRENT_BINARY_DIR}/neon_save)
+  add_test(NAME example_neon_save_first COMMAND zaro run examples/neon/scene.toml --sim-only --warmup 0 --frames 500
+           --save-dir ${CMAKE_CURRENT_BINARY_DIR}/neon_save WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME example_neon_save_second COMMAND zaro run examples/neon/scene.toml --sim-only --warmup 0 --frames 1
+           --save-dir ${CMAKE_CURRENT_BINARY_DIR}/neon_save WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(example_neon_save_clean PROPERTIES FIXTURES_SETUP neon_save)
+  set_tests_properties(example_neon_save_first PROPERTIES FIXTURES_REQUIRED neon_save FIXTURES_SETUP neon_save_first
+    PASS_REGULAR_EXPRESSION "script: best score 0")
+  set_tests_properties(example_neon_save_second PROPERTIES FIXTURES_REQUIRED "neon_save;neon_save_first"
+    PASS_REGULAR_EXPRESSION "script: best score 435")
 
   # The example scene stays valid, and `zaro schema` stays valid JSON.
   add_test(NAME example_crowd_scene COMMAND zaro check examples/crowd/scene.toml

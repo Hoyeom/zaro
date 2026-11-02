@@ -1,0 +1,7 @@
+# A save written by version 1 of the neon arena, before the volumes: the best score was `best`.
+[save]
+game = "neon"
+version = 1
+
+[data]
+best = 5000
