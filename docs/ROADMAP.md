@@ -203,6 +203,10 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
   - **Audio and local save**: sound effects and music with volume groups and a settings hook; a
     local save that a game declares and that later moves to the backend's save authorities (P4c)
     without changing game code.
+    **Started** 2026-11-02 (D-032 audio: miniaudio mixing, SDL3 output; D-033 save: declared
+    fields in TOML behind a replaceable store). Steps, one PR each: 1 the decisions, 2 audio,
+    3 local save, 4 an example with sound, volume settings and a saved best score, then
+    `examples/neon`'s sound and save.
 - **Done when**: `examples/neon`, a small arena where the player sweeps a few thousand glowing
   enemies, is built only from scenes, scripts and text assets. It has bloom, particles, tweens, sound
   and a saved best score, runs at a stable 60 fps on PC and on a mid-range Android phone, and is
@@ -226,10 +230,8 @@ Luau type checker, KTX2 textures and mipmaps.
 ## Open decisions
 
 For P6, each settled by the track that needs it, with the license check from D-012:
-- **Audio library**: miniaudio (public domain or MIT-0) is the candidate.
 - **Bloom and HDR format**: the frame's colour format and the bloom method (downsample chain or
   compute), measured on a mid-range phone.
-- **Save format**: file layout, versioning and migration, shaped so that P4c's server save can take
-  it over.
 
-(The SVG rasterizer for P3 was settled as D-028.)
+(The SVG rasterizer for P3 was settled as D-028, the audio library as D-032 and the save format as
+D-033.)
