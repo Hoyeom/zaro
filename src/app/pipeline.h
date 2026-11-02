@@ -2,11 +2,13 @@
 // and its plugins' build extensions declare the steps; the stages run in a fixed order:
 //
 //   validate  the build file, the scene (as `zaro check` does), every extension and step; for a
-//             release build also the release environment, the version code and the upload key
+//             release build also the release environment, the version code, [game] package and
+//             the upload key
 //   pre       the pre steps: plugins first, in scene order, then the game's
 //   native    the target's native build                 android: python tools/build.py android
 //   export    the target's project                      android: zaro export android, with
-//                                                       build_info.toml among the assets
+//                                                       build_info.toml among the assets and
+//                                                       [game] package, title and orientation
 //   post      the build extensions (D-026), then the post steps, then the target's symbols and
 //             size report                               android: tools/android.py stage-post
 //   package   the target's package                      android: Gradle, bundletool checks

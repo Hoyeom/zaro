@@ -264,7 +264,8 @@ BuildSpec* load_build_spec(const char* path, DiagList* d) {
         diag_add(d, kErrSceneSyntax, path, 0, 0, "invalid TOML: %s", r.errmsg);
     } else {
         static const char* const kTop[] = {"game", "environment", "step"};
-        static const char* const kGame[] = {"name", "scene", "version", "version_code"};
+        static const char* const kGame[] = {"name", "scene", "version", "version_code", "package", "title",
+                                            "orientation"};
         const toml_datum_t top = r.toptab;
         int game_line = 0;
         for (int32_t i = 0; i < top.u.tab.size; ++i) {
@@ -292,8 +293,28 @@ BuildSpec* load_build_spec(const char* path, DiagList* d) {
                         } else {
                             b->version_code = (uint32_t)gv.u.int64;
                         }
+                    } else if (strcmp(gk, "package") == 0) {
+                        if (spec_copy_text(gv, b->package, sizeof(b->package), "game package", path, d) &&
+                            !valid_package_name(b->package)) {
+                            diag_add(d, kErrBuildSpec, path, gv.lineno, gv.colno,
+                                     "package '%s' must be two or more parts like com.example.game: letters, "
+                                     "digits and '_', each part starting with a letter", b->package);
+                        }
+                    } else if (strcmp(gk, "title") == 0) {
+                        if (spec_copy_text(gv, b->title, sizeof(b->title), "game title", path, d) &&
+                            !valid_app_title(b->title)) {
+                            diag_add(d, kErrBuildSpec, path, gv.lineno, gv.colno,
+                                     "title '%s' cannot hold control characters or < > & \" ' \\, or start "
+                                     "with @ or ?", b->title);
+                        }
+                    } else if (strcmp(gk, "orientation") == 0) {
+                        if (gv.type == TOML_STRING && strcmp(gv.u.str.ptr, "portrait") == 0) b->portrait = true;
+                        else if (gv.type != TOML_STRING || strcmp(gv.u.str.ptr, "landscape") != 0) {
+                            diag_add(d, kErrBuildSpec, path, gv.lineno, gv.colno,
+                                     "orientation must be \"portrait\" or \"landscape\"");
+                        }
                     } else {
-                        spec_unexpected_key(path, gv, gk, "[game]", kGame, 4, d);
+                        spec_unexpected_key(path, gv, gk, "[game]", kGame, 7, d);
                     }
                 }
             } else if (strcmp(key, "environment") == 0 && v.type == TOML_TABLE) {
@@ -338,6 +359,35 @@ BuildSpec* load_build_spec(const char* path, DiagList* d) {
 }
 
 void free_build_spec(BuildSpec* spec) { free(spec); }
+
+bool valid_package_name(const char* id) {
+    int segments = 0;
+    const char* p = id;
+    while (*p) {
+        if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z'))) return false;
+        while ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_') ++p;
+        ++segments;
+        if (*p == '.') {
+            ++p;
+            if (!*p) return false;
+        } else if (*p) {
+            return false;
+        }
+    }
+    return segments >= 2;
+}
+
+// The title goes into an XML attribute as it is, so it holds nothing that needs escaping there or
+// that Android would read as a resource reference.
+bool valid_app_title(const char* title) {
+    const size_t n = strlen(title);
+    if (n == 0 || n > 100 || title[0] == '@' || title[0] == '?') return false;
+    for (const char* c = title; *c; ++c) {
+        const unsigned char ch = (unsigned char)*c;
+        if (ch < 0x20 || ch == 0x7f || strchr("<>&\"'\\", ch)) return false;
+    }
+    return true;
+}
 
 const BuildEnvironment* find_environment(const BuildSpec* spec, const char* name) {
     for (uint32_t i = 0; i < spec->environment_count; ++i) {

@@ -312,6 +312,11 @@ int validate(const BuildOptions& o, Pipeline& p) {
                       "--version-code)", p.spec->path);
             code = 1;
         }
+        if (!p.spec->package[0]) {
+            log_error(kErrBuildTarget, "%s: a release build needs [game] package = \"com.example.game\"; stores fix "
+                      "the package name at the first upload (D-037)", p.spec->path);
+            code = 1;
+        }
         const char* const keys[] = {"ZARO_UPLOAD_KEYSTORE", "ZARO_UPLOAD_KEYSTORE_PASSWORD", "ZARO_UPLOAD_KEY_ALIAS",
                                     "ZARO_UPLOAD_KEY_PASSWORD"};
         for (const char* key : keys) {
@@ -373,6 +378,9 @@ int android_export(Pipeline& p) {
     e.runtime_dir = p.runtime;
     e.version_code = p.version_code ? p.version_code_text : nullptr;
     e.version_name = p.spec->version;
+    e.package = p.spec->package[0] ? p.spec->package : nullptr;
+    e.title = p.spec->title[0] ? p.spec->title : nullptr;
+    e.portrait = p.spec->portrait;
     e.build_info = p.build_info;
     e.build_file = p.spec->path;
     e.defer_extensions = true;
@@ -447,6 +455,8 @@ void print_plan(const Pipeline& p) {
             printf("  python tools/build.py android -> %s\n", p.runtime);
         } else if (strcmp(stage, "export") == 0) {
             printf("  zaro export android %s -> %s\n", p.spec->scene, p.project);
+            printf("  package %s, title \"%s\", %s\n", p.spec->package[0] ? p.spec->package : "dev.zaro.<scene name>",
+                   p.spec->title[0] ? p.spec->title : "<scene name>", p.spec->portrait ? "portrait" : "landscape");
         } else if (strcmp(stage, "package") == 0) {
             printf("  Gradle %s%s\n", p.options->package, p.options->release ? ", release" : ", debug key");
         } else {

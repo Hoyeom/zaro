@@ -25,7 +25,7 @@ void print_usage() {
          "             [--frames N (default 60)] [--size WxH] [--lang LANG] [--click SCREEN/NODE]...\n"
          "  export     write a Gradle project for an Android APK: zaro export android <scene.toml>\n"
          "             [--out DIR (default build/android-project)] [--runtime DIR] [--package ID]\n"
-         "             [--version-code N (default 1)] [--version-name S (default 1.0)] [--portrait]\n"
+         "             [--portrait] [--title S] [--version-code N (default 1)] [--version-name S (default 1.0)]\n"
          "             (runtime: python tools/build.py android; APK or AAB: tools/android.py apk|aab)\n"
          "  cook       draw the SVG art of a scene's sprite sheets (or of one sheet) into PNG atlases:\n"
          "             zaro cook <scene.toml | sheet.toml> [--force]  (runs cook what changed themselves)\n"
@@ -211,6 +211,7 @@ int cmd_export(int argc, char** argv) {
         if (strcmp(a, "--out") == 0) value = &o.out_dir;
         else if (strcmp(a, "--runtime") == 0) value = &o.runtime_dir;
         else if (strcmp(a, "--package") == 0) value = &o.package;
+        else if (strcmp(a, "--title") == 0) value = &o.title;
         else if (strcmp(a, "--version-code") == 0) value = &o.version_code;
         else if (strcmp(a, "--version-name") == 0) value = &o.version_name;
         if (value) {

@@ -50,6 +50,7 @@ struct Game {
     bool null_audio = false;         // mix nothing (headless runs, scene tests)
     render::CrowdCamera camera;      // the scene's Camera as of the last frame (D-035)
     bool camera_moved = false;       // `camera.target` holds a point to ease from (Camera.lag)
+    bool count_clamped = false;      // said once that a script asked for more enemies than max
     DiagList* diags = nullptr;
 };
 
@@ -95,11 +96,22 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
     if (g.scene) g.scene->tick = tick;
     if (g.script && !g.script_paused) {
         ok = script::call_tick(g.script, tick, g.diags);
-        const auto* spawner = (const sim::CrowdSpawner*)scene::first_component(g.scene, &sim::kCrowdSpawnerDesc, nullptr);
+        auto* spawner = (sim::CrowdSpawner*)scene::first_component_mut(g.scene, &sim::kCrowdSpawnerDesc);
         const auto* player =
             (const sim::PlayerController*)scene::first_component(g.scene, &sim::kPlayerControllerDesc, nullptr);
         sim::set_tuning(g.crowd, spawner ? spawner->speed : sim::CrowdSpawner{}.speed,
                         player ? player->speed : sim::PlayerController{}.speed);
+        // The count the script set, kept at or below the capacity reserved at start (D-034); the
+        // component shows the count actually used.
+        if (spawner && spawner->count != sim::enemy_count(g.crowd)) {
+            const uint32_t asked = spawner->count;
+            spawner->count = sim::set_enemy_count(g.crowd, asked);
+            if (spawner->count != asked && !g.count_clamped) {
+                g.count_clamped = true;
+                log_info("CrowdSpawner count %u is above the %u reserved at start (CrowdSpawner.max); using %u",
+                         asked, sim::enemy_capacity(g.crowd), spawner->count);
+            }
+        }
     }
     sim::step(g.crowd, input);
     flush_save(g.save);    // what the tick's hooks committed
@@ -350,7 +362,7 @@ render::CrowdRenderer* attach_renderers(Game& g, rhi::Device* device, const char
     crowd_look.shapes = crowd_has_shapes(g.shapes);
     crowd_look.format = format;
     render::CrowdRenderer* renderer =
-        render::create_crowd_renderer(device, dir, sim::enemy_count(g.crowd), cells, ncells, crowd_look);
+        render::create_crowd_renderer(device, dir, sim::enemy_capacity(g.crowd), cells, ncells, crowd_look);
     free_crowd_sprites(&look);
     if (!renderer || (g.ui && !attach_gpu(g.ui, device, dir)) ||
         (g.sprites && !attach_sprite_gpu(g.sprites, device, dir, format)) ||
@@ -615,8 +627,14 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
             cfg->grid_size = a->grid_size;
             cfg->seed = a->seed;
         }
+        if (!check_crowd(g.scene, g.diags)) {
+            scene::free_scene(g.scene);
+            g.scene = nullptr;
+            return false;
+        }
         if (const auto* sp = (const sim::CrowdSpawner*)scene::first_component(g.scene, &sim::kCrowdSpawnerDesc, nullptr)) {
             cfg->enemy_count = sp->count;
+            cfg->enemy_capacity = sp->max;
             cfg->enemy_speed = sp->speed;
             cfg->enemy_radius = sp->radius;
         }
@@ -714,6 +732,19 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
 
 }  // namespace
 
+bool check_crowd(const scene::Scene* s, DiagList* diags) {
+    bool ok = true;
+    for (uint32_t i = 0; i < s->entity_count; ++i) {
+        const scene::Entity& e = s->entities[i];
+        const auto* sp = (const sim::CrowdSpawner*)scene::get_component(&e, &sim::kCrowdSpawnerDesc);
+        if (!sp || !sp->max || sp->count <= sp->max) continue;
+        diag_add(diags, kErrCrowd, s->path, e.line, 1, "entity '%s': CrowdSpawner count %u is above its max %u", e.name,
+                 sp->count, sp->max);
+        ok = false;
+    }
+    return ok;
+}
+
 int run_crowd(const RunOptions& o) {
     const bool headless = o.headless || o.sim_only;
     Game g;
@@ -728,7 +759,8 @@ int run_crowd(const RunOptions& o) {
     if (!platform::init(headless)) return 1;
     jobs::init(o.threads);
     g.crowd = sim::create_crowd(cfg);
-    float* instances = (float*)malloc(sizeof(float) * 4 * (cfg.enemy_count ? cfg.enemy_count : 1));
+    const uint32_t capacity = sim::enemy_capacity(g.crowd);
+    float* instances = (float*)malloc(sizeof(float) * 4 * (capacity ? capacity : 1));
 
     RunOptions effective = o;
     effective.enemies = cfg.enemy_count;

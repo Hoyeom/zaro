@@ -5,6 +5,15 @@
 //   scene = "scene.toml"               # required: the scene the game starts with
 //   version = "1.4.0"                  # required: the version players see
 //   version_code = 12                  # optional, 1..2100000000; `zaro build --version-code` overrides
+//   package = "com.example.crowd"      # the app's id in stores (Android application id), fixed at the
+//                                      # first upload: two or more dot-separated parts of letters,
+//                                      # digits and '_', each starting with a letter. Optional
+//                                      # (default dev.zaro.<scene name>); a release build needs it (ZE1003)
+//   title = "Crowd"                    # the name under the app's icon, 1 to 100 bytes of UTF-8,
+//                                      # without control characters, < > & " ' \ or a leading @ or ?
+//                                      # (default: the scene's name)
+//   orientation = "portrait"           # "portrait" or "landscape" (default); the device may turn it
+//                                      # upside down. package, title and orientation: D-037
 //
 //   [environment.dev]                  # at least one; `zaro build --env` picks one (default: the first)
 //   debug_tools = true                 # optional, default false
@@ -87,6 +96,9 @@ struct BuildSpec {
     int scene_line;
     char version[64];
     uint32_t version_code;  // 0 when not given
+    char package[128];      // empty when not given
+    char title[101];        // empty when not given
+    bool portrait;
     BuildEnvironment environments[kMaxEnvironments];
     uint32_t environment_count;
     BuildStep steps[kMaxBuildSteps];
@@ -99,5 +111,9 @@ BuildSpec* load_build_spec(const char* path, DiagList* diags);
 void free_build_spec(BuildSpec* spec);
 
 const BuildEnvironment* find_environment(const BuildSpec* spec, const char* name);
+
+// The rules for [game] package and title, shared with `zaro export android --package/--title`.
+bool valid_package_name(const char* id);
+bool valid_app_title(const char* title);
 
 }  // namespace zaro::scene

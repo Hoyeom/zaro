@@ -27,6 +27,9 @@
 //                                                 with its parents' (a destroyed parent takes its children)
 //   zaro.crowd_kill(x, z, radius[, max])       -> how many of the crowd's enemies within radius were swept
 //                                                 away (they respawn at the edge and count as kills)
+// The app reads CrowdSpawner.count and .speed and PlayerController.speed back after each on_tick:
+// the crowd grows (new enemies at the arena edge) or retires its highest-numbered enemies, up to
+// CrowdSpawner.max reserved at start (D-034).
 // The app copies the simulated player's position into the Transform of the PlayerController
 // entity after every tick (when it has one), so its children follow the player, and queues the
 // engine event "crowd_hit" {count, x, z} when enemies reached the player in a tick.

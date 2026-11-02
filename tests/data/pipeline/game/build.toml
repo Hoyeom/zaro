@@ -4,6 +4,9 @@ name = "pipeline"
 scene = "scene.toml"
 version = "3.2.1"
 version_code = 4
+package = "com.example.pipeline"
+title = "네온 Pipeline"
+orientation = "portrait"
 
 [environment.staging]
 debug_tools = true

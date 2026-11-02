@@ -27,7 +27,7 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
   validate and sign with a game's upload key locally and in CI (with a throwaway key). Plugins
   add Gradle dependencies, manifest entries and sources through build extensions (D-026).
   `zaro build` (D-027) runs every release build through one staged pipeline; Android is its
-  first target.
+  first target. A game's build file sets its package name, title and orientation (D-037).
   Installing a bundle on a device is pending.
 - **Scope**:
   - Android build of the engine and the `zaro` runtime: SDL3 Android backend, wgpu on Vulkan, the
@@ -185,7 +185,7 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
 What a small game needs that the engine does not have yet, aimed at G1's look (D-029): glowing
 shapes, tweens and particles over thousands of enemies, with no frame-by-frame animation.
 
-- **Scope**, in three tracks that can run side by side:
+- **Scope**, in four tracks that can run side by side:
   - **Neon rendering**: an HDR frame with bloom, so bright colours glow; a shape renderer for
     rectangles, lines, rings and polygons with glow, additive blending and trails; GPU particles
     (compute) for hits and deaths; screen shake and hit flash. All of it is visual only and never
@@ -231,6 +231,14 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
       migrated by a scene test. Tests `examples/neon/tests` (`sound`, `settings`, `save_migration`;
       the golden hashes did not change), `screenshot_neon_settings`, `example_neon_save_*` (the
       best score across runs). With this the track is done; the phone check is P6's.
+  - **Crowd for a survivors-like game**: what G1's design needs from the crowd. The crowd's size
+    changes while the game runs, several enemy kinds with their own look, speed and count share
+    the arena, and a scene camera shows a portrait phone enough of it around the player. Steps,
+    one PR each: 1 crowd size at run time, 2 enemy kinds, 3 the scene camera.
+    - Step 1 (D-034): `CrowdSpawner.max` reserves a capacity at start and scripts change
+      `CrowdSpawner.count` under it; new enemies appear at the edge, the highest-numbered ones
+      retire; ZE1400 for a count above max. Tests `crowd_determinism` (a resized crowd),
+      `scene_tests_crowd`, `check_crowd_count_max`.
 - **Done when**: `examples/neon`, a small arena where the player sweeps a few thousand glowing
   enemies, is built only from scenes, scripts and text assets. It has bloom, particles, tweens, sound
   and a saved best score, runs at a stable 60 fps on PC and on a mid-range Android phone, and is

@@ -303,6 +303,13 @@ if(ZARO_BUILD_TESTS)
   # Scripts and the crowd (D-031): zaro.crowd_kill, crowd_hit events, the player's Transform.
   add_test(NAME scene_tests_gameplay COMMAND zaro test tests/data/gameplay
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # The crowd's size from a script (D-034): growing, clamped at max, retired; a count above max.
+  add_test(NAME scene_tests_crowd COMMAND zaro test tests/data/crowd
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME check_crowd_count_max COMMAND zaro check tests/data/crowd/count_above_max.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_crowd_count_max PROPERTIES
+    PASS_REGULAR_EXPRESSION "count_above_max.toml:5:1: error\\[ZE1400\\]: entity 'horde': CrowdSpawner count 500 is above its max 400")
   add_test(NAME check_crowd_two_looks COMMAND zaro check tests/data/fx/crowd_twice.toml
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(check_crowd_two_looks PROPERTIES
