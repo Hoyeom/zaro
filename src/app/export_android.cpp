@@ -446,6 +446,7 @@ int export_android(const ExportOptions& o) {
         DiagList* sound_diags = new DiagList();
         if (scene::SoundBank* bank = scene::load_sound_bank(s->sounds, sound_diags)) {
             for (uint32_t i = 0; i < bank->sound_count; ++i) {
+                if (bank->sounds[i].source != scene::Sound::kFile) continue;  // synthesized when it loads
                 path_join_relative("", bank->sounds[i].file, path, sizeof(path));
                 listed &= add_unique(files, path);
             }
