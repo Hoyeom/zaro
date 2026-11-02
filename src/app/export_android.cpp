@@ -8,6 +8,7 @@
 #include "platform/platform.h"
 #include "scene/build_extension.h"
 #include "scene/scene.h"
+#include "scene/sound_bank.h"
 #include "scene/sprite_sheet.h"
 #include "sim/sprite_components.h"
 #include "ui/widgets.h"
@@ -405,7 +406,8 @@ int export_android(const ExportOptions& o) {
     delete diags;
 
     // The files the scene needs: itself (first), everything in its directory, and what it names
-    // outside it: script, prefabs, screens with their prefabs and images, string tables.
+    // outside it: script, prefabs, screens with their prefabs and images, string tables, the sound
+    // file with its sounds.
     PathList files;
     files.items = new char[kMaxFiles][kPath];
     bool listed = true;
@@ -433,6 +435,19 @@ int export_android(const ExportOptions& o) {
             scene::free_scene(screen);
         }
         delete screen_diags;
+    }
+    if (s->sounds[0]) {
+        path_join_relative("", s->sounds, path, sizeof(path));
+        listed &= add_unique(files, path);
+        DiagList* sound_diags = new DiagList();
+        if (scene::SoundBank* bank = scene::load_sound_bank(s->sounds, sound_diags)) {
+            for (uint32_t i = 0; i < bank->sound_count; ++i) {
+                path_join_relative("", bank->sounds[i].file, path, sizeof(path));
+                listed &= add_unique(files, path);
+            }
+            scene::free_sound_bank(bank);
+        }
+        delete sound_diags;
     }
     for (uint32_t i = 0; s->strings[0] && i < s->language_count; ++i) {
         char table[kPath + scene::kLanguageCapacity + 8];

@@ -156,6 +156,67 @@ bool init(bool headless) {
 
 void shutdown() { SDL_Quit(); }
 
+struct AudioOutput {
+    SDL_AudioStream* stream = nullptr;
+    AudioFn fn = nullptr;
+    void* user = nullptr;
+    uint32_t channels = 2;
+    float buffer[2048 * 8];  // one chunk of frames for the callback
+};
+
+namespace {
+
+// SDL asks for `additional` more bytes; the mixer writes them in chunks.
+void SDLCALL feed_audio(void* user, SDL_AudioStream* stream, int additional, int /*total*/) {
+    AudioOutput* o = (AudioOutput*)user;
+    const uint32_t frame_bytes = (uint32_t)sizeof(float) * o->channels;
+    const uint32_t max_frames = (uint32_t)(sizeof(o->buffer) / frame_bytes);
+    uint32_t frames = additional > 0 ? ((uint32_t)additional + frame_bytes - 1) / frame_bytes : 0;
+    while (frames) {
+        const uint32_t n = frames < max_frames ? frames : max_frames;
+        o->fn(o->buffer, n, o->user);
+        SDL_PutAudioStreamData(stream, o->buffer, (int)(n * frame_bytes));
+        frames -= n;
+    }
+}
+
+}  // namespace
+
+AudioOutput* open_audio_output(uint32_t sample_rate, uint32_t channels, AudioFn fn, void* user) {
+    if (!channels || channels > 8) return nullptr;
+    if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
+        log_info("no audio output (%s); sound is off", SDL_GetError());
+        return nullptr;
+    }
+    AudioOutput* o = new AudioOutput();
+    o->fn = fn;
+    o->user = user;
+    o->channels = channels;
+    const SDL_AudioSpec spec = {SDL_AUDIO_F32, (int)channels, (int)sample_rate};
+    o->stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, feed_audio, o);
+    if (!o->stream) {
+        log_info("no audio output (%s); sound is off", SDL_GetError());
+        delete o;
+        SDL_QuitSubSystem(SDL_INIT_AUDIO);
+        return nullptr;
+    }
+    SDL_ResumeAudioStreamDevice(o->stream);
+    return o;
+}
+
+void close_audio_output(AudioOutput* o) {
+    if (!o) return;
+    SDL_DestroyAudioStream(o->stream);  // also closes the device; the callback has returned
+    delete o;
+    SDL_QuitSubSystem(SDL_INIT_AUDIO);
+}
+
+void pause_audio_output(AudioOutput* o, bool paused) {
+    if (!o) return;
+    if (paused) SDL_PauseAudioStreamDevice(o->stream);
+    else SDL_ResumeAudioStreamDevice(o->stream);
+}
+
 Window* create_window(const char* title, int width, int height) {
     SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
 #if defined(__APPLE__)

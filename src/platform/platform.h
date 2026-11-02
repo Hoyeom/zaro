@@ -85,6 +85,17 @@ int run_process(const char* const* argv, const char* cwd, char* output, uint32_t
 // The value of an environment variable, or nullptr when it is unset.
 const char* env_var(const char* name);
 
+// Audio output (D-032): the default playback device, fed by a callback on the audio thread that
+// writes `frames` interleaved float frames of the requested channel count. SDL converts to what the
+// device takes. nullptr when there is no device (CI machines, a server); the caller then mixes
+// nothing.
+using AudioFn = void (*)(float* out, uint32_t frames, void* user);
+struct AudioOutput;
+AudioOutput* open_audio_output(uint32_t sample_rate, uint32_t channels, AudioFn fn, void* user);
+void close_audio_output(AudioOutput* output);
+// Stops calling the callback while paused (the mobile background).
+void pause_audio_output(AudioOutput* output, bool paused);
+
 using FileFn = void (*)(const char* path, void* user);
 // Calls fn for `path` if it is a file ending in `suffix`, or for every such file below it if it is
 // a directory (recursively; hidden entries and directories named "build" are skipped).

@@ -9,12 +9,13 @@ Lint rule Z010 fails when a dependency in `cmake/ZaroDeps.cmake` has no entry he
 |---|---|---|---|
 | wgpu-native | MIT OR Apache-2.0 | the GPU backend (D-002) | yes |
 | Slang | Apache-2.0 WITH LLVM-exception | compiling shaders at build time (D-003) | no (build tool) |
-| SDL | zlib | windows, input, Android activity (D-002, D-022) | yes |
+| SDL | zlib | windows, input, audio output, Android activity (D-002, D-022, D-032) | yes |
 | enkiTS | zlib | the job system (D-007) | yes |
 | tomlc17 | MIT | reading scenes and other TOML files (D-017) | yes |
 | Luau | MIT | game scripts (D-009) | yes |
 | stb_truetype | public domain or MIT | fonts (D-019) | yes |
 | stb_image | public domain or MIT | PNG decoding | yes |
+| miniaudio, with its bundled stb_vorbis | public domain or MIT-0; stb_vorbis public domain or MIT | decoding and mixing sound (D-032) | yes |
 | cJSON | MIT | `zaro import-design` (D-023) | yes |
 | LunaSVG, with its bundled PlutoVG | MIT; parts of PlutoVG under the FreeType License | `zaro cook`, SVG art into sprite atlases (D-028) | no (zaro tool only) |
 | Noto Sans KR | SIL Open Font License 1.1 | the bundled font (D-019) | yes |

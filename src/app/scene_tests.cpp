@@ -1,4 +1,5 @@
 // `zaro test`: runs *.test.toml files (format in src/scene/test_spec.h) without a GPU.
+#include "app/audio_layer.h"
 #include "app/crowd_app.h"
 #include "app/tools.h"
 #include "app/ui_layer.h"
@@ -67,9 +68,38 @@ bool read_field(const scene::Scene* s, const scene::Expect& e, double* number, c
 
 bool nearly_equal(double a, double b) { return fabs(a - b) <= 1e-6 * (fabs(a) > 1.0 ? fabs(a) : 1.0); }
 
-void check_expects(const scene::TestSpec& spec, const scene::Scene* s, UiLayer* ui, DiagList* d) {
+// A sound's play count or a group's volume against equals, min and max.
+void check_audio_expect(const scene::TestSpec& spec, const scene::Expect& e, const AudioLayer* audio, DiagList* d) {
+    const char* what = e.sound[0] ? "sound" : "volume group";
+    const char* name = e.sound[0] ? e.sound : e.volume;
+    const double x = e.sound[0] ? (double)sound_play_count(audio, name) : sound_group_volume(audio, name);
+    if (!audio || x < 0.0) {
+        diag_add(d, kErrTestExpect, spec.path, e.line, 1, "the scene has no %s '%s'", what, name);
+        return;
+    }
+    const char* label = e.sound[0] ? "plays" : "volume";
+    if (e.has_equals && !nearly_equal(x, e.equals_number)) {
+        diag_add(d, kErrTestExpect, spec.path, e.line, 1, "%s '%s': %s %g, expected %g", what, name, label, x,
+                 e.equals_number);
+    }
+    if (e.has_min && x < e.min) {
+        diag_add(d, kErrTestExpect, spec.path, e.line, 1, "%s '%s': %s %g, expected at least %g", what, name, label, x,
+                 e.min);
+    }
+    if (e.has_max && x > e.max) {
+        diag_add(d, kErrTestExpect, spec.path, e.line, 1, "%s '%s': %s %g, expected at most %g", what, name, label, x,
+                 e.max);
+    }
+}
+
+void check_expects(const scene::TestSpec& spec, const scene::Scene* s, UiLayer* ui, const AudioLayer* audio,
+                   DiagList* d) {
     for (uint32_t i = 0; i < spec.expect_count; ++i) {
         const scene::Expect& e = spec.expects[i];
+        if (e.sound[0] || e.volume[0]) {
+            check_audio_expect(spec, e, audio, d);
+            continue;
+        }
         if (e.has_state) {
             const char* got = ui ? screen_state(ui, e.screen) : "closed";
             if (strcmp(got, e.state) != 0) {
@@ -189,12 +219,13 @@ Outcome run_one(const char* path, bool update, DiagList* d) {
     o.seed = spec->seed;
     scene::Scene* s = nullptr;
     UiLayer* ui = nullptr;
+    AudioLayer* audio = nullptr;
     SimulateResult res;
     const uint32_t before = d->count;
-    const bool ran = simulate_scene(o, spec->ticks, spec, d, &s, &ui, &res);
+    const bool ran = simulate_scene(o, spec->ticks, spec, d, &s, &ui, &res, &audio);
     r.hash = res.state_hash;
     r.ticks = res.ticks;
-    if (ran && s) check_expects(*spec, s, ui, d);
+    if (ran && s) check_expects(*spec, s, ui, audio, d);
     if (ran) {
         if (update && (!spec->has_state_hash || spec->state_hash != res.state_hash)) {
             r.updated = write_state_hash(*spec, res.state_hash);
@@ -208,6 +239,7 @@ Outcome run_one(const char* path, bool update, DiagList* d) {
     }
     r.passed = ran && d->count == before;
     destroy_ui_layer(ui);
+    destroy_audio_layer(audio);
     scene::free_scene(s);
     delete spec;
     return r;

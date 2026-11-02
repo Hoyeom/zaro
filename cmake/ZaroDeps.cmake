@@ -107,7 +107,8 @@ set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SDL_GPU OFF CACHE BOOL "" FORCE)
 set(SDL_RENDER OFF CACHE BOOL "" FORCE)
 set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
-set(SDL_AUDIO OFF CACHE BOOL "" FORCE)
+# Audio output only; miniaudio mixes (D-032).
+set(SDL_AUDIO ON CACHE BOOL "" FORCE)
 FetchContent_Declare(SDL3 SYSTEM BINARY_DIR ${_ZARO_DEP_BIN}/sdl3-build
   URL https://github.com/libsdl-org/SDL/releases/download/release-3.4.18/SDL3-3.4.18.tar.gz
   URL_HASH SHA256=9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3)
@@ -184,6 +185,28 @@ FetchContent_MakeAvailable(cjson)
 add_library(zaro_cjson STATIC ${cjson_SOURCE_DIR}/cJSON.c)
 target_include_directories(zaro_cjson SYSTEM PUBLIC ${cjson_SOURCE_DIR})
 set_target_properties(zaro_cjson PROPERTIES C_STANDARD 17)
+
+# --- miniaudio 0.11.26 (public domain or MIT-0) with its bundled stb_vorbis 1.22, audio (D-032) --
+# Decoding (WAV, Ogg Vorbis, MP3, FLAC), resampling and mixing only: MA_NO_DEVICE_IO leaves the
+# output device to SDL in platform. src/audio/ is the one module that includes miniaudio.h. The
+# implementation is one generated C file that also compiles stb_vorbis, as miniaudio documents.
+FetchContent_Declare(miniaudio
+  URL https://github.com/mackron/miniaudio/archive/refs/tags/0.11.26.tar.gz
+  URL_HASH SHA256=838ba55a21c9142adf7b76bdc4351e5cd8b7ae128f46b25ec25f94ae9969c600
+  SOURCE_SUBDIR _none)
+FetchContent_MakeAvailable(miniaudio)
+file(WRITE ${_ZARO_DEP_BIN}/miniaudio/zaro_miniaudio.c
+  "#define STB_VORBIS_HEADER_ONLY\n#include \"extras/stb_vorbis.c\"\n"
+  "#define MINIAUDIO_IMPLEMENTATION\n#include \"miniaudio.h\"\n"
+  "#undef STB_VORBIS_HEADER_ONLY\n#include \"extras/stb_vorbis.c\"\n")
+add_library(zaro_miniaudio STATIC ${_ZARO_DEP_BIN}/miniaudio/zaro_miniaudio.c)
+target_include_directories(zaro_miniaudio SYSTEM PUBLIC ${miniaudio_SOURCE_DIR})
+target_compile_definitions(zaro_miniaudio PUBLIC MA_NO_DEVICE_IO MA_NO_ENCODING MA_NO_GENERATION)
+set_target_properties(zaro_miniaudio PROPERTIES C_STANDARD 11)
+if(NOT WIN32)
+  find_package(Threads REQUIRED)
+  target_link_libraries(zaro_miniaudio PRIVATE Threads::Threads m ${CMAKE_DL_LIBS})
+endif()
 
 # --- LunaSVG 3.5.0 (MIT) with its bundled PlutoVG 1.3.1 (MIT; FreeType License parts), SVG art ----
 # Rasterizes SVG character art in the zaro tool's cook step only (D-028); never built for Android,

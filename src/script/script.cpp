@@ -1,6 +1,7 @@
 #include "script/script.h"
 
 #include "core/reflect.h"
+#include "scene/audio_state.h"
 #include "scene/ui_state.h"
 #include "scene/tween.h"
 #include "scene/world.h"
@@ -56,6 +57,7 @@ struct Script {
     scene::UiState* ui = nullptr;
     const UiHost* host = nullptr;
     const CrowdHost* crowd = nullptr;
+    scene::AudioState* audio = nullptr;
     uint64_t tick = 0;
     double max_call_seconds = 1.0;
     Clock::time_point deadline;
@@ -448,6 +450,83 @@ int ui_language(lua_State* L) {
     char err[300];
     if (!h->language(h->user, luaL_checklstring(L, 1, nullptr), err, sizeof(err))) raise(L, err);
     return 0;
+}
+
+// --- audio.* (D-032). Requests go into scene::AudioState; nothing comes back from the mixer.
+
+scene::AudioState* audio_of(lua_State* L, const char* what) {
+    Script* s = self(L);
+    if (!s->audio) luaL_error(L, "%s: the scene has no sounds (add sounds = \"<file>\" to [scene])", what);
+    return s->audio;
+}
+
+// The index of a named sound or group, or a script error with "did you mean".
+uint32_t sound_name_arg(lua_State* L, const scene::SoundBank* bank, int arg, bool group) {
+    const char* name = luaL_checklstring(L, arg, nullptr);
+    const int i = group ? scene::find_sound_group(bank, name) : scene::find_sound(bank, name);
+    if (i < 0) {
+        const char* hint = group ? scene::suggest_sound_group(bank, name) : scene::suggest_sound(bank, name);
+        char err[300];
+        snprintf(err, sizeof(err), "%s has no %s '%s'%s%s%s", bank->path, group ? "group" : "sound", name,
+                 hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+        raise(L, err);
+    }
+    return (uint32_t)i;
+}
+
+// An optional number field of an options table, checked against [lo, hi].
+float option_number(lua_State* L, int table, const char* key, float fallback, double lo, double hi) {
+    if (lua_type(L, table) != LUA_TTABLE) return fallback;
+    lua_getfield(L, table, key);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return fallback;
+    }
+    if (!lua_isnumber(L, -1) || lua_tonumber(L, -1) < lo || lua_tonumber(L, -1) > hi) {
+        luaL_error(L, "option %s must be a number in %g..%g", key, lo, hi);
+    }
+    const float x = (float)lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    return x;
+}
+
+int sound_play(lua_State* L) {
+    scene::AudioState* a = audio_of(L, "audio.play");
+    const uint32_t sound = sound_name_arg(L, a->bank, 1, false);
+    if (!lua_isnoneornil(L, 2)) luaL_checktype(L, 2, LUA_TTABLE);
+    const float volume = option_number(L, 2, "volume", 1.0f, 0.0, 4.0);
+    const float pitch = option_number(L, 2, "pitch", 0.0f, 0.25, 4.0);
+    const float pan = option_number(L, 2, "pan", 0.0f, -1.0, 1.0);
+    scene::audio_play(a, sound, volume, pitch, pan);
+    return 0;
+}
+
+int sound_music(lua_State* L) {
+    scene::AudioState* a = audio_of(L, "audio.music");
+    const int sound = lua_isnoneornil(L, 1) ? -1 : (int)sound_name_arg(L, a->bank, 1, false);
+    const double fade = luaL_optnumber(L, 2, 0.5);
+    if (fade < 0.0 || fade > 60.0) luaL_error(L, "audio.music: fade must be in 0..60 seconds");
+    scene::audio_music(a, sound, (float)fade);
+    return 0;
+}
+
+int sound_track(lua_State* L) {
+    const scene::AudioState* a = audio_of(L, "audio.track");
+    if (a->music < 0) lua_pushnil(L);
+    else lua_pushstring(L, a->bank->sounds[a->music].name);
+    return 1;
+}
+
+int sound_volume(lua_State* L) {
+    scene::AudioState* a = audio_of(L, "audio.volume");
+    const uint32_t group = sound_name_arg(L, a->bank, 1, true);
+    if (!lua_isnoneornil(L, 2)) {
+        const double v = luaL_checknumber(L, 2);
+        if (v < 0.0 || v > 1.0) luaL_error(L, "audio.volume: value must be in 0..1, got %g", v);
+        scene::set_group_volume(a, group, (float)v);
+    }
+    lua_pushnumber(L, (double)a->group_volume[group]);
+    return 1;
 }
 
 int zaro_has(lua_State* L) {
@@ -1064,6 +1143,7 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     s->ui = desc.ui;
     s->host = desc.host;
     s->crowd = desc.crowd;
+    s->audio = desc.audio;
     s->max_call_seconds = desc.max_call_seconds;
 
     lua_State* L = luaL_newstate();
@@ -1112,6 +1192,16 @@ Script* load_script(const ScriptDesc& desc, DiagList* diags) {
     }
     lua_setreadonly(L, -1, 1);
     lua_setglobal(L, "ui");
+
+    static const luaL_Reg kAudioApi[] = {
+        {"play", sound_play}, {"music", sound_music}, {"track", sound_track}, {"volume", sound_volume}, {nullptr, nullptr}};
+    lua_createtable(L, 0, 4);
+    for (const luaL_Reg* r = kAudioApi; r->name; ++r) {
+        lua_pushcfunction(L, r->func, r->name);
+        lua_setfield(L, -2, r->name);
+    }
+    lua_setreadonly(L, -1, 1);
+    lua_setglobal(L, "audio");
 
     luaL_sandbox(L);  // standard library and `zaro` become read-only
     s->T = lua_newthread(L);

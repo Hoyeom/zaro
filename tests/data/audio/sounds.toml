@@ -1,0 +1,32 @@
+# Sounds for the audio tests: a file, a synthesized tone and a pattern, in two groups.
+[[group]]
+name = "sfx"
+volume = 0.8
+
+[[group]]
+name = "music"
+volume = 0.6
+
+[[sound]]
+name = "click"
+file = "click.wav"
+group = "sfx"
+voices = 2
+
+[[sound]]
+name = "blip"
+group = "sfx"
+pitch = [0.9, 1.1]
+cooldown = 0.5
+synth = { wave = "square", from = 880, to = 440, time = 0.08, attack = 0.002 }
+
+[[sound]]
+name = "theme"
+group = "music"
+loop = true
+[sound.pattern]
+step = 0.125
+tracks = [
+  { wave = "saw", notes = "A2 - . C3 | A2 . G2 -", volume = 0.5 },
+  { wave = "noise", notes = "C8 .", volume = 0.2, release = 0.03 },
+]

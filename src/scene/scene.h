@@ -8,6 +8,8 @@
 //   strings = "strings"              # optional: directory of string tables, <language>.toml
 //   languages = ["ko", "en"]         # with strings: the languages it holds; the first is the default
 //   build_extensions = ["ext.toml"]  # optional: what plugins add to an Android export (scene/build_extension.h)
+//   sounds = "audio/sounds.toml"     # optional: the sounds and volume groups it plays (scene/sound_bank.h, D-032)
+//   music = "theme"                  # optional, with sounds: the sound that plays as music from the start
 //   prefabs = ["prefabs/enemy.toml"] # optional: prefabs scripts can spawn by their [prefab] name (scene/world.h)
 //
 //   [[entity]]
@@ -137,6 +139,10 @@ struct Scene {
     SpawnPrefab* prefabs;
     uint32_t prefab_count;
     int prefabs_line;
+    char sounds[kPathCapacity];  // resolved sound file (scene/sound_bank.h), or empty
+    int sounds_line;
+    char music[kNameCapacity];   // a sound of that file, or empty
+    int music_line;
 
     // Run time (scene/world.h).
     uint32_t entity_capacity;  // allocated length of `entities`

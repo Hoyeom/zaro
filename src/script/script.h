@@ -60,6 +60,12 @@
 //                                             return true to take the press (nothing closes)
 //   function on_screen(event, screen)      -- hook: "created" (a new instance, before its entrance),
 //                                             "opened", "closed", "cancelled", "back_unhandled"
+// and the scene's sounds through `audio` (D-032; sound file in scene/sound_bank.h). Requests are
+// queued for the mixer and nothing is read back from it, so they never change the simulation:
+//   audio.play(sound[, {volume = 1, pitch = p, pan = 0}])  -- pitch defaults to one in the sound's range
+//   audio.music(sound | nil[, fade])  -- switch the music track (nil: stop), fading over `fade` s (0.5)
+//   audio.track()                     -> the music track asked for last, or nil
+//   audio.volume(group[, value])      -> the group's volume (0..1), after setting it to value
 // There is no os, io, loadstring or require, globals of the standard library are read-only, and
 // math.random is seeded from the scene so runs stay deterministic.
 #pragma once
@@ -69,6 +75,10 @@
 #include "scene/ui_state.h"
 
 #include <stdint.h>
+
+namespace zaro::scene {
+struct AudioState;
+}
 
 namespace zaro::script {
 
@@ -108,6 +118,7 @@ struct ScriptDesc {
     scene::UiState* ui = nullptr;     // what ui.set writes; nullptr without a UI
     const UiHost* host = nullptr;  // carries out ui.open, ui.language, ...; nullptr without a UI
     const CrowdHost* crowd = nullptr;  // carries out zaro.crowd_kill; nullptr without a crowd
+    scene::AudioState* audio = nullptr;  // what audio.* asks for; nullptr without sounds
     uint64_t seed = 1;            // seeds math.random
     double max_call_seconds = 1;  // one hook call longer than this is aborted (ZE0502)
 };

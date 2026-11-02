@@ -1,0 +1,6 @@
+# A misspelt music track and a button sound the file does not have (zaro check, ZE1302).
+[scene]
+name = "audio_typos"
+ui = ["ui/typo_panel.toml"]
+sounds = "sounds.toml"
+music = "thme"

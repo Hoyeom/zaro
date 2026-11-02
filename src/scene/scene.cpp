@@ -664,6 +664,14 @@ void load_scene_header(const toml_datum_t& header, Scene* s, const char* path, D
             for (uint32_t k = 0; k < s->prefab_count; ++k) {
                 path_join_relative(path, rels[k], s->prefabs[k].path, kPathCapacity);
             }
+        } else if (strcmp(key, "sounds") == 0) {
+            s->sounds_line = v.lineno;
+            if (copy_string(v, rel, sizeof(rel), "scene sounds", path, diags)) {
+                path_join_relative(path, rel, s->sounds, sizeof(s->sounds));
+            }
+        } else if (strcmp(key, "music") == 0) {
+            s->music_line = v.lineno;
+            copy_string(v, s->music, sizeof(s->music), "scene music", path, diags);
         } else if (strcmp(key, "build_extensions") == 0) {
             char rels[kMaxBuildExtensions][kPathCapacity];
             s->build_extensions_line = v.lineno;
@@ -675,11 +683,14 @@ void load_scene_header(const toml_datum_t& header, Scene* s, const char* path, D
         } else {
             diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
                      "unexpected key '%s' in [scene] (expected name, script, ui, screens, strings, languages, "
-                     "build_extensions or prefabs)", key);
+                     "build_extensions, prefabs, sounds or music)", key);
         }
     }
     if (s->strings[0] && !s->language_count) {
         diag_add(diags, kErrSceneStructure, path, s->strings_line, 1, "strings needs languages = [\"..\", ...]");
+    }
+    if (s->music[0] && !s->sounds[0]) {
+        diag_add(diags, kErrSceneStructure, path, s->music_line, 1, "music needs sounds = \"<sound file>\"");
     }
     if (!s->strings[0] && s->language_count) {
         diag_add(diags, kErrSceneStructure, path, header.lineno, header.colno, "languages needs strings = \"<dir>\"");

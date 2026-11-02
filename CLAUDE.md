@@ -81,7 +81,8 @@ ownership and the rest of the layering rules are in the `zaro-code` skill.
 | `render` | draws plain data (the view); never sees sim types | core, rhi |
 | `ui` | game UI: fonts, text layout, glyph atlas, screens, widgets; no GPU | core, scene |
 | `cook` | build-time asset cooking: SVG art into sprite atlases; the only module that includes LunaSVG; not built for Android (D-028) | core, scene |
-| `app` | owns the frame loop and wires sim, sprites and ui to render | all of the above |
+| `audio` | sound mixing: decoded sounds, streamed music, volume groups; the only module that includes miniaudio (D-032) | core |
+| `app` | owns the frame loop and wires sim, sprites and ui to render, and sounds to audio and platform's output | all of the above |
 | `cli` | the `zaro` command | core, app |
 
 ## Skills
@@ -92,6 +93,8 @@ Load a skill before working in the situation it names; it holds what would other
   parallel simulation, Slang shaders, the Windows header-dependency repair.
 - **`zaro-scene`**: scenes, prefabs and components, Luau scripts, scene tests and golden hashes,
   headless runs and perf.json.
+- **`zaro-audio`**: sound files, synthesized sounds, music and volume groups, `audio.*` in scripts,
+  the null mixer in tests, and the audio module.
 - **`zaro-ui`**: text and the glyph atlas, screen files, widgets, string tables, and how a frame's
   UI is built and drawn.
 - **`zaro-fx`**: the neon look's visual effects: glowing shapes, trails and hit flash, GPU

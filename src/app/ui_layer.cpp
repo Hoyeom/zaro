@@ -4,6 +4,7 @@
 #include "core/path.h"
 #include "core/profile.h"
 #include "render/ui_renderer.h"
+#include "scene/audio_state.h"
 #include "scene/scene.h"
 #include "scene/strings.h"
 #include "scene/ui_state.h"
@@ -41,6 +42,7 @@ struct UiLayer {
     scene::UiState* state = nullptr;
     script::UiHost host{};
     script::Script* script = nullptr;
+    scene::AudioState* audio = nullptr;  // where Button.sound plays go; nullptr without sounds
     ui::DrawList list;
     rhi::Device* device = nullptr;
     render::UiRenderer* renderer = nullptr;
@@ -205,6 +207,11 @@ bool handle_ui(UiLayer* l, bool back_pressed, DiagList* diags) {
         const ui::Screen* s = ui::entry_screen(l->nav, i);
         for (uint32_t k = 0; k < ui::event_count(s) && count < kMaxClicks; ++k) {
             const ui::Event* e = ui::event_at(s, k);
+            if (e->kind == ui::EventKind::kClick && l->audio) {
+                const auto* b = (const ui::Button*)ui::get_widget(s, e->node, &ui::kButtonDesc);
+                const int sound = b && b->sound[0] ? scene::find_sound(l->audio->bank, b->sound) : -1;
+                if (sound >= 0) scene::audio_play(l->audio, (uint32_t)sound, 1.0f, 0.0f, 0.0f);
+            }
             if (e->kind != ui::EventKind::kClick || !e->action[0]) continue;
             PendingClick& c = clicks[count++];
             snprintf(c.action, sizeof(c.action), "%s", e->action);
@@ -280,6 +287,10 @@ bool set_language(UiLayer* l, const char* language, char* err, size_t err_size) 
     ui::set_strings(l->context, table);
     scene::set_value_string(l->state, "language", language);
     return ok;
+}
+
+void set_audio(UiLayer* l, scene::AudioState* audio) {
+    if (l) l->audio = audio;
 }
 
 bool click(UiLayer* l, const char* screen, const char* node) {

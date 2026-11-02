@@ -51,7 +51,7 @@ zaro_target_defaults(zaro_sim)
 
 add_library(zaro_scene STATIC src/scene/scene.cpp src/scene/world.cpp src/scene/tween.cpp src/scene/test_spec.cpp src/scene/strings.cpp src/scene/ui_state.cpp
   src/scene/theme.cpp src/scene/sprite_sheet.cpp src/scene/build_extension.cpp
-  src/scene/build_spec.cpp)
+  src/scene/build_spec.cpp src/scene/sound_bank.cpp src/scene/audio_state.cpp)
 target_link_libraries(zaro_scene PUBLIC zaro_core PRIVATE zaro_tomlc17)
 zaro_target_defaults(zaro_scene)
 
@@ -72,6 +72,11 @@ if(NOT ANDROID)
   zaro_target_defaults(zaro_cook)
 endif()
 
+# Sound mixing on miniaudio (D-032); the output device is platform's.
+add_library(zaro_audio STATIC src/audio/audio.cpp)
+target_link_libraries(zaro_audio PUBLIC zaro_core PRIVATE zaro_miniaudio)
+zaro_target_defaults(zaro_audio)
+
 add_library(zaro_ui STATIC
   src/ui/draw.cpp src/ui/font.cpp src/ui/text.cpp src/ui/pack.cpp src/ui/context.cpp
   src/ui/widgets.cpp src/ui/screen.cpp src/ui/navigator.cpp)
@@ -80,10 +85,10 @@ target_link_libraries(zaro_ui PUBLIC zaro_scene PRIVATE zaro_stb_truetype)
 set_source_files_properties(src/ui/font.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 zaro_target_defaults(zaro_ui)
 
-add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/tools.cpp src/app/scene_tests.cpp src/app/ui_layer.cpp
+add_library(zaro_app STATIC src/app/crowd_app.cpp src/app/audio_layer.cpp src/app/tools.cpp src/app/scene_tests.cpp src/app/ui_layer.cpp
   src/app/sprite_layer.cpp src/app/export_android.cpp src/app/design_import.cpp src/app/pipeline.cpp
   src/app/fx_layer.cpp src/app/shape_layer.cpp)
-target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_platform
+target_link_libraries(zaro_app PUBLIC zaro_sim zaro_render zaro_scene zaro_script zaro_ui zaro_audio zaro_platform
   PRIVATE zaro_cjson)
 if(TARGET zaro_cook)
   target_link_libraries(zaro_app PRIVATE zaro_cook)
@@ -179,6 +184,20 @@ if(ZARO_BUILD_TESTS)
   add_dependencies(test_ui_render zaro)
   add_test(NAME ui_render_gpu COMMAND test_ui_render ${CMAKE_BINARY_DIR}/ ${CMAKE_BINARY_DIR}/ui_render_test.png)
   set_tests_properties(ui_render_gpu PROPERTIES LABELS gpu)
+
+  # Audio (D-032): sound files, synthesis, the request queue, the mixer without a device, audio.*.
+  add_executable(test_audio tests/test_audio.cpp)
+  target_link_libraries(test_audio PRIVATE zaro_audio zaro_script zaro_sim)
+  zaro_target_defaults(test_audio)
+  add_test(NAME audio COMMAND test_audio WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME check_audio_scene COMMAND zaro check tests/data/audio/scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME check_audio_typos COMMAND zaro check tests/data/audio/typo_scene.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_audio_typos PROPERTIES
+    PASS_REGULAR_EXPRESSION "typo_scene.toml:6:1: error\\[ZE1302\\]: music: [^ ]*sounds.toml has no sound 'thme' \\(did you mean 'theme'.*typo_panel.toml:8:1: error\\[ZE1302\\]: node 'ok': [^ ]*sounds.toml has no sound 'clik' \\(did you mean 'click'")
+  add_test(NAME scene_tests_audio COMMAND zaro test tests/data/audio/tests
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
   # Sprite sheets: grid and explicit frames, animations, diagnostics with lines.
   add_executable(test_sprites tests/test_sprites.cpp)
