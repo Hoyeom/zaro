@@ -1,0 +1,59 @@
+# Two kinds of enemy in one crowd (D-036): pink triangle drones and fast cyan diamond runners, each
+# with its own count, max, speed, size, look and hit sparks. kinds.luau sweeps and grows them.
+#   zaro screenshot tests/data/crowd/kinds.toml kinds.png --size 960x540 --frames 120
+[scene]
+name = "crowd-kinds"
+script = "kinds.luau"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+seed = 4
+[entity.ArenaLook]
+grid = "#1b3fa0"
+grid_intensity = 1.4
+
+[[entity]]
+name = "drones"
+[entity.CrowdSpawner]
+count = 600
+max = 2000
+speed = 3.5
+[entity.CrowdShape]
+kind = "polygon"
+sides = 3
+size = 0.9
+color = "#ff2b6a"
+intensity = 1.4
+[entity.CrowdFx]
+particles = 8
+color = "#ff2b6a"
+
+[[entity]]
+name = "runners"
+[entity.CrowdSpawner]
+count = 150
+max = 600
+speed = 7.0
+radius = 0.25
+[entity.CrowdShape]
+kind = "polygon"
+sides = 4
+size = 0.6
+color = "#3de8ff"
+intensity = 2.0
+[entity.CrowdFx]
+particles = 16
+color = "#3de8ff"
+shake = 0.2
+
+[[entity]]
+name = "player"
+[entity.PlayerController]
+speed = 6.0
+[entity.Transform]
+
+[[entity]]
+name = "camera"
+[entity.ScreenFx]

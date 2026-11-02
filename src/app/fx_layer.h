@@ -29,9 +29,11 @@ void destroy_fx_layer(FxLayer* layer);
 
 // After each simulation tick: lowers ScreenFx shake and flash by their decay, turns the crowd's hits
 // into CrowdFx sparks, shake, flash and a flash on `shapes` that follow the player, and runs every
-// ParticleEmitter (its rate, and a burst it was given, which goes back to 0). The values the
-// components hold change the same way with or without a GPU; sparks are only queued with one.
-void step_fx(FxLayer* layer, const sim::Crowd* crowd, ShapeLayer* shapes);
+// ParticleEmitter (its rate, and a burst it was given, which goes back to 0). A hit uses the CrowdFx
+// on its kind's spawner entity (kind_ids, in kind order; D-036), else the scene's first CrowdFx. The
+// values the components hold change the same way with or without a GPU; sparks are only queued with one.
+void step_fx(FxLayer* layer, const sim::Crowd* crowd, ShapeLayer* shapes, const uint32_t* kind_ids,
+             uint32_t kind_ids_count);
 
 // The camera's shake offset (x, z metres) at `seconds` on the tick clock; zero without ScreenFx.
 void fx_camera_offset(const FxLayer* layer, float seconds, float out[2]);

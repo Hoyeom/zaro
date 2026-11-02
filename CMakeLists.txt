@@ -310,6 +310,15 @@ if(ZARO_BUILD_TESTS)
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(check_crowd_count_max PROPERTIES
     PASS_REGULAR_EXPRESSION "count_above_max.toml:5:1: error\\[ZE1400\\]: entity 'horde': CrowdSpawner count 500 is above its max 400")
+  # Kinds of enemy (D-036): more spawners than kinds, and two kinds with their own looks.
+  add_test(NAME check_crowd_too_many_kinds COMMAND zaro check tests/data/crowd/too_many_kinds.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(check_crowd_too_many_kinds PROPERTIES
+    PASS_REGULAR_EXPRESSION "too_many_kinds.toml:45:1: error\\[ZE1400\\]: entity 'kind9': a crowd has at most 8 kinds")
+  add_test(NAME screenshot_crowd_kinds
+           COMMAND zaro screenshot tests/data/crowd/kinds.toml ${CMAKE_BINARY_DIR}/crowd_kinds.png --frames 120 --size 960x540
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_crowd_kinds PROPERTIES LABELS gpu)
   add_test(NAME check_crowd_two_looks COMMAND zaro check tests/data/fx/crowd_twice.toml
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(check_crowd_two_looks PROPERTIES

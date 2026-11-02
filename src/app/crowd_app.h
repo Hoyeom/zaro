@@ -8,6 +8,7 @@
 namespace zaro {
 struct DiagList;
 namespace scene {
+struct Entity;
 struct Scene;
 struct TestSpec;
 }
@@ -47,9 +48,14 @@ struct RunOptions {
 // Returns the process exit code.
 int run_crowd(const RunOptions& options);
 
-// Checks the scene's crowd components: a CrowdSpawner whose count is above its max is ZE1400
-// (D-034). Returns false after adding diagnostics. `zaro check` and every run call it.
+// Checks the scene's crowd components: a CrowdSpawner whose count is above its max (D-034), or more
+// CrowdSpawner entities than a crowd has kinds (D-036), is ZE1400. Returns false after adding
+// diagnostics. `zaro check` and every run call it.
 bool check_crowd(const scene::Scene* scene, DiagList* diags);
+
+// The crowd's kinds of enemy (D-036): the scene's entities with a CrowdSpawner, in file order, at
+// most `max`. Spawners spawned while the game runs are not kinds. Returns how many.
+uint32_t crowd_kind_entities(const scene::Scene* scene, const scene::Entity** out, uint32_t max);
 
 struct SimulateResult {
     uint64_t state_hash = 0;

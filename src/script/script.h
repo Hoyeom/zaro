@@ -25,14 +25,17 @@
 //   zaro.children(entity)                      -> {id, ...} in id order
 //   zaro.world(entity)                         -> {x, y, z}, rotation, scale: its Transform combined
 //                                                 with its parents' (a destroyed parent takes its children)
-//   zaro.crowd_kill(x, z, radius[, max])       -> how many of the crowd's enemies within radius were swept
-//                                                 away (they respawn at the edge and count as kills)
-// The app reads CrowdSpawner.count and .speed and PlayerController.speed back after each on_tick:
-// the crowd grows (new enemies at the arena edge) or retires its highest-numbered enemies, up to
-// CrowdSpawner.max reserved at start (D-034).
+//   zaro.crowd_kill(x, z, radius[, max[, kind]])  -> count, {[spawner name] = count, ...}: how many of
+//       the crowd's enemies within radius were swept away (they respawn at the edge and count as kills),
+//       in all and by kind (kinds with none are left out); `kind`, a spawner entity, sweeps only that
+//       kind. Each entity of the scene file with a CrowdSpawner is a kind of enemy (D-036).
+// The app reads each kind's CrowdSpawner.count and .speed and PlayerController.speed back after each
+// on_tick: a kind grows (new enemies at the arena edge) or retires its highest-numbered enemies, up
+// to its CrowdSpawner.max reserved at start (D-034); destroying a kind's spawner retires its enemies.
 // The app copies the simulated player's position into the Transform of the PlayerController
 // entity after every tick (when it has one), so its children follow the player, and queues the
-// engine event "crowd_hit" {count, x, z} when enemies reached the player in a tick.
+// engine event "crowd_hit" {count, x, z, kind} for each kind of enemy that reached the player in a
+// tick, at the first one's position; `kind` is the id of the kind's spawner entity.
 //   zaro.tween(entity, component, field, to, {time = s[, from, delay, ease, loop, count, done = fn]})
 //       -> handle; eases a visual field on the tick clock (scene/tween.h has the eases and loops).
 //          A tween on the same field replaces it, zaro.set on the field stops it, zaro.cancel too;
@@ -116,10 +119,16 @@ struct UiHost {
     const char* (*state)(void* user, const char* name);  // "opening" ... "closed"
 };
 
+constexpr uint32_t kMaxCrowdKinds = 8;  // sim::kMaxCrowdKinds
+
 // The crowd behind zaro.crowd_kill, provided by the app (nullptr without one).
 struct CrowdHost {
     void* user;
-    uint32_t (*kill)(void* user, float x, float z, float radius, uint32_t max);
+    // Sweeps away enemies of kind slot `kind` (0xFFFFFFFF: every kind); per_kind (kMaxCrowdKinds
+    // entries) receives how many of each kind. Returns how many in all.
+    uint32_t (*kill)(void* user, float x, float z, float radius, uint32_t max, uint32_t kind, uint32_t* per_kind);
+    // The crowd's kinds in slot order, as the ids of their spawner entities (D-036). Returns how many.
+    uint32_t (*kinds)(void* user, const uint32_t** entity_ids);
 };
 
 struct ScriptDesc {

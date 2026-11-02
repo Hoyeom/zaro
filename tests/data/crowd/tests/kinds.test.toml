@@ -1,0 +1,17 @@
+# Two kinds of enemy for 10 s: both grow five times, only runners fall to the front sweep, and both
+# kinds reach the player and are swept (kinds.luau asserts it). Run with: zaro test tests/data/crowd
+[test]
+scene = "../kinds.toml"
+ticks = 600
+
+[[expect]]
+entity = "drones"
+component = "CrowdSpawner"
+field = "count"
+equals = 1600
+
+[[expect]]
+entity = "runners"
+component = "CrowdSpawner"
+field = "count"
+equals = 400

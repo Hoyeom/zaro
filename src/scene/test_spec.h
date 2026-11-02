@@ -3,7 +3,7 @@
 //   [test]
 //   scene = "../scene.toml"        # required, relative to this file
 //   ticks = 1300                   # required, simulation ticks to run (no GPU)
-//   enemies = 2000                 # optional, overrides CrowdSpawner.count
+//   enemies = 2000                 # optional, overrides the first CrowdSpawner's count
 //   seed = 7                       # optional, overrides CrowdArena.seed
 //   state_hash = "afd01a7ee964883d"  # optional golden; `zaro test --update` writes it
 //   save = "old_save.toml"         # optional: the game's save starts from this file (D-033), migrated;

@@ -238,7 +238,12 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
     - Step 1 (D-034): `CrowdSpawner.max` reserves a capacity at start and scripts change
       `CrowdSpawner.count` under it; new enemies appear at the edge, the highest-numbered ones
       retire; ZE1400 for a count above max. Tests `crowd_determinism` (a resized crowd),
-      `scene_tests_crowd`, `check_crowd_count_max`.
+      `scene_tests_crowd`, `check_crowd_count_max` (#51).
+    - Step 2 (D-036): every `CrowdSpawner` entity of the scene file is a kind of enemy (at most 8)
+      with its own count, max, speed, radius, `CrowdShape` and `CrowdFx`, in one simulation and one
+      draw; `zaro.crowd_kill` sweeps one kind or all and counts by kind; `crowd_hit` per kind.
+      Tests `crowd_determinism` (three kinds), `scene_tests_crowd` (kinds), `check_crowd_too_many_kinds`,
+      `screenshot_crowd_kinds`; the golden hashes did not change.
 - **Done when**: `examples/neon`, a small arena where the player sweeps a few thousand glowing
   enemies, is built only from scenes, scripts and text assets. It has bloom, particles, tweens, sound
   and a saved best score, runs at a stable 60 fps on PC and on a mid-range Android phone, and is

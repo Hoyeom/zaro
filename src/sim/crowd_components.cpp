@@ -28,7 +28,10 @@ const reflect::FieldDesc kPlayerFields[] = {
 }  // namespace
 
 ZARO_COMPONENT(CrowdArena, "The arena: size and the seed for obstacles and spawning", kArenaFields);
-ZARO_COMPONENT(CrowdSpawner, "Spawns enemies that chase the player along a flow field", kSpawnerFields);
+ZARO_COMPONENT(CrowdSpawner,
+               "Spawns enemies that chase the player along a flow field; each entity of the scene file with one "
+               "is a kind of enemy (at most 8)",
+               kSpawnerFields);
 ZARO_COMPONENT(PlayerController, "The player the crowd chases", kPlayerFields);
 
 void register_crowd_components() {

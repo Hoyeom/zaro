@@ -942,6 +942,42 @@ Status of all entries below: **accepted, 2026-11-01**.
   of every entity (D-031), so the golden hashes of scene tests with a `CrowdSpawner` changed once.
   Crowd errors are ZE1400-ZE1499.
 
+## D-036 Enemy kinds: every spawner entity of the scene is a kind in one shared crowd
+
+- **Status**: accepted, 2026-11-02. Second step of P6's crowd track (docs/ROADMAP.md).
+- **Decision**: each entity of the scene file with a `CrowdSpawner` is a kind of enemy, in file
+  order, at most 8 (more is ZE1400). All kinds live in one simulation: they chase the same player
+  along the same flow field and push each other apart, and each has its own count and max
+  (D-034), speed and radius. Spawners spawned while the game runs are not kinds; destroying a
+  kind's spawner retires its enemies.
+  - **Layout**: enemies are kept packed in kind order (kind 0's, then kind 1's, ...). When a kind
+    grows or shrinks, the later kinds' enemies move up or down by that much.
+  - **Looks**: a kind's look is the `CrowdShape` on its spawner, else the scene's first one, and
+    likewise its hit effects are its `CrowdFx`. One indirect draw still draws every kind: the GPU
+    gets one look and the range of enemies per kind, and each enemy finds its kind from its index.
+    A `CrowdSprite` still gives all kinds one animation.
+  - **Scripts**: `zaro.crowd_kill(x, z, radius[, max[, kind]])` returns the count and a table of
+    counts by spawner name, and with `kind` sweeps only that kind. The engine event `crowd_hit`
+    comes once per kind that reached the player in a tick, with `kind` set to its spawner's id.
+  - **State hash**: unchanged for one kind; the kinds' counts enter it as D-034 describes.
+- **Why**:
+  - Survivors-like waves mix enemy kinds with different speeds and sizes that must still crowd and
+    flow around each other. One simulation keeps one flow field, one spatial hash and one
+    separation pass over all of them; separate crowds would walk through each other and double
+    the cost.
+  - Spawner entities are already how a scene declares a crowd, prefabs and scripts already name
+    entities, and a look and hit effects sit on the same entity, so a kind is written like any
+    other entity with no new table format.
+  - Packing kinds in order keeps every loop dense and lets the renderer find an enemy's kind from
+    its index with no per-enemy data on the GPU. Moving the later kinds on a count change costs a
+    memmove of the enemies after the kind, between ticks, which is small next to a tick.
+  - Eight kinds keep the kind table in one small buffer and the shader's lookup a short loop.
+  - Hues and animation phases hash an enemy's index within its kind, so they do not jump when
+    another kind changes size.
+- **Consequences**: `--enemies` and a scene test's `enemies` override the first kind. Kills and
+  hits are reported per kind. A kind with no `CrowdShape` in a scene with shapes looks like the
+  first kind.
+
 ## D-037 App identity: package, title and orientation in the game build file
 
 - **Status**: accepted, 2026-11-02. Extends D-027 and D-025.

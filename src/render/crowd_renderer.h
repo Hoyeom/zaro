@@ -9,6 +9,8 @@
 
 namespace zaro::render {
 
+constexpr uint32_t kMaxEnemyKinds = 8;
+
 // Enemies drawn as glowing shapes (shaders/shape_sdf.slang) lying on the ground, the first corner
 // pointing the way each one walks. Colours are linear RGB times intensity.
 struct CrowdShapes {
@@ -44,7 +46,11 @@ struct CrowdScene {
     bool keep_depth = false;  // keep the depth buffer for a later pass (sprites in the 3D view)
     rhi::Texture* target = nullptr;  // nullptr draws into the frame; else an HDR target (PostRenderer)
     bool draw_player = true;  // false when something else (a Shape following it) draws the player
-    const CrowdShapes* enemy_shapes = nullptr;  // the enemies' look when created with shapes
+    // Enemy kinds (D-036): enemy_instances holds kind 0's enemies, then kind 1's, ...; kind k's end
+    // before index kind_end[k]. enemy_shapes has one look per kind when created with shapes.
+    uint32_t kind_count = 1;
+    uint32_t kind_end[kMaxEnemyKinds] = {0xFFFFFFFFu};
+    const CrowdShapes* enemy_shapes = nullptr;
     const ArenaColors* arena = nullptr;  // nullptr: the grey checkerboard
 };
 

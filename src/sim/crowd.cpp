@@ -48,9 +48,14 @@ struct Crowd {
     // Player.
     float px = 0, pz = 0, prev_px = 0, prev_pz = 0;
 
-    // Enemies (SoA): the first n of cap slots are live.
+    // Enemies (SoA): the first n of cap slots are live, in kind order (D-036).
     uint32_t n = 0;
     uint32_t cap = 0;
+    uint32_t kinds = 1;
+    uint32_t first[kMaxCrowdKinds] = {};  // kind k's enemies are [first[k], first[k] + live[k])
+    uint32_t live[kMaxCrowdKinds] = {};
+    uint32_t kind_cap[kMaxCrowdKinds] = {};
+    uint8_t* kind = nullptr;  // per enemy
     float *x = nullptr, *z = nullptr, *vx = nullptr, *vz = nullptr;
     float *prev_x = nullptr, *prev_z = nullptr, *nvx = nullptr, *nvz = nullptr;
 
@@ -64,6 +69,7 @@ struct Crowd {
     uint8_t* hit_now = nullptr;
     float* hit_at = nullptr;   // x, z per enemy
     float* last_hits = nullptr;  // x, z pairs
+    uint8_t* last_hit_kinds = nullptr;
     uint32_t last_hit_count = 0;
 };
 
@@ -186,9 +192,9 @@ void build_spatial_hash(Crowd* c) {
 void steer(uint32_t begin, uint32_t end, void* ctx) {
     const Crowd* c = (const Crowd*)ctx;
     const int g = (int)c->g;
-    const float speed = c->cfg.enemy_speed;
-    const float diam = c->cfg.enemy_radius * 2.0f;
     for (uint32_t i = begin; i < end; ++i) {
+        const CrowdKind& kind = c->cfg.kinds[c->kind[i]];
+        const float speed = kind.speed;
         const float x = c->x[i], z = c->z[i];
         const float dx = c->px - x, dz = c->pz - z;
         const float d2 = dx * dx + dz * dz;
@@ -216,6 +222,7 @@ void steer(uint32_t begin, uint32_t end, void* ctx) {
                     const uint32_t j = c->sorted[s];
                     if (j == i) continue;
                     ++checked;
+                    const float diam = kind.radius + c->cfg.kinds[c->kind[j]].radius;
                     const float ex = x - c->x[j], ez = z - c->z[j];
                     const float e2 = ex * ex + ez * ez;
                     if (e2 >= diam * diam || e2 < 1e-10f) continue;
@@ -271,9 +278,9 @@ struct IntegrateCtx {
 
 void integrate(uint32_t begin, uint32_t end, void* ctx) {
     Crowd* c = ((IntegrateCtx*)ctx)->c;
-    const float hit_r = c->cfg.enemy_radius + kPlayerRadius;
     uint64_t hits = 0;
     for (uint32_t i = begin; i < end; ++i) {
+        const float hit_r = c->cfg.kinds[c->kind[i]].radius + kPlayerRadius;
         float x = c->x[i], z = c->z[i];
         float vx = c->nvx[i], vz = c->nvz[i];
         c->prev_x[i] = x;
@@ -340,8 +347,15 @@ Crowd* create_crowd(const CrowdConfig& cfg) {
     c->bfs_queue = alloc<uint32_t>(cells);
     c->cell_start = alloc<uint32_t>(cells + 1);
 
-    c->n = cfg.enemy_count;
-    c->cap = cfg.enemy_capacity > cfg.enemy_count ? cfg.enemy_capacity : cfg.enemy_count;
+    c->kinds = cfg.kind_count < 1 ? 1 : (cfg.kind_count > kMaxCrowdKinds ? kMaxCrowdKinds : cfg.kind_count);
+    for (uint32_t k = 0; k < c->kinds; ++k) {
+        const CrowdKind& kind = cfg.kinds[k];
+        c->first[k] = c->n;
+        c->live[k] = kind.count;
+        c->kind_cap[k] = kind.capacity > kind.count ? kind.capacity : kind.count;
+        c->n += kind.count;
+        c->cap += c->kind_cap[k];
+    }
     const size_t n = c->cap ? c->cap : 1;
     c->x = alloc<float>(n);
     c->z = alloc<float>(n);
@@ -356,6 +370,9 @@ Crowd* create_crowd(const CrowdConfig& cfg) {
     c->hit_now = alloc<uint8_t>(n);
     c->hit_at = alloc<float>(n * 2);
     c->last_hits = alloc<float>(n * 2);
+    c->last_hit_kinds = alloc<uint8_t>(n);
+    c->kind = alloc<uint8_t>(n);
+    for (uint32_t k = 0; k < c->kinds; ++k) memset(c->kind + c->first[k], (int)k, c->live[k]);
 
     Rng rng = rng_seed(cfg.seed, 1);
     build_arena(c, rng);
@@ -378,7 +395,7 @@ void destroy_crowd(Crowd* c) {
     if (!c) return;
     void* arrays[] = {c->blocked, c->obstacles, c->dist, c->flow_x, c->flow_z, c->bfs_queue, c->cell_start,
                       c->x, c->z, c->vx, c->vz, c->prev_x, c->prev_z, c->nvx, c->nvz, c->cell_of, c->sorted,
-                      c->hit_now, c->hit_at, c->last_hits};
+                      c->hit_now, c->hit_at, c->last_hits, c->last_hit_kinds, c->kind};
     for (void* p : arrays) free(p);
     delete c;
 }
@@ -421,21 +438,34 @@ void step(Crowd* c, const CrowdInput& input) {
             c->hit_now[i] = 0;
             c->last_hits[c->last_hit_count * 2] = c->hit_at[i * 2];
             c->last_hits[c->last_hit_count * 2 + 1] = c->hit_at[i * 2 + 1];
+            c->last_hit_kinds[c->last_hit_count] = c->kind[i];
             c->last_hit_count++;
         }
     }
     c->tick++;
 }
 
-void set_tuning(Crowd* c, float enemy_speed, float player_speed) {
-    c->cfg.enemy_speed = enemy_speed;
-    c->cfg.player_speed = player_speed;
+void set_player_speed(Crowd* c, float speed) { c->cfg.player_speed = speed; }
+
+void set_kind_speed(Crowd* c, uint32_t kind, float speed) {
+    if (kind < c->kinds) c->cfg.kinds[kind].speed = speed;
 }
 
 uint64_t tick(const Crowd* c) { return c->tick; }
-uint32_t set_enemy_count(Crowd* c, uint32_t count) {
-    if (count > c->cap) count = c->cap;
-    for (uint32_t i = c->n; i < count; ++i) {
+uint32_t set_enemy_count(Crowd* c, uint32_t kind, uint32_t count) {
+    if (kind >= c->kinds) return 0;
+    if (count > c->kind_cap[kind]) count = c->kind_cap[kind];
+    const uint32_t old = c->live[kind];
+    if (count == old) return count;
+    // Later kinds' enemies move up or down to keep the kinds packed in order.
+    const uint32_t end = c->first[kind] + old, to = c->first[kind] + count, tail = c->n - end;
+    float* const floats[] = {c->x, c->z, c->vx, c->vz, c->prev_x, c->prev_z};
+    for (float* a : floats) memmove(a + to, a + end, sizeof(float) * tail);
+    memmove(c->kind + to, c->kind + end, tail);
+    for (uint32_t k = kind + 1; k < c->kinds; ++k) c->first[k] = c->first[k] - old + count;
+    c->live[kind] = count;
+    c->n = c->n - old + count;
+    for (uint32_t i = end; i < to; ++i) {
         float x = 1.5f, z = 1.5f;
         c->x[i] = x;  // respawn_position keeps this if every attempt is blocked
         c->z[i] = z;
@@ -443,25 +473,41 @@ uint32_t set_enemy_count(Crowd* c, uint32_t count) {
         c->x[i] = c->prev_x[i] = x;
         c->z[i] = c->prev_z[i] = z;
         c->vx[i] = c->vz[i] = c->nvx[i] = c->nvz[i] = 0.0f;
-        c->hit_now[i] = 0;
+        c->kind[i] = (uint8_t)kind;
     }
-    c->n = count;
     return count;
 }
 
 uint32_t enemy_count(const Crowd* c) { return c->n; }
 uint32_t enemy_capacity(const Crowd* c) { return c->cap; }
+uint32_t kind_count(const Crowd* c) { return c->kinds; }
+
+uint32_t kind_enemies(const Crowd* c, uint32_t kind, uint32_t* first) {
+    if (kind >= c->kinds) {
+        *first = c->n;
+        return 0;
+    }
+    *first = c->first[kind];
+    return c->live[kind];
+}
+
+uint32_t kind_capacity(const Crowd* c, uint32_t kind) { return kind < c->kinds ? c->kind_cap[kind] : 0; }
 uint64_t total_hits(const Crowd* c) { return c->hits.load(std::memory_order_relaxed); }
 
-uint32_t last_hits(const Crowd* c, const float** xz) {
+uint32_t last_hits(const Crowd* c, const float** xz, const uint8_t** kinds) {
     *xz = c->last_hits;
+    if (kinds) *kinds = c->last_hit_kinds;
     return c->last_hit_count;
 }
 
-uint32_t kill_enemies(Crowd* c, float x, float z, float radius, uint32_t max) {
+uint32_t kill_enemies(Crowd* c, float x, float z, float radius, uint32_t max, uint32_t kind, uint32_t* per_kind) {
     const float r2 = radius * radius;
     uint32_t killed = 0;
-    for (uint32_t i = 0; i < c->n && (!max || killed < max); ++i) {
+    if (per_kind) memset(per_kind, 0, sizeof(uint32_t) * kMaxCrowdKinds);
+    if (kind != kAllKinds && kind >= c->kinds) return 0;
+    const uint32_t begin = kind == kAllKinds ? 0 : c->first[kind];
+    const uint32_t end = kind == kAllKinds ? c->n : c->first[kind] + c->live[kind];
+    for (uint32_t i = begin; i < end && (!max || killed < max); ++i) {
         const float dx = c->x[i] - x, dz = c->z[i] - z;
         if (dx * dx + dz * dz > r2) continue;
         float nx, nz;
@@ -469,6 +515,7 @@ uint32_t kill_enemies(Crowd* c, float x, float z, float radius, uint32_t max) {
         c->x[i] = c->prev_x[i] = nx;
         c->z[i] = c->prev_z[i] = nz;
         c->vx[i] = c->vz[i] = 0.0f;
+        if (per_kind) per_kind[c->kind[i]]++;
         ++killed;
     }
     c->kills += killed;
@@ -482,7 +529,10 @@ uint64_t state_hash(const Crowd* c) {
     const uint64_t hits = total_hits(c);
     h = fnv1a(&hits, sizeof(hits), h);
     if (c->kills) h = fnv1a(&c->kills, sizeof(c->kills), h);  // runs without kills keep their goldens
-    if (c->n != c->cfg.enemy_count) h = fnv1a(&c->n, sizeof(c->n), h);  // and runs that keep their count
+    // Runs that keep their counts keep their goldens too.
+    bool resized = false;
+    for (uint32_t k = 0; k < c->kinds; ++k) resized = resized || c->live[k] != c->cfg.kinds[k].count;
+    if (resized) h = fnv1a(c->live, sizeof(uint32_t) * c->kinds, h);
     h = fnv1a(&c->px, sizeof(float), h);
     h = fnv1a(&c->pz, sizeof(float), h);
     const size_t bytes = sizeof(float) * c->n;
