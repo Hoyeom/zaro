@@ -1,0 +1,9 @@
+[[group]]
+name = "music"
+save = "music_volume"
+
+[[sound]]
+name = "theme"
+group = "music"
+loop = true
+synth = { wave = "triangle", from = 220, time = 1.0 }

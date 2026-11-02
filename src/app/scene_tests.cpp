@@ -1,6 +1,7 @@
 // `zaro test`: runs *.test.toml files (format in src/scene/test_spec.h) without a GPU.
 #include "app/audio_layer.h"
 #include "app/crowd_app.h"
+#include "app/save_layer.h"
 #include "app/tools.h"
 #include "app/ui_layer.h"
 #include "core/diag.h"
@@ -92,10 +93,40 @@ void check_audio_expect(const scene::TestSpec& spec, const scene::Expect& e, con
     }
 }
 
+// A save field as last committed.
+void check_save_expect(const scene::TestSpec& spec, const scene::Expect& e, const SaveLayer* save, DiagList* d) {
+    double x = 0.0;
+    const char* str = nullptr;
+    if (!committed_value(save, e.save, &x, &str)) {
+        diag_add(d, kErrTestExpect, spec.path, e.line, 1, "the scene's save declares no field '%s'", e.save);
+        return;
+    }
+    if (str || e.equals_string[0]) {
+        if (!str || !e.has_equals || strcmp(str, e.equals_string) != 0) {
+            diag_add(d, kErrTestExpect, spec.path, e.line, 1, "save '%s' = \"%s\", expected \"%s\"", e.save,
+                     str ? str : "(a number)", e.equals_string);
+        }
+        return;
+    }
+    if (e.has_equals && !nearly_equal(x, e.equals_number)) {
+        diag_add(d, kErrTestExpect, spec.path, e.line, 1, "save '%s' = %g, expected %g", e.save, x, e.equals_number);
+    }
+    if (e.has_min && x < e.min) {
+        diag_add(d, kErrTestExpect, spec.path, e.line, 1, "save '%s' = %g, expected at least %g", e.save, x, e.min);
+    }
+    if (e.has_max && x > e.max) {
+        diag_add(d, kErrTestExpect, spec.path, e.line, 1, "save '%s' = %g, expected at most %g", e.save, x, e.max);
+    }
+}
+
 void check_expects(const scene::TestSpec& spec, const scene::Scene* s, UiLayer* ui, const AudioLayer* audio,
-                   DiagList* d) {
+                   const SaveLayer* save, DiagList* d) {
     for (uint32_t i = 0; i < spec.expect_count; ++i) {
         const scene::Expect& e = spec.expects[i];
+        if (e.save[0]) {
+            check_save_expect(spec, e, save, d);
+            continue;
+        }
         if (e.sound[0] || e.volume[0]) {
             check_audio_expect(spec, e, audio, d);
             continue;
@@ -220,12 +251,14 @@ Outcome run_one(const char* path, bool update, DiagList* d) {
     scene::Scene* s = nullptr;
     UiLayer* ui = nullptr;
     AudioLayer* audio = nullptr;
+    SaveLayer* save = nullptr;
+    o.save_start = spec->save[0] ? spec->save : nullptr;
     SimulateResult res;
     const uint32_t before = d->count;
-    const bool ran = simulate_scene(o, spec->ticks, spec, d, &s, &ui, &res, &audio);
+    const bool ran = simulate_scene(o, spec->ticks, spec, d, &s, &ui, &res, &audio, &save);
     r.hash = res.state_hash;
     r.ticks = res.ticks;
-    if (ran && s) check_expects(*spec, s, ui, audio, d);
+    if (ran && s) check_expects(*spec, s, ui, audio, save, d);
     if (ran) {
         if (update && (!spec->has_state_hash || spec->state_hash != res.state_hash)) {
             r.updated = write_state_hash(*spec, res.state_hash);
@@ -240,6 +273,7 @@ Outcome run_one(const char* path, bool update, DiagList* d) {
     r.passed = ran && d->count == before;
     destroy_ui_layer(ui);
     destroy_audio_layer(audio);
+    destroy_save_layer(save);
     scene::free_scene(s);
     delete spec;
     return r;

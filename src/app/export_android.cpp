@@ -436,6 +436,10 @@ int export_android(const ExportOptions& o) {
         }
         delete screen_diags;
     }
+    if (s->save[0]) {
+        path_join_relative("", s->save, path, sizeof(path));
+        listed &= add_unique(files, path);
+    }
     if (s->sounds[0]) {
         path_join_relative("", s->sounds, path, sizeof(path));
         listed &= add_unique(files, path);

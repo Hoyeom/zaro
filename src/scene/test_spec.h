@@ -6,6 +6,8 @@
 //   enemies = 2000                 # optional, overrides CrowdSpawner.count
 //   seed = 7                       # optional, overrides CrowdArena.seed
 //   state_hash = "afd01a7ee964883d"  # optional golden; `zaro test --update` writes it
+//   save = "old_save.toml"         # optional: the game's save starts from this file (D-033), migrated;
+//                                  # without it from the defaults. Commits stay in memory.
 //
 //   [[expect]]                     # checked after the run, any number of them
 //   entity = "horde"
@@ -45,6 +47,10 @@
 //   volume = "music"
 //   equals = 0.5
 //
+//   [[expect]]                     # or a save field as last committed (save.commit)
+//   save = "best_score"
+//   equals = 1200                  # a string for string fields; booleans as true/false
+//
 // A script that raises an error (for example a failed assert) also fails the test, and so does a
 // click on a button that is hidden, disabled or behind a modal.
 #pragma once
@@ -71,6 +77,7 @@ struct Expect {
     char state[16];
     char sound[64];   // a sound's play count, when not empty
     char volume[64];  // a volume group's volume, when not empty
+    char save[64];    // a save field as committed, when not empty
     int line;
 };
 
@@ -90,6 +97,7 @@ struct TestSpec {
     bool has_enemies, has_seed;
     uint32_t enemies;
     uint64_t seed;
+    char save[260];  // resolved starting save file, or empty
     bool has_state_hash;
     uint64_t state_hash;
     int state_hash_line;

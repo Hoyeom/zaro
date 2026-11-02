@@ -4,6 +4,8 @@
 //   [[group]]                  # volume groups; "master" always exists and holds every other group
 //   name = "music"
 //   volume = 0.8               # optional, 0..1, default 1
+//   save = "music_volume"      # optional: the volume follows this number field of the game's save
+//                              # (D-033), so a settings screen sets the field and it is kept across runs
 //
 //   [[sound]]
 //   name = "hit"               # required, unique in the file
@@ -84,6 +86,8 @@ struct SoundGroup {
     char name[64];
     float volume;
     int line;
+    char save[64];  // a save field the volume follows, or empty
+    int save_line;
 };
 
 struct Sound {

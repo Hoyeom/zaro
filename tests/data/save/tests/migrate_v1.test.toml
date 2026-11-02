@@ -1,0 +1,21 @@
+# A version 1 save migrates to version 3: best becomes best_score, old_flag goes, coins are set.
+[test]
+scene = "../scene.toml"
+ticks = 60
+save = "../v1.toml"
+
+[[expect]]
+save = "best_score"
+equals = 43
+
+[[expect]]
+save = "coins"
+equals = 100
+
+[[expect]]
+save = "music_volume"
+equals = 0.5
+
+[[expect]]
+volume = "music"
+equals = 0.5

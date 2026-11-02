@@ -669,6 +669,11 @@ void load_scene_header(const toml_datum_t& header, Scene* s, const char* path, D
             if (copy_string(v, rel, sizeof(rel), "scene sounds", path, diags)) {
                 path_join_relative(path, rel, s->sounds, sizeof(s->sounds));
             }
+        } else if (strcmp(key, "save") == 0) {
+            s->save_line = v.lineno;
+            if (copy_string(v, rel, sizeof(rel), "scene save", path, diags)) {
+                path_join_relative(path, rel, s->save, sizeof(s->save));
+            }
         } else if (strcmp(key, "music") == 0) {
             s->music_line = v.lineno;
             copy_string(v, s->music, sizeof(s->music), "scene music", path, diags);
@@ -683,7 +688,7 @@ void load_scene_header(const toml_datum_t& header, Scene* s, const char* path, D
         } else {
             diag_add(diags, kErrSceneStructure, path, v.lineno, v.colno,
                      "unexpected key '%s' in [scene] (expected name, script, ui, screens, strings, languages, "
-                     "build_extensions, prefabs, sounds or music)", key);
+                     "build_extensions, prefabs, sounds, music or save)", key);
         }
     }
     if (s->strings[0] && !s->language_count) {

@@ -1,0 +1,10 @@
+[save]
+game = "savetest"
+version = 3
+
+[data]
+best_score = -5
+pilot = 12
+coins = 2.5
+best_scor = 3
+music_volume = 0.25

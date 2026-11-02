@@ -53,6 +53,8 @@ void print_usage() {
          "  --lang LANG          UI language, one of the scene's languages (default: its first)\n"
          "  --click SCREEN/NODE  headless: click that button on the first frames, one per frame;\n"
          "                       repeat for more (up to 8)\n"
+         "  --save-dir DIR       keep the game's save (D-033) in DIR/save.toml; without it, windowed runs\n"
+         "                       use the game's user data directory and headless runs keep it in memory\n"
          "\n"
          "planned (not implemented yet): plugin");
 }
@@ -135,6 +137,10 @@ int cmd_run(int argc, char** argv) {
             if (!next || !strchr(next, '/')) return usage_error("--click needs SCREEN/NODE, got", next ? next : "");
             if (o.click_count == zaro::app::RunOptions::kMaxClicks) return usage_error("too many clicks at", next);
             o.clicks[o.click_count++] = next;
+            ++i;
+        } else if (strcmp(a, "--save-dir") == 0) {
+            if (!next) return usage_error("--save-dir needs a directory, got", "");
+            o.save_dir = next;
             ++i;
         } else if (a[0] != '-' && !o.scene_path) {
             o.scene_path = a;

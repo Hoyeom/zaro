@@ -10,6 +10,7 @@
 //   build_extensions = ["ext.toml"]  # optional: what plugins add to an Android export (scene/build_extension.h)
 //   sounds = "audio/sounds.toml"     # optional: the sounds and volume groups it plays (scene/sound_bank.h, D-032)
 //   music = "theme"                  # optional, with sounds: the sound that plays as music from the start
+//   save = "save.toml"               # optional: what the game saves on the device (scene/save_spec.h, D-033)
 //   prefabs = ["prefabs/enemy.toml"] # optional: prefabs scripts can spawn by their [prefab] name (scene/world.h)
 //
 //   [[entity]]
@@ -143,6 +144,8 @@ struct Scene {
     int sounds_line;
     char music[kNameCapacity];   // a sound of that file, or empty
     int music_line;
+    char save[kPathCapacity];    // resolved save declaration (scene/save_spec.h), or empty
+    int save_line;
 
     // Run time (scene/world.h).
     uint32_t entity_capacity;  // allocated length of `entities`

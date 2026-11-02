@@ -96,6 +96,17 @@ void close_audio_output(AudioOutput* output);
 // Stops calling the callback while paused (the mobile background).
 void pause_audio_output(AudioOutput* output, bool paused);
 
+// The directory where the game `game` keeps its files on this device, created if missing, with a
+// trailing separator: the user's application data (Windows %APPDATA%\zaro\<game>\, Linux
+// ~/.local/share/zaro/<game>/), or the app's internal storage on Android. False if there is none.
+bool user_data_dir(const char* game, char* out, uint32_t size);
+// A whole file in a buffer allocated with malloc and NUL-terminated; nullptr if it cannot be read.
+char* read_file(const char* path, uint64_t* size);
+// Replaces `path` so that a crash or a killed app leaves either the old or the new content: the data
+// goes to <path>.tmp, is flushed to the disk, and is renamed over `path`. With `backup`, the old file
+// is renamed to it first. False if any step failed (the old file is then still there or in `backup`).
+bool write_file_atomic(const char* path, const void* data, uint64_t size, const char* backup);
+
 using FileFn = void (*)(const char* path, void* user);
 // Calls fn for `path` if it is a file ending in `suffix`, or for every such file below it if it is
 // a directory (recursively; hidden entries and directories named "build" are skipped).

@@ -1,0 +1,13 @@
+# A best score that grows by one each second and is committed (D-033), and a music group that
+# follows the saved volume. tests/ starts it from the defaults and from a version 1 save.
+[scene]
+name = "save"
+script = "save.luau"
+save = "save.toml"
+sounds = "sounds.toml"
+music = "theme"
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 100

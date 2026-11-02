@@ -26,6 +26,7 @@ struct AudioCommand {
 struct AudioState {
     const SoundBank* bank;
     float group_volume[kMaxSoundGroups];  // as last set; starts at the file's volumes
+    bool group_follows_save[kMaxSoundGroups];  // set from a save field (D-033), not by audio.volume
     uint32_t volume_changes;              // bumped by every set_group_volume
     int music;                            // the track asked for last, -1 for none
     uint32_t play_count[kMaxSounds];      // plays asked for since the run started

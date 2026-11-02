@@ -66,6 +66,12 @@
 //   audio.music(sound | nil[, fade])  -- switch the music track (nil: stop), fading over `fade` s (0.5)
 //   audio.track()                     -> the music track asked for last, or nil
 //   audio.volume(group[, value])      -> the group's volume (0..1), after setting it to value
+// and the game's local save through `save` (D-033; fields declared in scene/save_spec.h). Values
+// are loaded before on_start; nothing is stored until a commit, which the app hands to the save's
+// store after the hook that called it:
+//   save.get(field)          -> the field's value (number, boolean or string)
+//   save.set(field, value)   -- type- and range-checked against the declaration
+//   save.commit()            -- store the values as they are now
 // There is no os, io, loadstring or require, globals of the standard library are read-only, and
 // math.random is seeded from the scene so runs stay deterministic.
 #pragma once
@@ -78,7 +84,8 @@
 
 namespace zaro::scene {
 struct AudioState;
-}
+struct SaveData;
+}  // namespace zaro::scene
 
 namespace zaro::script {
 
@@ -119,6 +126,7 @@ struct ScriptDesc {
     const UiHost* host = nullptr;  // carries out ui.open, ui.language, ...; nullptr without a UI
     const CrowdHost* crowd = nullptr;  // carries out zaro.crowd_kill; nullptr without a crowd
     scene::AudioState* audio = nullptr;  // what audio.* asks for; nullptr without sounds
+    scene::SaveData* save = nullptr;     // what save.* reads and writes; nullptr without a save
     uint64_t seed = 1;            // seeds math.random
     double max_call_seconds = 1;  // one hook call longer than this is aborted (ZE0502)
 };
