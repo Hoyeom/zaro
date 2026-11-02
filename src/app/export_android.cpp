@@ -7,6 +7,7 @@
 #include "core/path.h"
 #include "platform/platform.h"
 #include "scene/build_extension.h"
+#include "scene/build_spec.h"
 #include "scene/scene.h"
 #include "scene/sound_bank.h"
 #include "scene/sprite_sheet.h"
@@ -78,19 +79,6 @@ bool valid_version_name(const char* s) {
         if (!ok) return false;
     }
     return true;
-}
-
-bool valid_package(const char* id) {
-    int segments = 0;
-    const char* p = id;
-    while (*p) {
-        if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z'))) return false;
-        while ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_') ++p;
-        ++segments;
-        if (*p == '.') ++p;
-        else if (*p) return false;
-    }
-    return segments >= 2 && !ends_with(id, ".");
 }
 
 // Text a label or a Gradle project name can hold without escaping.
@@ -502,11 +490,18 @@ int export_android(const ExportOptions& o) {
     package_segment(s->name, segment, sizeof(segment));
     if (o.package) snprintf(package, sizeof(package), "%s", o.package);
     else snprintf(package, sizeof(package), "dev.zaro.%s", segment);
-    if (code == 0 && !valid_package(package)) {
+    if (code == 0 && !scene::valid_package_name(package)) {
         log_error(kErrCliUsage, "--package '%s' is not a Java package name like com.example.game", package);
         code = 2;
     }
     display_name(s->name, name, sizeof(name));
+    // The label under the icon (D-037): any UTF-8 text the manifest takes without escaping.
+    const char* title = o.title ? o.title : name;
+    if (code == 0 && !scene::valid_app_title(title)) {
+        log_error(kErrCliUsage, "--title '%s' must be 1 to 100 bytes without control characters or < > & \" ' \\, "
+                  "and not start with @ or ?", title);
+        code = 2;
+    }
     // The game's version (D-025). Google Play allows version codes up to 2100000000 and needs a
     // higher one for every upload; the name is shown to players.
     const char* version_code = o.version_code ? o.version_code : "1";
@@ -523,8 +518,9 @@ int export_android(const ExportOptions& o) {
     }
     const char* orientation = o.portrait ? "sensorPortrait" : "sensorLandscape";
     const Substitution subs[] = {
-        {"@ZARO_NAME@", name}, {"@ZARO_PACKAGE@", package}, {"@ZARO_VERSION_CODE@", version_code},
-        {"@ZARO_VERSION_NAME@", version_name}, {"@ZARO_ORIENTATION@", orientation},
+        {"@ZARO_NAME@", name}, {"@ZARO_TITLE@", title}, {"@ZARO_PACKAGE@", package},
+        {"@ZARO_VERSION_CODE@", version_code}, {"@ZARO_VERSION_NAME@", version_name},
+        {"@ZARO_ORIENTATION@", orientation},
     };
 
     Export e;

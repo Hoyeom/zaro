@@ -27,7 +27,7 @@ Status: M1 and M2 are done (docs/DECISIONS.md "M1 result", "M2 result").
   validate and sign with a game's upload key locally and in CI (with a throwaway key). Plugins
   add Gradle dependencies, manifest entries and sources through build extensions (D-026).
   `zaro build` (D-027) runs every release build through one staged pipeline; Android is its
-  first target.
+  first target. A game's build file sets its package name, title and orientation (D-037).
   Installing a bundle on a device is pending.
 - **Scope**:
   - Android build of the engine and the `zaro` runtime: SDL3 Android backend, wgpu on Vulkan, the

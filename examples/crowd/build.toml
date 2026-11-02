@@ -5,6 +5,8 @@
 name = "crowd"
 scene = "scene.toml"
 version = "0.1.0"
+package = "dev.zaro.crowd"   # a release build needs it: stores fix it at the first upload (D-037)
+title = "ZARO Crowd"
 
 [environment.dev]
 debug_tools = true
