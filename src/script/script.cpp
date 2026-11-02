@@ -984,15 +984,38 @@ int zaro_tween(lua_State* L) {
     return 1;
 }
 
-// zaro.crowd_kill(x, z, radius[, max]) -> count
+// zaro.crowd_kill(x, z, radius[, max[, kind]]) -> count, {[spawner name] = count, ...}
 int zaro_crowd_kill(lua_State* L) {
-    const CrowdHost* c = self(L)->crowd;
+    Script* s = self(L);
+    const CrowdHost* c = s->crowd;
     const double x = luaL_checknumber(L, 1), z = luaL_checknumber(L, 2), r = luaL_checknumber(L, 3);
     const double max = luaL_optnumber(L, 4, 0.0);
     if (!(r >= 0.0)) luaL_error(L, "zaro.crowd_kill: radius must be 0 or more, got %g", r);
     if (max < 0 || floor(max) != max) luaL_error(L, "zaro.crowd_kill: max must be a whole number, 0 or more");
-    lua_pushnumber(L, c ? (double)c->kill(c->user, (float)x, (float)z, (float)r, (uint32_t)max) : 0.0);
-    return 1;
+    const uint32_t* kind_ids = nullptr;
+    const uint32_t kinds = c ? c->kinds(c->user, &kind_ids) : 0;
+    uint32_t kind = 0xFFFFFFFFu;
+    if (!lua_isnoneornil(L, 5)) {
+        const scene::Entity* e = entity_arg(L, 5);
+        for (uint32_t k = 0; k < kinds && kind == 0xFFFFFFFFu; ++k) {
+            if (kind_ids[k] == e->id) kind = k;
+        }
+        if (kind == 0xFFFFFFFFu) {
+            luaL_error(L, "zaro.crowd_kill: entity '%s' is not a kind of the crowd (an entity of the scene file "
+                          "with a CrowdSpawner)", e->name);
+        }
+    }
+    uint32_t per_kind[kMaxCrowdKinds] = {};
+    const uint32_t killed = c ? c->kill(c->user, (float)x, (float)z, (float)r, (uint32_t)max, kind, per_kind) : 0;
+    lua_pushnumber(L, (double)killed);
+    lua_createtable(L, 0, 0);
+    for (uint32_t k = 0; k < kinds && killed; ++k) {
+        const scene::Entity* e = per_kind[k] ? scene::entity_by_id(s->scene, kind_ids[k]) : nullptr;
+        if (!e) continue;
+        lua_pushnumber(L, (double)per_kind[k]);
+        lua_setfield(L, -2, e->name);
+    }
+    return 2;
 }
 
 int zaro_tick(lua_State* L) {

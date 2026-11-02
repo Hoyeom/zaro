@@ -1,0 +1,48 @@
+# Nine kinds of enemy, one more than a crowd has (ZE1400 at the ninth spawner).
+[scene]
+name = "too-many-kinds"
+
+[[entity]]
+name = "kind1"
+[entity.CrowdSpawner]
+count = 10
+
+[[entity]]
+name = "kind2"
+[entity.CrowdSpawner]
+count = 10
+
+[[entity]]
+name = "kind3"
+[entity.CrowdSpawner]
+count = 10
+
+[[entity]]
+name = "kind4"
+[entity.CrowdSpawner]
+count = 10
+
+[[entity]]
+name = "kind5"
+[entity.CrowdSpawner]
+count = 10
+
+[[entity]]
+name = "kind6"
+[entity.CrowdSpawner]
+count = 10
+
+[[entity]]
+name = "kind7"
+[entity.CrowdSpawner]
+count = 10
+
+[[entity]]
+name = "kind8"
+[entity.CrowdSpawner]
+count = 10
+
+[[entity]]
+name = "kind9"
+[entity.CrowdSpawner]
+count = 10

@@ -51,6 +51,8 @@ struct Game {
     render::CrowdCamera camera;      // the scene's Camera as of the last frame (D-035)
     bool camera_moved = false;       // `camera.target` holds a point to ease from (Camera.lag)
     bool count_clamped = false;      // said once that a script asked for more enemies than max
+    uint32_t kind_ids[sim::kMaxCrowdKinds] = {};  // the crowd's kinds: their spawner entities' ids (D-036)
+    uint32_t kind_count = 0;
     DiagList* diags = nullptr;
 };
 
@@ -88,6 +90,29 @@ bool click_path(Game& g, const char* path, const char* file, int line) {
 
 void after_step(Game& g);
 
+// What the script may have changed in kind k's spawner: its speed, and its count, kept at or below
+// the capacity reserved at start (D-034); the component shows the count actually used. A destroyed
+// spawner retires its enemies.
+void read_kind(Game& g, uint32_t k) {
+    scene::Entity* e = scene::entity_by_id(g.scene, g.kind_ids[k]);
+    auto* sp = e && !e->destroyed ? (sim::CrowdSpawner*)scene::get_component(e, &sim::kCrowdSpawnerDesc) : nullptr;
+    uint32_t first = 0;
+    const uint32_t live = sim::kind_enemies(g.crowd, k, &first);
+    if (!sp) {
+        if (live) sim::set_enemy_count(g.crowd, k, 0);
+        return;
+    }
+    sim::set_kind_speed(g.crowd, k, sp->speed);
+    if (sp->count == live) return;
+    const uint32_t asked = sp->count;
+    sp->count = sim::set_enemy_count(g.crowd, k, asked);
+    if (sp->count != asked && !g.count_clamped) {
+        g.count_clamped = true;
+        log_info("entity '%s': CrowdSpawner count %u is above the %u reserved at start (CrowdSpawner.max); using %u",
+                 e->name, asked, sim::kind_capacity(g.crowd, k), sp->count);
+    }
+}
+
 // One fixed tick: the script's on_tick, then the values it may have changed, then the sim.
 // Returns false if the script failed.
 bool game_tick(Game& g, const sim::CrowdInput& input) {
@@ -96,22 +121,10 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
     if (g.scene) g.scene->tick = tick;
     if (g.script && !g.script_paused) {
         ok = script::call_tick(g.script, tick, g.diags);
-        auto* spawner = (sim::CrowdSpawner*)scene::first_component_mut(g.scene, &sim::kCrowdSpawnerDesc);
         const auto* player =
             (const sim::PlayerController*)scene::first_component(g.scene, &sim::kPlayerControllerDesc, nullptr);
-        sim::set_tuning(g.crowd, spawner ? spawner->speed : sim::CrowdSpawner{}.speed,
-                        player ? player->speed : sim::PlayerController{}.speed);
-        // The count the script set, kept at or below the capacity reserved at start (D-034); the
-        // component shows the count actually used.
-        if (spawner && spawner->count != sim::enemy_count(g.crowd)) {
-            const uint32_t asked = spawner->count;
-            spawner->count = sim::set_enemy_count(g.crowd, asked);
-            if (spawner->count != asked && !g.count_clamped) {
-                g.count_clamped = true;
-                log_info("CrowdSpawner count %u is above the %u reserved at start (CrowdSpawner.max); using %u",
-                         asked, sim::enemy_capacity(g.crowd), spawner->count);
-            }
-        }
+        sim::set_player_speed(g.crowd, player ? player->speed : sim::PlayerController{}.speed);
+        for (uint32_t k = 0; k < g.kind_count; ++k) read_kind(g, k);
     }
     sim::step(g.crowd, input);
     flush_save(g.save);    // what the tick's hooks committed
@@ -130,7 +143,7 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
     float px, pz;
     sim::player_position(g.crowd, 1.0f, &px, &pz);
     step_shapes(g.shapes, sim::tick(g.crowd), px, pz);
-    step_fx(g.fx, g.crowd, g.shapes);
+    step_fx(g.fx, g.crowd, g.shapes, g.kind_ids, g.kind_count);
     return step_sprites(g.sprites, sim::tick(g.crowd), g.diags) && ok;
 }
 
@@ -149,18 +162,33 @@ void after_step(Game& g) {
         }
         break;
     }
+    // One crowd_hit per kind that reached the player, in kind order (hits come grouped by kind),
+    // at the first one's position; `kind` is the kind's spawner entity (D-036).
     const float* xz = nullptr;
-    const uint32_t hits = sim::last_hits(g.crowd, &xz);
-    if (hits && g.script) {
-        const char* keys[] = {"count", "x", "z"};
-        const double values[] = {(double)hits, xz[0], xz[1]};
-        script::emit_event(g.script, "crowd_hit", keys, values, 3);
+    const uint8_t* kinds = nullptr;
+    const uint32_t hits = sim::last_hits(g.crowd, &xz, &kinds);
+    for (uint32_t i = 0; i < hits && g.script;) {
+        uint32_t end = i + 1;
+        while (end < hits && kinds[end] == kinds[i]) ++end;
+        const char* keys[] = {"count", "x", "z", "kind"};
+        const double values[] = {(double)(end - i), xz[i * 2], xz[i * 2 + 1], (double)g.kind_ids[kinds[i]]};
+        script::emit_event(g.script, "crowd_hit", keys, values, 4);
+        i = end;
     }
 }
 
-uint32_t crowd_kill(void* user, float x, float z, float radius, uint32_t max) {
+static_assert(script::kMaxCrowdKinds == sim::kMaxCrowdKinds, "zaro.crowd_kill's table holds every kind");
+
+// zaro.crowd_kill: `kind` is a kind's slot, or kAllKinds.
+uint32_t crowd_kill(void* user, float x, float z, float radius, uint32_t max, uint32_t kind, uint32_t* per_kind) {
     Game* g = (Game*)user;
-    return g->crowd ? sim::kill_enemies(g->crowd, x, z, radius, max) : 0;
+    return g->crowd ? sim::kill_enemies(g->crowd, x, z, radius, max, kind, per_kind) : 0;
+}
+
+uint32_t crowd_kinds(void* user, const uint32_t** ids) {
+    const Game* g = (const Game*)user;
+    *ids = g->kind_ids;
+    return g->kind_count;
 }
 
 // The run's state: the crowd and the scene's gameplay data (scene::world_hash).
@@ -316,7 +344,13 @@ render::CrowdScene make_scene(Game& g, const float* instances, float alpha, floa
     scene.camera = frame_camera(g, scene.player_x, scene.player_z, seconds);
     fx_camera_offset(g.fx, scene.time_seconds + alpha * sim::kTickSeconds, scene.camera_offset);
     scene.keep_depth = has_world_sprites(g.sprites);
-    shape_crowd_scene(g.shapes, &scene);
+    scene.kind_count = sim::kind_count(crowd);
+    for (uint32_t k = 0; k < scene.kind_count && k < render::kMaxEnemyKinds; ++k) {
+        uint32_t first = 0;
+        const uint32_t live = sim::kind_enemies(crowd, k, &first);
+        scene.kind_end[k] = first + live;
+    }
+    shape_crowd_scene(g.shapes, &scene, g.kind_ids, g.kind_count);
     return scene;
 }
 
@@ -632,18 +666,25 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
             g.scene = nullptr;
             return false;
         }
-        if (const auto* sp = (const sim::CrowdSpawner*)scene::first_component(g.scene, &sim::kCrowdSpawnerDesc, nullptr)) {
-            cfg->enemy_count = sp->count;
-            cfg->enemy_capacity = sp->max;
-            cfg->enemy_speed = sp->speed;
-            cfg->enemy_radius = sp->radius;
+        // Each CrowdSpawner entity of the file is a kind of enemy, in file order (D-036).
+        const scene::Entity* spawners[sim::kMaxCrowdKinds];
+        g.kind_count = crowd_kind_entities(g.scene, spawners, sim::kMaxCrowdKinds);
+        for (uint32_t k = 0; k < g.kind_count; ++k) {
+            const auto* sp = (const sim::CrowdSpawner*)scene::get_component(spawners[k], &sim::kCrowdSpawnerDesc);
+            g.kind_ids[k] = spawners[k]->id;
+            sim::CrowdKind& kind = cfg->kinds[k];
+            kind.count = sp->count;
+            kind.capacity = sp->max;
+            kind.speed = sp->speed;
+            kind.radius = sp->radius;
         }
+        cfg->kind_count = g.kind_count ? g.kind_count : 1;
         if (const auto* p =
                 (const sim::PlayerController*)scene::first_component(g.scene, &sim::kPlayerControllerDesc, nullptr)) {
             cfg->player_speed = p->speed;
         }
     }
-    if (!o.scene_path || o.enemies_set) cfg->enemy_count = o.enemies;
+    if (!o.scene_path || o.enemies_set) cfg->kinds[0].count = o.enemies;
     if (!o.scene_path || o.seed_set) cfg->seed = o.seed;
     // Keep the scene in step with CLI overrides, so scripts read the values actually used.
     if (g.scene && o.enemies_set) {
@@ -698,7 +739,7 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         sd.seed = cfg->seed;
         sd.ui = ui_state(g.ui);
         sd.host = ui_host(g.ui);
-        g.crowd_host = {&g, crowd_kill};
+        g.crowd_host = {&g, crowd_kill, crowd_kinds};
         sd.crowd = &g.crowd_host;
         sd.audio = audio_state(g.audio);
         sd.save = save_data(g.save);
@@ -732,12 +773,29 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
 
 }  // namespace
 
+uint32_t crowd_kind_entities(const scene::Scene* s, const scene::Entity** out, uint32_t max) {
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < s->entity_count && n < max; ++i) {
+        const scene::Entity& e = s->entities[i];
+        if (!e.destroyed && scene::get_component(&e, &sim::kCrowdSpawnerDesc)) out[n++] = &e;
+    }
+    return n;
+}
+
 bool check_crowd(const scene::Scene* s, DiagList* diags) {
     bool ok = true;
+    uint32_t kinds = 0;
     for (uint32_t i = 0; i < s->entity_count; ++i) {
         const scene::Entity& e = s->entities[i];
         const auto* sp = (const sim::CrowdSpawner*)scene::get_component(&e, &sim::kCrowdSpawnerDesc);
-        if (!sp || !sp->max || sp->count <= sp->max) continue;
+        if (!sp) continue;
+        if (++kinds == sim::kMaxCrowdKinds + 1) {
+            diag_add(diags, kErrCrowd, s->path, e.line, 1,
+                     "entity '%s': a crowd has at most %u kinds of enemy (CrowdSpawner entities); this is kind %u",
+                     e.name, sim::kMaxCrowdKinds, kinds);
+            ok = false;
+        }
+        if (!sp->max || sp->count <= sp->max) continue;
         diag_add(diags, kErrCrowd, s->path, e.line, 1, "entity '%s': CrowdSpawner count %u is above its max %u", e.name,
                  sp->count, sp->max);
         ok = false;
@@ -763,7 +821,7 @@ int run_crowd(const RunOptions& o) {
     float* instances = (float*)malloc(sizeof(float) * 4 * (capacity ? capacity : 1));
 
     RunOptions effective = o;
-    effective.enemies = cfg.enemy_count;
+    effective.enemies = sim::enemy_count(g.crowd);
     effective.seed = cfg.seed;
     const int code = headless ? run_headless(effective, g, instances) : run_windowed(effective, g, instances);
 

@@ -35,8 +35,10 @@ void flash_player_shapes(ShapeLayer* layer, float amount);
 bool crowd_has_shapes(const ShapeLayer* layer);
 // Fills the frame's crowd fields from the components as they are now: enemy shapes, arena colours,
 // and draw_player (false when a Shape follows the player). keep_depth is set when world shapes
-// follow. `scene` keeps pointers into the layer, valid until the next call.
-void shape_crowd_scene(ShapeLayer* layer, render::CrowdScene* scene);
+// follow. Enemy shapes come one per kind (scene->kind_count; D-036): the CrowdShape on the kind's
+// spawner entity (kind_ids, in kind order), else the scene's first CrowdShape. `scene` keeps
+// pointers into the layer, valid until the next call.
+void shape_crowd_scene(ShapeLayer* layer, render::CrowdScene* scene, const uint32_t* kind_ids, uint32_t kind_ids_count);
 
 bool attach_shape_gpu(ShapeLayer* layer, rhi::Device* device, const char* shader_dir, rhi::TextureFormat format);
 bool reload_shape_layer_shaders(ShapeLayer* layer);

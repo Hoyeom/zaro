@@ -90,7 +90,10 @@ const reflect::FieldDesc kCameraFields[] = {
 
 ZARO_VISUAL_COMPONENT(ScreenFx, "Screen shake and full-screen flash that fall on the tick clock (one per scene)",
                kScreenFxFields);
-ZARO_VISUAL_COMPONENT(CrowdFx, "Sparks, shake and flash when an enemy of the crowd reaches the player", kCrowdFxFields);
+ZARO_VISUAL_COMPONENT(CrowdFx,
+                      "Sparks, shake and flash when an enemy of the crowd reaches the player: on a spawner, for that "
+                      "kind; kinds without one take the scene's first",
+                      kCrowdFxFields);
 ZARO_VISUAL_COMPONENT(ParticleEmitter, "GPU sparks from a point: a steady rate, or a burst a script fires",
                kParticleEmitterFields);
 ZARO_VISUAL_COMPONENT(Camera, "The 3D view's camera: height, pitch, field of view and what it follows (one per scene)",
