@@ -1,6 +1,6 @@
 ---
 name: zaro-fx
-description: Visual effects for the neon look (P6, D-029, D-030) — glowing shapes (Shape, CrowdShape, ArenaLook) with halos, additive blending, trails and hit flash, GPU particles (ParticleEmitter, CrowdFx), screen shake and flash (ScreenFx), the HDR frame with bloom and its formats, the post-processing passes and tonemap, and how effect components reach render without touching the simulation. Load before adding or changing an effect component (Shape, CrowdShape, ArenaLook, Bloom, ScreenFx, CrowdFx, ParticleEmitter), before editing src/app/fx_layer, src/app/shape_layer, src/render/post_renderer, shape_renderer or particle_renderer, or shaders/post, shape, shape_sdf, particle or particles_* .slang, before adding a pass that draws into the 3D view, and when a glow looks wrong or costs too much.
+description: Visual effects for the neon look (P6, D-029, D-030) — glowing shapes (Shape, CrowdShape, ArenaLook) with halos, additive blending, trails and hit flash, GPU particles (ParticleEmitter, CrowdFx), screen shake and flash (ScreenFx), the scene camera (Camera), the HDR frame with bloom and its formats, the post-processing passes and tonemap, and how effect components reach render without touching the simulation. Load before adding or changing an effect component (Shape, CrowdShape, ArenaLook, Bloom, ScreenFx, CrowdFx, ParticleEmitter, Camera), before editing src/app/fx_layer, src/app/shape_layer, src/render/post_renderer, shape_renderer or particle_renderer, or shaders/post, shape, shape_sdf, particle or particles_* .slang, before adding a pass that draws into the 3D view, and when a glow looks wrong or costs too much.
 ---
 
 # Visual effects (P6)
@@ -56,6 +56,19 @@ every field.
   change the same way either way.
 - **Tests**: `particle_render_gpu` (a burst emitted, then moved by a frame's time),
   `scene_tests_fx` (decay.test.toml, hits.test.toml), `check_sparks_scene`, `screenshot_sparks`.
+
+## The camera (D-035)
+
+- **`Camera`** (one per scene, the first counts): looks at a point from `height` metres above it,
+  `pitch` degrees below the horizon, from the +z side; `fov` spans `fov_axis` (`vertical`,
+  `horizontal`, or `shorter`, which keeps a portrait phone's width). The point is the player
+  (`follow = "player"`) or `target`, plus `offset`, eased with `lag` seconds on the frame clock in
+  `app::frame_camera`; `fog` is where distance fog starts. Without one, `render::CrowdScene::camera`
+  is nullptr and the view is the old fixed one (30 m up, 24 m back, 0.87 rad vertical).
+- Every pass in the 3D view gets the camera from `render::crowd_camera` and
+  `render::crowd_camera_forward`; the right vector is +x whenever a Camera is set.
+- **Tests**: `scene_camera` (tests/test_camera.cpp: the defaults match the old view, the shorter
+  side on portrait and landscape, straight down), `screenshot_camera` (540x960).
 
 ## The HDR frame and bloom (D-030)
 

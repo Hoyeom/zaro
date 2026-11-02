@@ -239,6 +239,10 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
       `CrowdSpawner.count` under it; new enemies appear at the edge, the highest-numbered ones
       retire; ZE1400 for a count above max. Tests `crowd_determinism` (a resized crowd),
       `scene_tests_crowd`, `check_crowd_count_max`.
+    - Step 3 (D-035): the `Camera` component: height, pitch, field of view across the vertical, the
+      horizontal or the shorter side (portrait phones keep their width), following the player or a
+      point with an offset and lag, and where fog starts. Visual only. Tests `scene_camera`,
+      `check_camera_scene`, `screenshot_camera` (a portrait screen).
 - **Done when**: `examples/neon`, a small arena where the player sweeps a few thousand glowing
   enemies, is built only from scenes, scripts and text assets. It has bloom, particles, tweens, sound
   and a saved best score, runs at a stable 60 fps on PC and on a mid-range Android phone, and is
