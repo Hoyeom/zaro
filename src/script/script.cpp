@@ -546,13 +546,14 @@ scene::SaveData* save_of(lua_State* L, const char* what) {
 uint32_t save_field_arg(lua_State* L, const scene::SaveData* data, int arg) {
     const char* name = luaL_checklstring(L, arg, nullptr);
     const int f = scene::find_save_field(data->spec, name);
-    if (f >= 0) return (uint32_t)f;
-    const char* hint = scene::suggest_save_field(data->spec, name);
-    char err[300];
-    snprintf(err, sizeof(err), "%s declares no field '%s'%s%s%s", data->spec->path, name,
-             hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
-    raise(L, err);
-    return 0;
+    if (f < 0) {
+        const char* hint = scene::suggest_save_field(data->spec, name);
+        char err[300];
+        snprintf(err, sizeof(err), "%s declares no field '%s'%s%s%s", data->spec->path, name,
+                 hint ? " (did you mean '" : "", hint ? hint : "", hint ? "'?)" : "");
+        raise(L, err);
+    }
+    return (uint32_t)f;
 }
 
 int save_get(lua_State* L) {
