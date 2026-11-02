@@ -37,6 +37,14 @@
 //   screen = "settings"
 //   state = "closed"               # opening, entering, open, closing or closed
 //
+//   [[expect]]                     # or how often a sound of the scene was asked to play (D-032)
+//   sound = "hit"
+//   min = 1                        # equals, min, max as for numbers
+//
+//   [[expect]]                     # or a volume group's volume as last set
+//   volume = "music"
+//   equals = 0.5
+//
 // A script that raises an error (for example a failed assert) also fails the test, and so does a
 // click on a button that is hidden, disabled or behind a modal.
 #pragma once
@@ -61,6 +69,8 @@ struct Expect {
     char text[256];
     bool has_state;
     char state[16];
+    char sound[64];   // a sound's play count, when not empty
+    char volume[64];  // a volume group's volume, when not empty
     int line;
 };
 

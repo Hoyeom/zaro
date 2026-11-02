@@ -1,0 +1,35 @@
+# Plays are counted without a GPU or an audio device: five blips in 300 ticks, the music once,
+# two clicks, and the volumes as the script and the button set them.
+[test]
+scene = "../scene.toml"
+ticks = 300
+
+[[click]]
+tick = 30
+screen = "panel"
+node = "louder"
+
+[[click]]
+tick = 31
+screen = "panel"
+node = "louder"
+
+[[expect]]
+sound = "blip"
+equals = 5
+
+[[expect]]
+sound = "theme"
+equals = 1
+
+[[expect]]
+sound = "click"
+equals = 2
+
+[[expect]]
+volume = "sfx"
+equals = 0.5
+
+[[expect]]
+volume = "music"
+equals = 0.8

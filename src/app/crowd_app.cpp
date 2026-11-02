@@ -2,6 +2,7 @@
 
 #include "app/fx_layer.h"
 #include "app/shape_layer.h"
+#include "app/audio_layer.h"
 #include "app/sprite_layer.h"
 #include "app/tools.h"
 #include "app/ui_layer.h"
@@ -41,6 +42,8 @@ struct Game {
     SpriteLayer* sprites = nullptr;  // the scene's sprites, when it has any
     FxLayer* fx = nullptr;           // the scene's frame effects (HDR and bloom), when it has any
     ShapeLayer* shapes = nullptr;    // the scene's glowing shapes and arena colours, when it has any
+    AudioLayer* audio = nullptr;     // the scene's sounds, when it has any
+    bool null_audio = false;         // mix nothing (headless runs, scene tests)
     DiagList* diags = nullptr;
 };
 
@@ -55,7 +58,9 @@ void print_diags(Game& g) {
 bool handle_ui_events(Game& g, bool back_pressed) {
     if (!g.ui) return true;
     set_script(g.ui, g.script_paused ? nullptr : g.script);
-    return handle_ui(g.ui, back_pressed, g.diags);
+    const bool ok = handle_ui(g.ui, back_pressed, g.diags);
+    flush_audio(g.audio);  // button sounds and what on_ui asked for
+    return ok;
 }
 
 // Clicks "screen/node" on the UI; false (with a ZE0603 diagnostic) if there is no such button to click.
@@ -90,6 +95,7 @@ bool game_tick(Game& g, const sim::CrowdInput& input) {
                         player ? player->speed : sim::PlayerController{}.speed);
     }
     sim::step(g.crowd, input);
+    flush_audio(g.audio);  // what the tick's hooks asked for
     after_step(g);
     if (g.scene) {
         scene::flush_entities(g.scene);  // what scripts destroyed this tick (D-031)
@@ -458,8 +464,10 @@ int run_windowed(const RunOptions& o, Game& g, float* instances) {
         if (input.background && has_surface) {
             rhi::set_window(device, nullptr);
             has_surface = false;
+            pause_audio(g.audio, true);
         }
         if (input.window_changed) {
+            pause_audio(g.audio, false);
             const platform::NativeWindow nw = platform::native_window(window);
             rhi::set_window(device, &nw);
             has_surface = true;
@@ -592,6 +600,13 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         if (auto* a = (sim::CrowdArena*)scene::first_component_mut(g.scene, &sim::kCrowdArenaDesc)) a->seed = o.seed;
     }
     if (g.scene) {
+        bool audio_failed = false;
+        g.audio = create_audio_layer(g.scene, g.null_audio, g.diags, &audio_failed);
+        if (audio_failed) {
+            scene::free_scene(g.scene);
+            g.scene = nullptr;
+            return false;
+        }
         bool ui_failed = false;
         g.ui = create_ui_layer(g.scene, o.language, g.diags, &ui_failed);
         bool sprites_failed = false;
@@ -599,7 +614,10 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         bool shapes_failed = false;
         if (!ui_failed && !sprites_failed) g.shapes = create_shape_layer(g.scene, g.diags, &shapes_failed);
         g.fx = create_fx_layer(g.scene);
+        set_audio(g.ui, audio_state(g.audio));
         if (ui_failed || sprites_failed || shapes_failed) {
+            destroy_audio_layer(g.audio);
+            g.audio = nullptr;
             destroy_sprite_layer(g.sprites);
             g.sprites = nullptr;
             destroy_fx_layer(g.fx);
@@ -620,6 +638,7 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         sd.host = ui_host(g.ui);
         g.crowd_host = {&g, crowd_kill};
         sd.crowd = &g.crowd_host;
+        sd.audio = audio_state(g.audio);
         g.script = script::load_script(sd, g.diags);
         if (g.ui && g.script) set_script(g.ui, g.script);
         if (!g.script || !script::call_start(g.script, g.diags)) {
@@ -633,11 +652,14 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
             g.fx = nullptr;
             destroy_shape_layer(g.shapes);
             g.shapes = nullptr;
+            destroy_audio_layer(g.audio);
+            g.audio = nullptr;
             scene::free_scene(g.scene);
             g.scene = nullptr;
             return false;
         }
     }
+    flush_audio(g.audio);  // the scene's music and what on_start asked for
     if (g.scene) scene::update_transforms(g.scene);
     return true;
 }
@@ -648,6 +670,7 @@ int run_crowd(const RunOptions& o) {
     const bool headless = o.headless || o.sim_only;
     Game g;
     g.diags = new DiagList();
+    g.null_audio = headless;
     sim::CrowdConfig cfg;
     if (!setup_game(o, g, &cfg)) {
         diag_print_text(g.diags, stderr);
@@ -671,6 +694,7 @@ int run_crowd(const RunOptions& o) {
     destroy_sprite_layer(g.sprites);
     destroy_fx_layer(g.fx);
     destroy_shape_layer(g.shapes);
+    destroy_audio_layer(g.audio);
     scene::free_scene(g.scene);
     delete g.diags;
     jobs::shutdown();
@@ -679,12 +703,14 @@ int run_crowd(const RunOptions& o) {
 }
 
 bool simulate_scene(const RunOptions& o, uint32_t ticks, const scene::TestSpec* spec, DiagList* diags,
-                    scene::Scene** scene_out, UiLayer** ui_out, SimulateResult* out) {
+                    scene::Scene** scene_out, UiLayer** ui_out, SimulateResult* out, AudioLayer** audio_out) {
     Game g;
     g.diags = diags;
+    g.null_audio = true;
     sim::CrowdConfig cfg;
     *scene_out = nullptr;
     *ui_out = nullptr;
+    if (audio_out) *audio_out = nullptr;
     if (!setup_game(o, g, &cfg)) return false;
     jobs::init(o.threads);
     g.crowd = sim::create_crowd(cfg);
@@ -723,6 +749,8 @@ bool simulate_scene(const RunOptions& o, uint32_t ticks, const scene::TestSpec* 
     jobs::shutdown();
     *scene_out = g.scene;
     *ui_out = g.ui;
+    if (audio_out) *audio_out = g.audio;
+    else destroy_audio_layer(g.audio);
     return ok;
 }
 

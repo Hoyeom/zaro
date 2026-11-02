@@ -67,6 +67,7 @@ struct Button {
     uint32_t disabled_color = 0xff504a48u; // #484a50
     float radius = 8.0f;
     bool enabled = true;
+    char sound[reflect::kStringCapacity] = {};  // a sound of the scene's sound file, played on a click (D-032)
 };
 
 // Scrolls its children, which it stacks like a column (or a row when horizontal), clipped to its

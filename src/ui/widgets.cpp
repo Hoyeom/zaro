@@ -61,6 +61,7 @@ const reflect::FieldDesc kButtonFields[] = {
     ZARO_FIELD(Button, disabled_color, kColor, "Fill colour when not enabled"),
     ZARO_FIELD_RANGE(Button, radius, kF32, "Corner radius in design units", 0.0, 10000.0),
     ZARO_FIELD(Button, enabled, kBool, "Disabled buttons ignore input and cannot take focus"),
+    ZARO_FIELD(Button, sound, kString, "Sound from the scene's sound file played when clicked; empty for none"),
 };
 
 const reflect::FieldDesc kScrollListFields[] = {

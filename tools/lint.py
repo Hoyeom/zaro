@@ -82,7 +82,8 @@ MODULE_DEPS = {
     "scene": {"core", "scene"},
     "script": {"core", "scene", "script"},
     "cook": {"core", "scene", "cook"},
-    "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "ui", "cook", "app"},
+    "audio": {"core", "audio"},
+    "app": {"core", "platform", "rhi", "sim", "render", "scene", "script", "ui", "cook", "audio", "app"},
     "cli": {"core", "app", "cli"},
 }
 # Third-party headers confined to the one module that wraps them.
@@ -101,6 +102,7 @@ THIRD_PARTY_OWNERS = {
     "stb_image.h": "src/core/png_decode.cpp",
     "cJSON.h": "src/app/design_import.cpp",
     "lunasvg.h": "src/cook/svg.cpp",
+    "miniaudio.h": "src/audio/",
     "plutovg.h": "src/cook/svg.cpp",
 }
 

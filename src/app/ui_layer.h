@@ -11,6 +11,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+namespace zaro::scene {
+struct AudioState;
+}
+
 namespace zaro::app {
 
 struct UiLayer;
@@ -29,6 +33,9 @@ const script::UiHost* ui_host(UiLayer* layer);
 scene::UiState* ui_state(UiLayer* layer);
 // The script that receives on_ui, on_back and on_screen; nullptr while there is none (or it is paused).
 void set_script(UiLayer* layer, script::Script* script);
+
+// Where buttons with a `sound` play it (D-032); nullptr while the scene has no sounds.
+void set_audio(UiLayer* layer, scene::AudioState* audio);
 
 // Applies the input (nullptr: none, as in headless runs), advances transitions and lays every
 // screen out for the target. Clicks and navigation are handled by handle_ui.

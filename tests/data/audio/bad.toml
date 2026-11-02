@@ -1,0 +1,32 @@
+# Problems the sound file loader reports, one per line below.
+[[group]]
+name = "sfx"
+loudness = 2
+
+[[sound]]
+name = "a"
+file = "missing.wav"
+
+[[sound]]
+name = "b"
+file = "click.wav"
+group = "sxf"
+
+[[sound]]
+name = "c"
+synth = { wave = "sqare", time = 0.1 }
+
+[[sound]]
+name = "d"
+[sound.pattern]
+step = 0.1
+tracks = [{ notes = "A4 H4" }]
+
+[[sound]]
+name = "e"
+file = "click.wav"
+synth = { time = 0.1 }
+
+[[sound]]
+name = "f"
+file = "notes.txt"

@@ -1,0 +1,8 @@
+[screen]
+name = "typo_panel"
+
+[[node]]
+name = "ok"
+[node.Button]
+text = "OK"
+sound = "clik"

@@ -52,10 +52,35 @@ void load_click(const toml_datum_t& t, Click* c, const char* file, DiagList* d) 
     }
 }
 
+// equals, min and max of a numeric expectation that names no field (sound, volume).
+void load_number_bounds(const toml_datum_t& t, Expect* e, const char* file, DiagList* d) {
+    static const char* const kKeys[] = {"equals", "min", "max"};
+    for (const char* key : kKeys) {
+        const toml_datum_t v = toml_get(t, key);
+        if (v.type == TOML_UNKNOWN) continue;
+        if (v.type != TOML_INT64 && v.type != TOML_FP64) {
+            diag_add(d, kErrTestSpec, file, v.lineno, v.colno, "'%s' must be a number", key);
+            continue;
+        }
+        const double x = v.type == TOML_INT64 ? (double)v.u.int64 : v.u.fp64;
+        if (key[0] == 'e') e->has_equals = true, e->equals_number = x;
+        else if (key[1] == 'i') e->has_min = true, e->min = x;
+        else e->has_max = true, e->max = x;
+    }
+    if (!e->has_equals && !e->has_min && !e->has_max) {
+        diag_add(d, kErrTestSpec, file, t.lineno, t.colno, "expect needs 'equals', 'min' or 'max'");
+    }
+}
+
 void load_expect(const toml_datum_t& t, Expect* e, const char* file, DiagList* d) {
     e->line = t.lineno;
     char component[64] = {}, field[64] = {};
     // A screen node is named with `node`, a scene entity with `entity`.
+    if (get_string(t, "sound", e->sound, sizeof(e->sound), file, d, false) ||
+        get_string(t, "volume", e->volume, sizeof(e->volume), file, d, false)) {
+        load_number_bounds(t, e, file, d);
+        return;
+    }
     const bool on_screen = get_string(t, "screen", e->screen, sizeof(e->screen), file, d, false);
     if (on_screen && get_string(t, "state", e->state, sizeof(e->state), file, d, false)) {
         static const char* const kStates[] = {"opening", "entering", "open", "closing", "closed"};

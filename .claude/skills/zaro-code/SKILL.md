@@ -16,7 +16,7 @@ it, and link dependencies in CMakeLists.txt follow the same graph.
 - Third-party headers belong to one module only: `SDL3/`, `android/` and `jni.h` → platform,
   `webgpu/` → rhi, `TaskScheduler.h` → `core/jobs.cpp`, `tracy/` → `core/profile.h`, `tomlc17.h` →
   scene, `lua.h`/`lualib.h`/`luacode.h` → script, `stb_truetype.h` → `ui/font.cpp`, `stb_image.h` →
-  `core/png_decode.cpp`, `cJSON.h` → `app/design_import.cpp`, `lunasvg.h` → `cook/svg.cpp`. A new
+  `core/png_decode.cpp`, `cJSON.h` → `app/design_import.cpp`, `lunasvg.h` → `cook/svg.cpp`, `miniaudio.h` → `audio`. A new
   dependency gets an owner in `THIRD_PARTY_OWNERS` and a row in `THIRD_PARTY_NOTICES.md` (lint Z010).
 - The `cook` module is built only for the desktop `zaro` tool (`if(NOT ANDROID)`). Code in `app`
   that calls it is inside `#if ZARO_HAS_COOK`, with a fallback for builds without it.

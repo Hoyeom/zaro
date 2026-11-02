@@ -1,0 +1,12 @@
+# Sounds from a script, a button and [scene] music (D-032); tests/data/audio/tests checks the plays.
+[scene]
+name = "audio"
+script = "audio.luau"
+ui = ["ui/panel.toml"]
+sounds = "sounds.toml"
+music = "theme"
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 200

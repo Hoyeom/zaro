@@ -1,0 +1,10 @@
+# One button that plays a click and makes the music louder.
+[screen]
+name = "panel"
+
+[[node]]
+name = "louder"
+[node.Button]
+text = "+"
+action = "louder"
+sound = "click"

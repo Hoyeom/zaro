@@ -1,5 +1,6 @@
 #include "app/tools.h"
 
+#include "app/audio_layer.h"
 #include "app/shape_layer.h"
 #include "app/sprite_layer.h"
 #include "app/ui_layer.h"
@@ -59,6 +60,8 @@ int check_scene(const char* path, bool json) {
         bool shapes_failed = false;
         destroy_shape_layer(create_shape_layer(s, diags, &shapes_failed));
         failed = shapes_failed || failed;
+        // Its sounds: the sound file, that each sound decodes, the music and the buttons' sounds.
+        failed = !check_scene_audio(s, diags) || failed;
         if (failed) {
             scene::free_scene(s);
             s = nullptr;
