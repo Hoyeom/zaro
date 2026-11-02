@@ -243,7 +243,7 @@ shapes, tweens and particles over thousands of enemies, with no frame-by-frame a
       with its own count, max, speed, radius, `CrowdShape` and `CrowdFx`, in one simulation and one
       draw; `zaro.crowd_kill` sweeps one kind or all and counts by kind; `crowd_hit` per kind.
       Tests `crowd_determinism` (three kinds), `scene_tests_crowd` (kinds), `check_crowd_too_many_kinds`,
-      `screenshot_crowd_kinds`; the golden hashes did not change.
+      `screenshot_crowd_kinds`; the golden hashes did not change (#52).
     - Step 3 (D-035): the `Camera` component: height, pitch, field of view across the vertical, the
       horizontal or the shorter side (portrait phones keep their width), following the player or a
       point with an offset and lag, and where fog starts. Visual only. Tests `scene_camera`,
