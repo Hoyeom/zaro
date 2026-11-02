@@ -9,7 +9,7 @@
 @ZARO_MANIFEST_EXTRA@
 
     <application
-        android:label="@ZARO_NAME@"
+        android:label="@ZARO_TITLE@"
         android:allowBackup="false"
         android:hardwareAccelerated="true"
         android:enableOnBackInvokedCallback="false"

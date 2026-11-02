@@ -51,7 +51,10 @@ Commands are in the CLAUDE.md "Commands" table (`tools/android.py setup|doctor|a
   them, builds use the debug key. Never add a keystore, a password or a `signingConfig` with a
   literal path to the template or to a project.
 - The version comes from the game: `zaro export android --version-code N --version-name S`
-  (1..2100000000; the name may hold letters, digits, spaces and `._+-`).
+  (1..2100000000; the name may hold letters, digits, spaces and `._+-`). So do the package name,
+  the label under the icon and the orientation (`--package`, `--title`, `--portrait`), which a
+  build file sets in `[game]` (D-037). The manifest label is `@ZARO_TITLE@`; `@ZARO_NAME@` stays
+  the Gradle project name.
 - Every packed `.so` passes `cmake/ZaroCheckElf.cmake`: no NEEDED with a build-machine path, and
   every LOAD segment aligned to at least 16 KB.
 - How a game's CI keeps the upload key (environment secrets behind required reviewers, `main`

@@ -1,4 +1,5 @@
-"""`zaro build` without a target (D-027): stages, step order, stamping and file:line errors.
+"""`zaro build` without a target (D-027): stages, step order, stamping, the app identity (D-037)
+and file:line errors.
 
 Usage: python tests/test_build_pipeline.py <zaro binary>   (run from the repository root)
 """
@@ -15,7 +16,8 @@ DATA = "tests/data/pipeline"
 
 
 def zaro(*args: str) -> subprocess.CompletedProcess:
-    r = subprocess.run([str(Path(sys.argv[1]).resolve()), *args], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run([str(Path(sys.argv[1]).resolve()), *args], cwd=ROOT, capture_output=True,
+                       encoding="utf-8", errors="replace")
     r.text = r.stdout + r.stderr
     return r
 
@@ -69,12 +71,30 @@ def main() -> int:
         r = zaro("build", f"{DATA}/game/build.toml", "--release", "--plan")
         check(r.returncode == 2 and "add --target android" in r.text, "--release without a target", r.text)
         r = zaro("build", f"{DATA}/game/build.toml", "--target", "android", "--release", "--plan")
-        check(r.returncode == 1 and re.search(r"ZE1003\]: tests/data/pipeline/game/build\.toml:8: --release needs a "
+        check(r.returncode == 1 and re.search(r"ZE1003\]: tests/data/pipeline/game/build\.toml:11: --release needs a "
                                               r"release environment; 'staging'", r.text) is not None,
               "release build in a non-release environment", r.text)
         r = zaro("build", f"{DATA}/game/build.toml", "--target", "android", "--plan")
         check(r.returncode == 0 and "python tools/build.py android" in r.stdout and "Gradle aab, debug key" in r.stdout,
               "android plan", r.text)
+        check('package com.example.pipeline, title "네온 Pipeline", portrait' in r.stdout,
+              "the export gets [game] package, title and orientation", r.text)
+
+        # A release build needs the package: stores fix it at the first upload (D-037).
+        r = zaro("build", f"{DATA}/no_package.toml", "--target", "android", "--release", "--plan")
+        check(r.returncode == 1 and re.search(r"ZE1003\]: tests/data/pipeline/no_package\.toml: a release build needs "
+                                              r"\[game\] package", r.text) is not None, "release without a package",
+              r.text)
+        r = zaro("build", f"{DATA}/no_package.toml", "--target", "android", "--plan")
+        check(r.returncode == 0 and "package dev.zaro.<scene name>, title \"<scene name>\", landscape" in r.stdout,
+              "debug build without [game] package keeps the export's defaults", r.text)
+
+        r = zaro("build", f"{DATA}/identity.toml", "--plan")
+        check(r.returncode == 1, "invalid package, title and orientation", r.text)
+        for pattern in (r"identity\.toml:6:\d+: error\[ZE1000\]: package 'com\.example\.' must be",
+                        r"identity\.toml:7:\d+: error\[ZE1000\]: title 'Cat's <Arena>' cannot hold",
+                        r"identity\.toml:8:\d+: error\[ZE1000\]: orientation must be"):
+            check(re.search(pattern, r.text) is not None, f"diagnostic {pattern}", r.text)
 
         r = zaro("build", f"{DATA}/bad.toml", "--plan")
         check(r.returncode == 1, "bad build file fails", r.text)
