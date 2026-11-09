@@ -53,15 +53,20 @@ const reflect::FieldDesc kCrowdShapeFields[] = {
     ZARO_FIELD_ENUM(CrowdShape, blend, "add: adds light (neon); alpha: covers what is behind", kShapeBlends),
 };
 
+const char* const kArenaPatterns[] = {"grid", "lines", "dots", "none", nullptr};
+
 const reflect::FieldDesc kArenaLookFields[] = {
     ZARO_FIELD(ArenaLook, ground, kColor, "Colour of the ground"),
-    ZARO_FIELD(ArenaLook, grid, kColor, "Colour of the grid lines on the ground"),
-    ZARO_FIELD_RANGE(ArenaLook, grid_intensity, kF32, "Multiplies the grid colour; above 1 it glows under Bloom",
+    ZARO_FIELD(ArenaLook, grid, kColor, "Colour of the pattern on the ground"),
+    ZARO_FIELD_RANGE(ArenaLook, grid_intensity, kF32, "Multiplies the pattern colour; above 1 it glows under Bloom",
                      0.0, 1000.0),
-    ZARO_FIELD_RANGE(ArenaLook, grid_spacing, kF32, "Metres between grid lines", 0.25, 256.0),
+    ZARO_FIELD_RANGE(ArenaLook, grid_spacing, kF32, "Metres between the pattern's lines or dots", 0.25, 256.0),
     ZARO_FIELD(ArenaLook, obstacle, kColor, "Colour of the obstacles"),
     ZARO_FIELD_RANGE(ArenaLook, obstacle_intensity, kF32, "Multiplies the obstacle colour", 0.0, 1000.0),
     ZARO_FIELD(ArenaLook, sky, kColor, "Background and distance fog colour"),
+    ZARO_FIELD_ENUM(ArenaLook, pattern,
+                    "The ground's pattern: grid (lines with a halo), lines (sharp only), dots at the crossings, or none",
+                    kArenaPatterns),
 };
 
 }  // namespace
@@ -72,7 +77,7 @@ ZARO_VISUAL_COMPONENT(CrowdShape,
                       "Draws the crowd's enemies as glowing shapes instead of cubes: on a spawner, that kind's "
                       "look; kinds without one take the scene's first",
                       kCrowdShapeFields);
-ZARO_VISUAL_COMPONENT(ArenaLook, "The arena's colours: ground, glowing grid, obstacles and background", kArenaLookFields);
+ZARO_VISUAL_COMPONENT(ArenaLook, "The arena's look: ground, its pattern, obstacles and background", kArenaLookFields);
 
 void register_shape_components() {
     reflect::register_component(&kShapeDesc);

@@ -348,6 +348,13 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro screenshot tests/data/fx/camera_flat.toml ${CMAKE_BINARY_DIR}/camera_flat.png --frames 60
            --size 540x960 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(screenshot_camera_flat PROPERTIES LABELS gpu)
+  # Open ground with dots instead of a grid (D-039).
+  add_test(NAME check_arena_flat_scene COMMAND zaro check tests/data/fx/arena_flat.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME screenshot_arena_flat
+           COMMAND zaro screenshot tests/data/fx/arena_flat.toml ${CMAKE_BINARY_DIR}/arena_flat.png --frames 60
+           --size 540x960 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_arena_flat PROPERTIES LABELS gpu)
   # Particles, shake and flash: sparks from hits and emitters through the HDR frame.
   add_test(NAME check_sparks_scene COMMAND zaro check tests/data/fx/sparks.toml
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

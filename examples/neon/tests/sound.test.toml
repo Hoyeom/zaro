@@ -5,7 +5,7 @@
 [test]
 scene = "../scene.toml"
 ticks = 1500
-state_hash = "39038b27ee9a0771"
+state_hash = "26bad88c767310c5"
 
 [[expect]]
 sound = "music"

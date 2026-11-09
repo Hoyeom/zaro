@@ -7,6 +7,7 @@ namespace {
 const reflect::FieldDesc kArenaFields[] = {
     ZARO_FIELD_RANGE(CrowdArena, grid_size, kU32, "Arena width and depth in 1 m cells", 32, 4096),
     ZARO_FIELD(CrowdArena, seed, kU64, "Seed for obstacles and spawn positions; same seed, same run"),
+    ZARO_FIELD(CrowdArena, obstacles, kBool, "Scatter obstacles from the seed; false: open ground"),
 };
 
 const reflect::FieldDesc kSpawnerFields[] = {

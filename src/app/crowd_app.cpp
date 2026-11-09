@@ -661,6 +661,7 @@ bool setup_game(const RunOptions& o, Game& g, sim::CrowdConfig* cfg) {
         if (!g.scene) return false;
         if (const auto* a = (const sim::CrowdArena*)scene::first_component(g.scene, &sim::kCrowdArenaDesc, nullptr)) {
             cfg->grid_size = a->grid_size;
+            cfg->obstacles = a->obstacles;
             cfg->seed = a->seed;
         }
         if (!check_crowd(g.scene, g.diags)) {
