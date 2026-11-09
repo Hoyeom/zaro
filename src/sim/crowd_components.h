@@ -11,6 +11,7 @@ namespace zaro::sim {
 struct CrowdArena {
     uint32_t grid_size = 256;  // cells of 1 m per side
     uint64_t seed = 1;
+    bool obstacles = true;  // false: open ground, nothing to walk around (D-039)
 };
 
 struct CrowdSpawner {

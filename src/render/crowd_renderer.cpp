@@ -22,7 +22,7 @@ struct FrameConstants {
     uint32_t pad;
     float sprite[4];  // metres per pixel, fps, frame count, cull radius; zero for cubes
     float right[4];
-    float ground[4];       // arena colours: ground rgb, 1 when set (0: the grey checkerboard)
+    float ground[4];       // arena colours: ground rgb, 1 + the pattern when set (0: the grey checkerboard)
     float grid[4];         // grid rgb, spacing
     float obstacle[4];     // obstacle rgb
     float sky[4];          // background and fog rgb
@@ -373,7 +373,7 @@ void render_crowd(CrowdRenderer* r, const CrowdScene& scene) {
     if (r->shapes && scene.enemy_shapes) fc.sprite[3] = reach;  // cull radius
     if (const ArenaColors* a = scene.arena) {
         memcpy(fc.ground, a->ground, sizeof(a->ground));
-        fc.ground[3] = 1.0f;
+        fc.ground[3] = 1.0f + (float)a->pattern;
         memcpy(fc.grid, a->grid, sizeof(a->grid));
         fc.grid[3] = a->grid_spacing;
         memcpy(fc.obstacle, a->obstacle, sizeof(a->obstacle));

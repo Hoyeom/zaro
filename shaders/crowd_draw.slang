@@ -239,14 +239,20 @@ float4 fs_lit(VSOut i) : SV_Target {
 [shader("fragment")]
 float4 fs_ground(VSOut i) : SV_Target {
     if (has_arena_colors()) {
-        // Distance to the nearest grid line in metres: a sharp line and a faint halo around it.
+        // ground.w is 1 + the pattern (render::ArenaColors): 1 grid, 2 lines, 3 dots, 4 plain.
+        const uint pattern = uint(frame.ground.w + 0.5);
         const float spacing = frame.grid.w;
         const float2 f = abs(frac(i.world.xz / spacing + 0.5) - 0.5) * spacing;
-        const float d = min(f.x, f.y);
-        const float aa = max(fwidth(d), 1e-4);
-        const float line = saturate(1.0 - (d - 0.03) / aa);
-        const float halo = 0.25 * exp(-d / 0.12);
-        const float3 c = frame.ground.rgb + frame.grid.rgb * (line + halo);
+        // fwidth needs both distances whichever pattern this is: derivatives may not sit in a branch.
+        const float to_dot = length(f);
+        const float to_line = min(f.x, f.y);
+        const float dot_edge = saturate(1.0 - (to_dot - 0.07) / max(fwidth(to_dot), 1e-4));
+        const float line_edge = saturate(1.0 - (to_line - 0.03) / max(fwidth(to_line), 1e-4));
+        float amount = 0.0;
+        if (pattern == 1u) amount = line_edge + 0.25 * exp(-to_line / 0.12);
+        else if (pattern == 2u) amount = line_edge;
+        else if (pattern == 3u) amount = dot_edge;
+        const float3 c = frame.ground.rgb + frame.grid.rgb * amount;
         return float4(lerp(c, sky(), fog_amount(i.world)), 1.0);
     }
     const int2 cell = int2(floor(i.world.xz / 4.0));

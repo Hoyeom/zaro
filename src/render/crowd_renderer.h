@@ -32,6 +32,7 @@ struct ArenaColors {
     float grid_spacing = 4.0f;
     float obstacle[3] = {};
     float sky[3] = {};
+    uint32_t pattern = 0;  // 0 grid with a halo, 1 sharp lines, 2 dots, 3 plain (sim::ArenaPattern)
 };
 
 // The 3D view's camera, from a scene's Camera component (D-035). It looks at `target` from `height`

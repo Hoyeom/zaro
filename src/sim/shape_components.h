@@ -51,7 +51,9 @@ struct CrowdShape {
     uint32_t blend = kShapeBlendAdd;
 };
 
-// The arena's look: a dark ground with a glowing grid and tinted obstacles, instead of the grey
+enum ArenaPattern : uint32_t { kArenaGrid, kArenaLines, kArenaDots, kArenaPlain };
+
+// The arena's look: a dark ground with a pattern and tinted obstacles, instead of the grey
 // checkerboard.
 struct ArenaLook {
     uint32_t ground = 0xff0a0605u;  // #05060a
@@ -61,6 +63,7 @@ struct ArenaLook {
     uint32_t obstacle = 0xff402820u;  // #202840
     float obstacle_intensity = 1.0f;
     uint32_t sky = 0xff0a0605u;  // clear colour and distance fog
+    uint32_t pattern = kArenaGrid;  // D-039
 };
 
 extern const reflect::ComponentDesc kShapeDesc;

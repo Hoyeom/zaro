@@ -100,7 +100,23 @@ int main() {
                          zaro::sim::kind_enemies(crowd, 1, &first) == 5 && first == 3;
     const bool fixed = zaro::sim::set_enemy_count(crowd, 1, 6) == 5 && zaro::sim::kind_capacity(crowd, 1) == 5;
     zaro::sim::destroy_crowd(crowd);
+
+    // An arena without obstacles has none anywhere, while the default has some (D-039).
+    const uint32_t* cells = nullptr;
+    zaro::sim::CrowdConfig open;
+    open.kinds[0].count = 10;
+    zaro::sim::Crowd* with = zaro::sim::create_crowd(open);
+    const uint32_t some = zaro::sim::obstacle_cells(with, &cells);
+    zaro::sim::destroy_crowd(with);
+    open.obstacles = false;
+    zaro::sim::Crowd* without = zaro::sim::create_crowd(open);
+    const uint32_t none = zaro::sim::obstacle_cells(without, &cells);
+    zaro::sim::destroy_crowd(without);
     zaro::jobs::shutdown();
+    if (some == 0 || none != 0) {
+        fprintf(stderr, "zaro: error: CrowdConfig::obstacles does not turn the obstacles off\n");
+        return 1;
+    }
     if (!packed || !fixed) {
         fprintf(stderr, "zaro: error: kinds are not kept packed in order, or a kind grew past its capacity\n");
         return 1;

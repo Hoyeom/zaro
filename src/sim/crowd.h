@@ -1,4 +1,4 @@
-// Crowd simulation: many enemies chase one player across an arena with obstacles.
+// Crowd simulation: many enemies chase one player across an arena, with or without obstacles.
 //
 // This is the model. It knows nothing about windows or GPUs, runs in a fixed 60 Hz tick and
 // is deterministic: the same config and inputs give the same state hash for any thread count.
@@ -26,6 +26,7 @@ struct CrowdConfig {
     uint32_t kind_count = 1;   // kinds[0, kind_count) are used
     uint32_t grid_size = 256;  // arena is grid_size x grid_size cells of 1 m
     uint64_t seed = 1;
+    bool obstacles = true;  // false: open ground (D-039)
     float player_speed = 8.0f;
 };
 

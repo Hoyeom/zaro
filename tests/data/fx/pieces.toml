@@ -8,6 +8,7 @@ name = "pieces"
 name = "arena"
 [entity.CrowdArena]
 grid_size = 64
+obstacles = false
 [entity.ArenaLook]
 grid = "#16162a"
 

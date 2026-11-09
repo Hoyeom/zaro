@@ -28,7 +28,9 @@ every field.
   its "main" pass (`vs_enemy_shape` in shaders/crowd_draw.slang), GPU-culled like the cubes; the
   looks go to the GPU as one `render::EnemyKind` per kind with the kind's range of enemies, and each
   enemy's hue comes from its index within its kind, so it keeps it when another kind grows.
-- **`ArenaLook`**: a dark ground with a glowing grid, obstacle and background colours.
+- **`ArenaLook`**: a dark ground, obstacle and background colours, and a `pattern` on the ground:
+  `grid` (lines with a halo), `lines` (sharp only), `dots` at the crossings, or `none`.
+  `CrowdArena.obstacles = false` leaves open ground (D-039), so nothing has to be walked around.
 - `render::ShapeRenderer` draws all `Shape`s in one "shapes" pass after the crowd and before the
   sprites: one draw for world shapes (depth-tested, no depth writes), one for screen shapes. Each is
   a quad shaded from a signed distance (`shaders/shape_sdf.slang`, shared with the crowd shader);
