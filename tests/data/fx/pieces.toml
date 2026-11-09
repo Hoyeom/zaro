@@ -1,0 +1,94 @@
+# Solid pieces for a flat game (D-040): hits and emitters throw out squares, circles and triangles
+# that spin and shrink, with no glow.
+#   zaro screenshot tests/data/fx/pieces.toml pieces.png --size 540x960 --frames 40
+[scene]
+name = "pieces"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 64
+obstacles = false
+[entity.ArenaLook]
+grid = "#16162a"
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 600
+speed = 5.0
+[entity.CrowdShape]
+kind = "rect"
+size = 0.7
+thickness = 0.0
+color = "#ff2b6a"
+intensity = 1.0
+glow = 0.0
+blend = "alpha"
+[entity.CrowdFx]
+particles = 8
+color = "#ffffff"
+intensity = 1.0
+speed = 6.0
+life = 0.5
+size = 0.35
+shape = "square"
+player_flash = 1.0
+
+[[entity]]
+name = "player"
+[entity.Shape]
+kind = "circle"
+follow = "player"
+position = [0.0, 0.05, 0.0]
+size = [1.2, 1.2]
+color = "#19f0ff"
+intensity = 1.0
+blend = "alpha"
+
+[[entity]]
+name = "squares"
+[entity.ParticleEmitter]
+follow = "player"
+position = [-5.0, 0.3, -6.0]
+rate = 60.0
+color = "#ffffff"
+intensity = 1.0
+speed = 4.0
+life = 1.2
+size = 0.6
+shape = "square"
+
+[[entity]]
+name = "circles"
+[entity.ParticleEmitter]
+follow = "player"
+position = [5.0, 0.3, -6.0]
+rate = 60.0
+color = "#19f0ff"
+intensity = 1.0
+speed = 4.0
+life = 1.2
+size = 0.6
+shape = "circle"
+
+[[entity]]
+name = "triangles"
+[entity.ParticleEmitter]
+follow = "player"
+position = [0.0, 0.3, 6.0]
+rate = 60.0
+color = "#ffd23f"
+intensity = 1.0
+speed = 4.0
+life = 1.2
+size = 0.6
+shape = "triangle"
+
+[[entity]]
+name = "view"
+[entity.Camera]
+projection = "orthographic"
+pitch = 90.0
+fov_axis = "shorter"
+extent = 22.0

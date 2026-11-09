@@ -15,5 +15,5 @@ public struct Particle {
     public float4 position_age;   // world xyz, seconds lived
     public float4 velocity_life;  // metres per second, seconds to live
     public float4 color;
-    public float4 size_drag;      // width, drag, unused
+    public float4 size_drag;      // width, drag, shape (0 spark, 1 square, 2 circle, 3 triangle), radians per second
 };

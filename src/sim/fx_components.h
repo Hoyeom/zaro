@@ -39,6 +39,9 @@ struct ScreenFx {
 // What happens when an enemy of the crowd reaches the player (a hit: it vanishes and respawns at the
 // edge): a burst of sparks where it was, shake, flash, and a hit flash on shapes following the
 // player. On the crowd's spawner entity.
+// What a particle looks like: a soft additive streak, or a solid piece that spins and shrinks (D-040).
+enum ParticleShape : uint32_t { kParticleSpark, kParticleSquare, kParticleCircle, kParticleTriangle };
+
 struct CrowdFx {
     uint32_t particles = 12;
     uint32_t color = 0xff4d2bffu;  // #ff2b4d
@@ -49,6 +52,8 @@ struct CrowdFx {
     float shake = 0.08f;
     float flash = 0.0f;
     float player_flash = 1.0f;
+    uint32_t shape = kParticleSpark;  // D-040
+    float spin = 360.0f;
 };
 
 enum EmitterFollow : uint32_t { kEmitterFollowNone, kEmitterFollowPlayer };
@@ -69,6 +74,8 @@ struct ParticleEmitter {
     float drag = 2.0f;
     float direction = 0.0f;  // degrees; +x turns toward +z
     float spread = 360.0f;   // degrees around the direction
+    uint32_t shape = kParticleSpark;  // D-040
+    float spin = 360.0f;
 };
 
 enum CameraFollow : uint32_t { kCameraFollowPlayer, kCameraFollowNone };

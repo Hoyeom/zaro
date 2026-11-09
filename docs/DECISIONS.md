@@ -1072,6 +1072,21 @@ Status of all entries below: **accepted, 2026-11-01**.
   because the seed's random numbers then go to spawning alone and enemies no longer path around
   anything. `pattern` is visual only (D-005). There are no flat obstacles; a game that wants them
   later adds them as a new option.
+## D-040 Solid particles: squares, circles and triangles that spin and shrink
+
+- **Status**: accepted, 2026-11-09. Extends the particles of D-029.
+- **Decision**: `ParticleEmitter` and `CrowdFx` get `shape` (`spark`, the default, or `square`,
+  `circle`, `triangle`) and `spin`. A solid piece is drawn with a sharp edge and covers what is
+  behind it, keeps its colour for its whole life, shrinks to nothing, and turns at 40..100% of `spin`
+  in a random direction from its own starting angle. It faces the camera.
+- **Why**: a flat look throws out solid pieces rather than light, and spawning `Shape` entities per
+  hit would cost a scene entity for each piece, where a burst is 80 bytes and the compute pass does
+  the rest. One pipeline serves both looks because its blending is premultiplied: a spark writes
+  alpha 0, which adds light, and a piece writes its coverage.
+- **Consequences**: `render::ParticleBurst` grows from 64 to 80 bytes; `struct Particle` stays at 64
+  by using the two fields it had free. Pieces are visual only (D-005), so no golden hash moves, and
+  a piece glows only when its `intensity` is above 1 under `Bloom`. Pieces are drawn in ring order,
+  with no depth test, as sparks are.
 
 ## M2 result (2026-11-01)
 

@@ -50,9 +50,10 @@ int brightest(const uint8_t* px, uint32_t x, uint32_t y) {
     return best;
 }
 
-bool draw_frame(rhi::Device* device, render::ParticleRenderer* r, const render::ParticleFrame& f, uint8_t* out) {
+bool draw_frame(rhi::Device* device, render::ParticleRenderer* r, const render::ParticleFrame& f, uint8_t* out,
+                float clear_red = 0.0f) {
     if (!rhi::begin_frame(device)) return false;
-    const float clear[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    const float clear[4] = {clear_red, 0.0f, 0.0f, 1.0f};
     rhi::render_begin(device, "clear", clear);
     rhi::render_end(device);
     render::render_particles(r, f);
@@ -117,10 +118,46 @@ int main(int argc, char** argv) {
     expect(brightest(second, mx, my) > 300, "a frame later they are 2 m along +x");
     expect(brightest(second, ox, oy) < 60, "and gone from the burst");
     expect(brightest(second, bx, by) == 0, "none flew the other way");
+    render::destroy_particle_renderer(r);
+
+    // One motionless blue particle of each shape over a red frame (D-040): a solid piece covers the
+    // red, a spark only adds to it. A piece is 0.7..1.3 m across at first (size 2 m), so a point
+    // 0.6 m from its centre is inside it at any angle; at 2.9 s of a life of at least 3 s, it is out.
+    burst.count = 1;
+    burst.color[0] = burst.color[1] = 0.0f;
+    burst.speed[0] = burst.speed[1] = 0.0f;
+    burst.size = 2.0f;
+    uint32_t ix, iy, fx, fy;
+    project(vp, Vec3{0.6f, 0, 0}, &ix, &iy);
+    project(vp, Vec3{3, 0, 0}, &fx, &fy);
+    for (uint32_t shape = 0; shape < 4; ++shape) {
+        r = render::create_particle_renderer(device, dir, 16);
+        if (!r) return 1;
+        burst.shape = shape;
+        f.burst_count = 1;
+        f.seconds = 0.0f;
+        expect(draw_frame(device, r, f, first, 1.0f), "capture a shape");
+        const uint8_t* centre = pixel(first, ox, oy);
+        expect(centre[2] > 200, "the particle shows at its burst");
+        if (shape) {
+            expect(centre[0] < 30, "a solid piece covers what is behind it");
+        } else {
+            expect(centre[0] > 200, "a spark adds to what is behind it");
+        }
+        expect(pixel(first, fx, fy)[2] == 0 && pixel(first, fx, fy)[0] > 200, "nothing far from the particle");
+        if (shape == 1) {
+            expect(pixel(first, ix, iy)[0] < 30, "a square reaches 0.6 m at first");
+            f.burst_count = 0;
+            f.seconds = 2.9f;
+            expect(draw_frame(device, r, f, second, 1.0f), "capture the shrunk piece");
+            expect(pixel(second, ix, iy)[0] > 200, "and shrinks away from it with age");
+        }
+        render::destroy_particle_renderer(r);
+    }
+    expect(!rhi::device_failed(device), "no GPU errors with solid pieces");
     free(first);
     free(second);
 
-    render::destroy_particle_renderer(r);
     rhi::destroy_device(device);
     if (g_failures) {
         fprintf(stderr, "%d failure(s), see %s\n", g_failures, argv[2]);

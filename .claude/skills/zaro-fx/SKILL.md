@@ -45,6 +45,10 @@ every field.
 - **`ParticleEmitter`** (any entity): sparks at `rate` per second, plus `burst` at once; the app
   emits the burst and sets it back to 0 on the next tick, so a script fires one with
   `zaro.set(entity, "ParticleEmitter", "burst", 40)`. `follow = "player"` emits around the player.
+- **`shape`** (on `ParticleEmitter` and `CrowdFx`, D-040): `spark` is the soft additive streak;
+  `square`, `circle` and `triangle` are solid pieces that cover what is behind them, turn at up to
+  `spin` degrees per second and shrink to nothing over their life. They glow only with an
+  `intensity` above 1 under `Bloom`.
 - **`CrowdFx`** (on a kind's spawner; a kind without one uses the scene's first): when an enemy reaches the player (it vanishes and respawns
   at the edge, `sim::last_hits`), a burst of `particles` where it was, `shake` and `flash` added to
   `ScreenFx`, and `Shape.flash` raised to `player_flash` on shapes that follow the player. At most
@@ -54,13 +58,14 @@ every field.
   fall by their decay per second on the tick clock (`app::step_fx`), so scene tests can expect them.
   A scene with ScreenFx renders through the HDR frame even without Bloom.
 - `render::ParticleRenderer` keeps a ring buffer of `app::kParticleCapacity` (32768) particles. The
-  CPU sends 64 bytes per burst (`render::ParticleBurst`); a "particles" compute pass integrates the
+  CPU sends 80 bytes per burst (`render::ParticleBurst`); a "particles" compute pass integrates the
   live ones and writes the new ones with hashed random directions (shaders/particles_sim.slang); a
-  "particles" render pass draws each as an additive streak along its motion, without a depth test
+  "particles" render pass draws each as a streak or a piece, without a depth test
   (shaders/particles_draw.slang). Bursts are only queued when there is a GPU; the component values
   change the same way either way.
-- **Tests**: `particle_render_gpu` (a burst emitted, then moved by a frame's time),
-  `scene_tests_fx` (decay.test.toml, hits.test.toml), `check_sparks_scene`, `screenshot_sparks`.
+- **Tests**: `particle_render_gpu` (a burst emitted, then moved by a frame's time; every shape over
+  a coloured frame, and a piece shrinking), `scene_tests_fx` (decay.test.toml, hits.test.toml),
+  `check_sparks_scene`, `screenshot_sparks`, `check_pieces_scene`, `screenshot_pieces`.
 
 ## The camera (D-035)
 

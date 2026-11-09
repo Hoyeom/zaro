@@ -1,7 +1,8 @@
 // GPU particles: sparks for hits and deaths (P6, D-029). The CPU only describes bursts (where, how
 // many, what colour and speed); a compute pass writes each burst's particles into a ring buffer
 // with hashed random directions and integrates every live particle, and a render pass draws them as
-// additive glowing streaks stretched along their motion. Visual only: nothing reads them back, and
+// additive glowing streaks stretched along their motion, or as solid pieces that spin and shrink
+// (D-040). Visual only: nothing reads them back, and
 // nothing in the simulation depends on them (D-005).
 #pragma once
 
@@ -11,20 +12,23 @@
 
 namespace zaro::render {
 
-// 64 bytes. Mirrors `struct Burst` in shaders/particles_sim.slang.
+// 80 bytes. Mirrors `struct Burst` in shaders/particles_sim.slang.
 struct ParticleBurst {
     float position[3];  // world metres
     uint32_t count;     // particles
     float color[4];     // linear rgb times intensity, opacity
     float speed[2];     // min, max metres per second
     float life;         // seconds (each particle lives 60..100% of it)
-    float size;         // streak width in metres
+    float size;         // streak or piece width in metres
     float drag;         // velocity lost per second (exponential)
     float direction;    // radians; +x turns toward +z
     float spread;       // radians around the direction; 2 pi: every way
     uint32_t seed;
+    uint32_t shape;     // 0 spark, 1 square, 2 circle, 3 triangle (sim::ParticleShape)
+    float spin;         // solid pieces: fastest turn in radians per second, either way
+    float unused[2];
 };
-static_assert(sizeof(ParticleBurst) == 64, "must match shaders/particles_sim.slang");
+static_assert(sizeof(ParticleBurst) == 80, "must match shaders/particles_sim.slang");
 
 constexpr uint32_t kMaxBurstsPerFrame = 256;
 
