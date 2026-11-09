@@ -1,7 +1,7 @@
 // GPU particles, compute side (render/particle_renderer.cpp): a ring buffer of sparks. `emit`
 // writes the frame's new particles from the bursts the CPU described (random directions from a
 // hash, so the CPU sends 64 bytes per burst instead of per particle); `update` integrates every
-// live one. shaders/particles_draw.slang draws them. `Burst` mirrors render::ParticleBurst (64 bytes).
+// live one. shaders/particles_draw.slang draws them. `Burst` mirrors render::ParticleBurst (80 bytes).
 
 import particle;
 
@@ -16,6 +16,9 @@ struct Burst {
     float direction;  // radians; +x turns toward +z
     float spread;
     uint seed;
+    uint shape;
+    float spin;
+    float2 unused;
 };
 
 [[vk::binding(0, 0)]] ConstantBuffer<Sim> sim;
@@ -45,14 +48,15 @@ void emit(uint3 id: SV_DispatchThreadID) {
         else hi = mid - 1u;
     }
     const Burst b = bursts[lo];
-    const uint k = (i - burst_first[lo]) * 4u + b.seed * 2654435761u;
+    const uint k = (i - burst_first[lo]) * 8u + b.seed * 2654435761u;
     const float angle = b.direction + (hash01(k) - 0.5) * b.spread;
     const float speed = lerp(b.speed.x, b.speed.y, hash01(k + 1u));
     Particle p;
     p.position_age = float4(b.position, 0.0);
     p.velocity_life = float4(cos(angle) * speed, 0.0, sin(angle) * speed, b.life * lerp(0.6, 1.0, hash01(k + 2u)));
     p.color = b.color;
-    p.size_drag = float4(b.size * lerp(0.7, 1.3, hash01(k + 3u)), b.drag, 0.0, 0.0);
+    const float turn = b.spin * lerp(0.4, 1.0, hash01(k + 4u)) * (hash01(k + 5u) < 0.5 ? -1.0 : 1.0);
+    p.size_drag = float4(b.size * lerp(0.7, 1.3, hash01(k + 3u)), b.drag, float(b.shape), turn);
     particles[(sim.head + i) % sim.capacity] = p;
 }
 

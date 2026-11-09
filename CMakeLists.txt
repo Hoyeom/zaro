@@ -355,6 +355,13 @@ if(ZARO_BUILD_TESTS)
            COMMAND zaro screenshot tests/data/fx/sparks.toml ${CMAKE_BINARY_DIR}/sparks.png --frames 30 --size 640x360
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(screenshot_sparks PROPERTIES LABELS gpu)
+  # Solid pieces instead of sparks (D-040).
+  add_test(NAME check_pieces_scene COMMAND zaro check tests/data/fx/pieces.toml
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME screenshot_pieces
+           COMMAND zaro screenshot tests/data/fx/pieces.toml ${CMAKE_BINARY_DIR}/pieces.png --frames 40 --size 540x960
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(screenshot_pieces PROPERTIES LABELS gpu)
 
   # SVG cook: classes, clip paths, masks, <use> and gradients drawn; text and filters reported.
   if(TARGET zaro_cook)

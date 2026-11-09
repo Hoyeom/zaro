@@ -30,6 +30,8 @@ const reflect::FieldDesc kScreenFxFields[] = {
     ZARO_FIELD(ScreenFx, flash_color, kColor, "Colour of the full-screen flash"),
 };
 
+const char* const kParticleShapes[] = {"spark", "square", "circle", "triangle", nullptr};
+
 const reflect::FieldDesc kCrowdFxFields[] = {
     ZARO_FIELD_RANGE(CrowdFx, particles, kU32, "Sparks where an enemy reached the player; 0: none", 0, 1000),
     ZARO_FIELD(CrowdFx, color, kColor, "Colour of the sparks"),
@@ -42,6 +44,10 @@ const reflect::FieldDesc kCrowdFxFields[] = {
     ZARO_FIELD_RANGE(CrowdFx, shake, kF32, "Added to ScreenFx.shake per hit", 0.0, 1.0),
     ZARO_FIELD_RANGE(CrowdFx, flash, kF32, "Added to ScreenFx.flash per hit", 0.0, 1.0),
     ZARO_FIELD_RANGE(CrowdFx, player_flash, kF32, "Shape.flash set on shapes following the player per hit", 0.0, 1.0),
+    ZARO_FIELD_ENUM(CrowdFx, shape, "spark: a soft streak of light; square, circle, triangle: a solid piece that spins and shrinks",
+                    kParticleShapes),
+    ZARO_FIELD_RANGE(CrowdFx, spin, kF32, "Solid pieces: fastest turn in degrees per second, either way (the slowest is 40% of it)", 0.0,
+                     36000.0),
 };
 
 const char* const kEmitterFollows[] = {"none", "player", nullptr};
@@ -64,6 +70,10 @@ const reflect::FieldDesc kParticleEmitterFields[] = {
     ZARO_FIELD_RANGE(ParticleEmitter, drag, kF32, "Speed lost per second (exponential)", 0.0, 100.0),
     ZARO_FIELD(ParticleEmitter, direction, kF32, "Degrees; 0 is +x and +90 is +z (down on the screen), as Transform"),
     ZARO_FIELD_RANGE(ParticleEmitter, spread, kF32, "Degrees around the direction; 360: every way", 0.0, 360.0),
+    ZARO_FIELD_ENUM(ParticleEmitter, shape, "spark: a soft streak of light; square, circle, triangle: a solid piece that spins and shrinks",
+                    kParticleShapes),
+    ZARO_FIELD_RANGE(ParticleEmitter, spin, kF32, "Solid pieces: fastest turn in degrees per second, either way (the slowest is 40% of it)", 0.0,
+                     36000.0),
 };
 
 const char* const kCameraFollows[] = {"player", "none", nullptr};

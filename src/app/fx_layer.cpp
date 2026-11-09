@@ -73,7 +73,7 @@ render::PostSettings post_settings(const FxLayer* l) {
 
 // Queues a burst for the next frame, when there is a GPU to draw it and room in the frame's list.
 void queue_burst(FxLayer* l, float x, float y, float z, uint32_t count, uint32_t color, float intensity, float speed,
-                 float life, float size, float drag, float direction, float spread) {
+                 float life, float size, float drag, float direction, float spread, uint32_t shape, float spin) {
     if (!l->particles || !count || l->burst_count == render::kMaxBurstsPerFrame) return;
     render::ParticleBurst& b = l->bursts[l->burst_count];
     b.position[0] = x;
@@ -89,6 +89,8 @@ void queue_burst(FxLayer* l, float x, float y, float z, uint32_t count, uint32_t
     b.direction = direction;
     b.spread = spread;
     b.seed = (uint32_t)(l->ticks * 2654435761u) ^ (l->burst_count * 40503u + 1u);
+    b.shape = shape;
+    b.spin = spin;
     l->burst_count++;
 }
 
@@ -198,7 +200,8 @@ void step_fx(FxLayer* l, const sim::Crowd* crowd, ShapeLayer* shapes, const uint
             const sim::CrowdFx* fx = own ? own : first_fx;
             for (uint32_t h = i; h < end && h < kMaxHitBurstsPerTick; ++h) {
                 queue_burst(l, xz[h * 2], kSparkHeight, xz[h * 2 + 1], fx->particles, fx->color, fx->intensity,
-                            fx->speed, fx->life, fx->size, 3.0f, 0.0f, kFullCircle);
+                            fx->speed, fx->life, fx->size, 3.0f, 0.0f, kFullCircle, fx->shape,
+                            fx->spin * kRadiansPerDegree);
             }
             if (screen) {
                 screen->shake = clamp01(screen->shake + fx->shake * (float)(end - i));
@@ -233,7 +236,7 @@ void step_fx(FxLayer* l, const sim::Crowd* crowd, ShapeLayer* shapes, const uint
         }
         queue_burst(l, at[0] + (follow ? px : 0.0f), at[1], at[2] + (follow ? pz : 0.0f), count, e.color, e.intensity,
                     e.speed, e.life, e.size, e.drag, (e.direction + turn) * kRadiansPerDegree,
-                    e.spread * kRadiansPerDegree);
+                    e.spread * kRadiansPerDegree, e.shape, e.spin * kRadiansPerDegree);
     }
 }
 
