@@ -1056,6 +1056,23 @@ Status of all entries below: **accepted, 2026-11-01**.
   obstacle walls) are seen edge-on or from their tops; a flat game draws with shapes. A shape on
   the ground needs a small height (`position` y) to stay above the ground plane, as in perspective.
 
+## D-039 Open arenas and a choice of ground pattern
+
+- **Status**: accepted, 2026-11-09. Extends D-038.
+- **Decision**: `CrowdArena.obstacles` (default true) turns the obstacles scattered from the seed on
+  or off. With false the simulation has no blocked cell, so enemies and the player cross the arena
+  freely. `ArenaLook.pattern` picks what is drawn on the ground: `grid` (the default: lines with a
+  halo), `lines` (sharp only), `dots` at the crossings, or `none`.
+- **Why**: a flat 2D game has no use for boxes, and from straight above they read as dark patches
+  on the ground. Hiding them would still leave enemies walking around things nobody can see, so the
+  switch is in the simulation rather than in the look. The defaults keep existing scenes and how
+  their crowds move.
+- **Consequences**: `obstacles` is gameplay, so `scene::world_hash` covers it: adding the field moved
+  the golden hash of every scene with a `CrowdArena` once, and turning it off changes a scene's run,
+  because the seed's random numbers then go to spawning alone and enemies no longer path around
+  anything. `pattern` is visual only (D-005). There are no flat obstacles; a game that wants them
+  later adds them as a new option.
+
 ## M2 result (2026-11-01)
 
 M2 (agent workflow, D-016) is done. An agent can now build a scene end to end through the CLI:

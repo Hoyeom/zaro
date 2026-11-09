@@ -87,10 +87,10 @@ inline bool is_blocked(const Crowd* c, float x, float z) {
     return c->blocked[cell_index(c, x, z)] != 0;
 }
 
-void build_arena(Crowd* c, Rng& rng) {
+void build_arena(Crowd* c, Rng& rng, bool obstacles) {
     const uint32_t g = c->g;
     const uint32_t center = g / 2;
-    const uint32_t rects = g / 4;
+    const uint32_t rects = obstacles ? g / 4 : 0;
     for (uint32_t r = 0; r < rects; ++r) {
         const uint32_t w = 2 + rng_next(rng) % 7, h = 2 + rng_next(rng) % 7;
         const uint32_t x0 = 2 + rng_next(rng) % (g - w - 4), z0 = 2 + rng_next(rng) % (g - h - 4);
@@ -375,7 +375,7 @@ Crowd* create_crowd(const CrowdConfig& cfg) {
     for (uint32_t k = 0; k < c->kinds; ++k) memset(c->kind + c->first[k], (int)k, c->live[k]);
 
     Rng rng = rng_seed(cfg.seed, 1);
-    build_arena(c, rng);
+    build_arena(c, rng, cfg.obstacles);
     c->px = c->prev_px = (float)c->g * 0.5f;
     c->pz = c->prev_pz = (float)c->g * 0.5f;
     const float size = (float)c->g;

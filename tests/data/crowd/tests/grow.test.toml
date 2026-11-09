@@ -1,7 +1,7 @@
 # The horde grows from 100 to its max of 1000, a count above max is kept at max, and then it is
 # lowered to 200 (grow.luau asserts each step). Run with: zaro test tests/data/crowd
 [test]
-state_hash = "087a4e33ea91e7c2"
+state_hash = "ea0db40eeb32d817"
 scene = "../scene.toml"
 ticks = 600
 

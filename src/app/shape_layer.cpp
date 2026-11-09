@@ -305,6 +305,7 @@ void shape_crowd_scene(ShapeLayer* l, render::CrowdScene* scene, const uint32_t*
         out.grid_spacing = a->grid_spacing;
         linear_rgb(a->obstacle, a->obstacle_intensity, out.obstacle);
         linear_rgb(a->sky, 1.0f, out.sky);
+        out.pattern = a->pattern;
         scene->arena = &out;
     }
     for (uint32_t i = 0; i < l->count; ++i) {

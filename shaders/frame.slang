@@ -13,7 +13,7 @@ public struct Frame {
     public uint pad;
     public float4 sprite;  // enemy sprites: metres per pixel, fps, frame count, cull radius (0: cubes)
     public float4 right;   // the camera's right vector (xyz), for sprites facing it
-    public float4 ground;       // arena colours: ground rgb, w 1 when set (0: grey checkerboard)
+    public float4 ground;       // arena colours: ground rgb, w 1 + the pattern when set (0: grey checkerboard)
     public float4 grid;         // grid rgb, spacing
     public float4 obstacle;     // obstacle rgb
     public float4 sky;          // background and fog rgb

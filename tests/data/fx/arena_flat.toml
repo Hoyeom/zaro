@@ -1,0 +1,47 @@
+# Open ground for a flat game (D-039): no obstacles, and small dots instead of a grid.
+#   zaro screenshot tests/data/fx/arena_flat.toml flat.png --size 540x960 --frames 60
+[scene]
+name = "arena-flat"
+
+[[entity]]
+name = "arena"
+[entity.CrowdArena]
+grid_size = 96
+seed = 3
+obstacles = false
+[entity.ArenaLook]
+grid = "#2a2a55"
+pattern = "dots"
+
+[[entity]]
+name = "horde"
+[entity.CrowdSpawner]
+count = 3000
+speed = 4.0
+[entity.CrowdShape]
+kind = "polygon"
+sides = 3
+size = 0.9
+color = "#ff2b6a"
+intensity = 1.4
+
+[[entity]]
+name = "player"
+[entity.PlayerController]
+speed = 8.0
+[entity.Shape]
+kind = "ring"
+follow = "player"
+position = [0.0, 0.06, 0.0]
+size = [1.5, 1.5]
+thickness = 0.16
+color = "#3de8ff"
+intensity = 3.0
+
+[[entity]]
+name = "view"
+[entity.Camera]
+projection = "orthographic"
+pitch = 90.0
+fov_axis = "shorter"
+extent = 30.0
